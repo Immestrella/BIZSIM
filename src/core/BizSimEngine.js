@@ -58,7 +58,7 @@ export class BizSimEngine {
         if (scoped) {
           const assetsData = this.extractAssetStatPayload(scoped);
           if (assetsData) {
-            this.data = this.buildEmpireDataFromSemanticAssets(assetsData);
+            this.data = this.buildFloorDataFromSemanticAssets(assetsData);
           }
 
           const worldData = this.extractWorldSimulationPayload(scoped);
@@ -70,7 +70,7 @@ export class BizSimEngine {
 
       // 3. 如果没有找到楼层数据，使用默认值
       if (!this.data) {
-        this.data = this.getDefaultEmpireData();
+        this.data = this.getDefaultFloorData();
       }
       if (!this.worldSimulation) {
         this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
@@ -86,7 +86,7 @@ export class BizSimEngine {
       return true;
     } catch (error) {
       console.error('[BizSim] 初始化失败:', error);
-      this.data = this.getDefaultEmpireData();
+      this.data = this.getDefaultFloorData();
       this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
       this.initialized = false;
       return false;
@@ -105,7 +105,7 @@ export class BizSimEngine {
     cfg.tpl = compileTemplateWithUserPref(cfg.tplRaw, cfg.userPref);
   }
 
-  getDefaultEmpireData() {
+  getDefaultFloorData() {
     return deepClone(DEFAULT_DATA);
   }
 
@@ -136,7 +136,7 @@ export class BizSimEngine {
       const messageId = getCurrentMessageIdSafe();
       if (messageId !== null && messageId !== undefined) {
         const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
-        const semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromEmpireData(this.data));
+        const semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromFloorData(this.data));
 
         const floorPayload = {
           stat_data: {
@@ -179,12 +179,12 @@ export class BizSimEngine {
         console.log('[BizSim Debug] scoped:', scoped);
 
         if (scoped) {
-          // 提取 empireData
+          // 提取 floorData
           const assetsData = this.extractAssetStatPayload(scoped);
           console.log('[BizSim Debug] assetsData:', assetsData);
 
           if (assetsData) {
-            this.data = this.buildEmpireDataFromSemanticAssets(assetsData);
+            this.data = this.buildFloorDataFromSemanticAssets(assetsData);
           }
 
           // 提取 worldSimulation
@@ -197,7 +197,7 @@ export class BizSimEngine {
 
           // 如果没有找到楼层数据，使用默认值
           if (!this.data) {
-            this.data = this.getDefaultEmpireData();
+            this.data = this.getDefaultFloorData();
           }
           if (!this.worldSimulation) {
             this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
@@ -211,7 +211,7 @@ export class BizSimEngine {
 
       // 楼层变量中无数据，重置为默认
       console.log('[BizSim Debug] 楼层变量中无数据，重置为默认值');
-      this.data = this.getDefaultEmpireData();
+      this.data = this.getDefaultFloorData();
       this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
       console.log('[BizSim] 楼层变量中无数据，已重置为默认值');
       console.log('[BizSim Debug] 重置后的 this.data:', this.data);

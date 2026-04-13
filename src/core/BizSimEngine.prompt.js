@@ -6,15 +6,15 @@ export const BIZSIM_ENGINE_PROMPT_METHODS = {
     return `【${title}】\n${body}`;
   },
 
-  async buildSimulationPrompt({ historyText = '', empireDataText = '', worldStateText = '', useHistory = true } = {}) {
+  async buildSimulationPrompt({ historyText = '', floorDataText = '', worldStateText = '', useHistory = true } = {}) {
     const breakPrompt = String(this.getPromptTemplate('BREAK_PROMPT') || '').trim();
     const composeTemplate = String(this.getPromptTemplate('COMPOSE_PROMPT') || '{{BREAK_PROMPT}}\n\n{{CORE_PROMPT_BLOCK}}').trim();
 
-    const includeEmpireData = this.config.SIMULATION?.includeEmpireData !== false;
+    const includeFloorData = this.config.SIMULATION?.includeFloorData !== false;
     const includeWorldState = this.config.SIMULATION?.includeWorldState !== false;
 
     const currentWorldbookContext = await this.buildWorldbookContext();
-    const historicalAssetContext = includeEmpireData
+    const historicalAssetContext = includeFloorData
       ? this.buildFloorVariableContext(this.config.SIMULATION?.assetHistoryFloors || 10, '历史楼层资产变量', 'stat')
       : '';
     const historicalWorldContext = includeWorldState
@@ -34,14 +34,14 @@ export const BIZSIM_ENGINE_PROMPT_METHODS = {
       : '';
 
     let currentAssetText = '';
-    if (includeEmpireData) {
+    if (includeFloorData) {
       const latestSemanticAssets = this.getCurrentFloorSemanticAssets?.();
       if (latestSemanticAssets && typeof latestSemanticAssets === 'object') {
         currentAssetText = JSON.stringify(latestSemanticAssets, null, 2);
       }
     }
 
-    const currentAssetBlock = includeEmpireData && currentAssetText
+    const currentAssetBlock = includeFloorData && currentAssetText
       ? this.buildContextBlock('当前资产模块', currentAssetText)
       : '';
     const currentWorldBlock = includeWorldState && worldStateText
@@ -58,7 +58,7 @@ export const BIZSIM_ENGINE_PROMPT_METHODS = {
 
     const corePromptBlock = buildPromptFromScaffold(tpl, {
       historyText: [modeSection, historyFloorInfoBlock].filter(Boolean).join('\n\n'),
-      empireText: currentAssetBlock,
+      floorText: currentAssetBlock,
       worldText: currentWorldBlock,
       placeholders: {
         HISTORY_FLOOR_INFO_BLOCK: historyFloorInfoBlock,

@@ -125,7 +125,7 @@ export function saveSimulationSettings(ui, silent = false) {
   const historyLimit = Number.parseInt(ui.byId('sim-history-limit')?.value, 10);
   const assetHistoryFloors = Number.parseInt(ui.byId('sim-asset-history-floors')?.value, 10);
   const worldHistoryFloors = Number.parseInt(ui.byId('sim-world-history-floors')?.value, 10);
-  const includeEmpireData = !!ui.byId('sim-include-empire-data')?.checked;
+  const includeFloorData = !!ui.byId('sim-include-empire-data')?.checked;
   const includeWorldState = !!ui.byId('sim-include-world-state')?.checked;
   const retryCount = Number.parseInt(ui.byId('sim-retry-count')?.value, 10);
   const repairOnParseError = !!ui.byId('sim-repair-on-parse')?.checked;
@@ -148,7 +148,7 @@ export function saveSimulationSettings(ui, silent = false) {
 
   ui.engine.config.SIMULATION.mode = simulationMode;
   ui.engine.config.SIMULATION.autoSave = autoSave;
-  ui.engine.config.SIMULATION.includeEmpireData = includeEmpireData;
+  ui.engine.config.SIMULATION.includeFloorData = includeFloorData;
   ui.engine.config.SIMULATION.includeWorldState = includeWorldState;
   ui.engine.config.SIMULATION.repairOnParseError = repairOnParseError;
   ui.engine.config.SIMULATION.autoRunEnabled = autoRunEnabled;
@@ -198,7 +198,7 @@ export function resetSimulationSettings(ui) {
   if (ui.byId('sim-history-limit')) ui.byId('sim-history-limit').value = ui.engine.config.SIMULATION.historyLimit;
   if (ui.byId('sim-asset-history-floors')) ui.byId('sim-asset-history-floors').value = ui.engine.config.SIMULATION.assetHistoryFloors;
   if (ui.byId('sim-world-history-floors')) ui.byId('sim-world-history-floors').value = ui.engine.config.SIMULATION.worldHistoryFloors;
-  if (ui.byId('sim-include-empire-data')) ui.byId('sim-include-empire-data').checked = ui.engine.config.SIMULATION.includeEmpireData;
+  if (ui.byId('sim-include-empire-data')) ui.byId('sim-include-empire-data').checked = ui.engine.config.SIMULATION.includeFloorData;
   if (ui.byId('sim-include-world-state')) ui.byId('sim-include-world-state').checked = ui.engine.config.SIMULATION.includeWorldState;
   if (ui.byId('sim-worldbook-name')) ui.byId('sim-worldbook-name').value = ui.engine.config.SIMULATION.worldbookName || '';
   if (ui.byId('sim-retry-count')) ui.byId('sim-retry-count').value = ui.engine.config.SIMULATION.retryCount;

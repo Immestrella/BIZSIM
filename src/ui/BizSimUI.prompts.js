@@ -34,10 +34,10 @@ function memoSerialize(ui, slot, value) {
 async function buildLivePromptPreview(ui) {
   const historyLimit = Number(ui.engine.config.SIMULATION?.historyLimit) || 10;
   const historyText = ui.engine.formatHistoryText(getChatHistorySafe(historyLimit));
-  const empireDataText = memoSerialize(ui, 'empire', ui.engine.data || {});
+  const floorDataText = memoSerialize(ui, 'empire', ui.engine.data || {});
   const worldStateText = memoSerialize(ui, 'world', ui.engine.worldSimulation || {});
   const useHistory = !!ui.byId('sim-use-history')?.checked;
-  return ui.engine.buildSimulationPrompt({ historyText, empireDataText, worldStateText, useHistory });
+  return ui.engine.buildSimulationPrompt({ historyText, floorDataText, worldStateText, useHistory });
 }
 
 export function setPromptViewMode(ui, mode) {

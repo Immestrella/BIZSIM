@@ -108,12 +108,12 @@ export const BIZSIM_ENGINE_VALIDATION_METHODS = {
 
   /**
    * 校验资产表格约束
-   * @param {Object} empireData - 资产数据
+   * @param {Object} floorData - 资产数据
    * @returns {Object} { valid: boolean, issues: Array, repaired: Object }
    */
-  validateEmpireDataConstraints(empireData) {
+  validateFloorDataConstraints(floorData) {
     const issues = [];
-    const repaired = deepClone(empireData || {});
+    const repaired = deepClone(floorData || {});
 
     // 单行表约束: 集团架构表、资产总览表
     const singleRowTables = ['sheet_bizStruct', 'sheet_assetOVW0'];
@@ -187,14 +187,14 @@ export const BIZSIM_ENGINE_VALIDATION_METHODS = {
     result.worldSimulation.tracks = trackValidation.tracks;
 
     // 2. 校验资产数据约束
-    const empireData = result?.empireData;
-    if (empireData) {
-      const empireValidation = this.validateEmpireDataConstraints(empireData);
+    const floorData = result?.floorData;
+    if (floorData) {
+      const empireValidation = this.validateFloorDataConstraints(floorData);
       if (empireValidation.issues.length > 0) {
         allIssues.push(...empireValidation.issues);
         autoRepaired = true;
       }
-      result.empireData = empireValidation.repaired;
+      result.floorData = empireValidation.repaired;
     }
 
     // 3. 校验 checks 字段
@@ -317,12 +317,12 @@ export const BIZSIM_ENGINE_VALIDATION_METHODS = {
   /**
    * 校验并修复员工审计数据
    * 集团架构表的员工审计应该等于各业务板块人员结构的汇总
-   * @param {Object} empireData - 资产数据
+   * @param {Object} floorData - 资产数据
    * @returns {Object} { valid: boolean, repaired: Object, issues: Array }
    */
-  validateAndRepairStaffAudit(empireData) {
+  validateAndRepairStaffAudit(floorData) {
     const issues = [];
-    const repaired = deepClone(empireData || {});
+    const repaired = deepClone(floorData || {});
 
     const bizStruct = repaired.sheet_bizStruct;
     const bizSegments = repaired.sheet_bizSegments;

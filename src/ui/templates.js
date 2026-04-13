@@ -388,7 +388,7 @@ export function createMainPanelHtml(engine) {
               <label><input type="checkbox" id="sim-use-history" checked> 使用聊天历史</label>
             </div>
             <div class="bizsim-form-group">
-              <label><input type="checkbox" id="sim-include-empire-data" ${engine.config.SIMULATION.includeEmpireData ? 'checked' : ''}> 注入资产状态</label>
+              <label><input type="checkbox" id="sim-include-empire-data" ${engine.config.SIMULATION.includeFloorData ? 'checked' : ''}> 注入资产状态</label>
             </div>
             <div class="bizsim-form-group">
               <label><input type="checkbox" id="sim-include-world-state" ${engine.config.SIMULATION.includeWorldState ? 'checked' : ''}> 注入世界推演状态</label>

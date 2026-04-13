@@ -144,9 +144,9 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
     }
   },
 
-  normalizeEmpireData(input) {
+  normalizeFloorData(input) {
     const keys = ['sheet_bizStruct', 'sheet_rlEst02b', 'sheet_cashInv1a', 'sheet_assetOVW0', 'sheet_luxuryAssets', 'sheet_bizSegments', 'sheet_dbt4Lst4'];
-    const current = this.data || this.getDefaultEmpireData();
+    const current = this.data || this.getDefaultFloorData();
     const out = {};
     for (const key of keys) {
       const content = input?.[key]?.content;
@@ -260,12 +260,12 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
     const semanticAssetsRaw = parsed?.stat_data?.bizsim_assets;
     const worldStateRaw = parsed?.stat_data?.bizsim_world_state;
 
-    let normalizedEmpireData;
+    let normalizedFloorData;
     if (semanticAssetsRaw && typeof semanticAssetsRaw === 'object') {
       const semanticAssets = this.normalizeBizsimAssetsPayload(semanticAssetsRaw);
-      normalizedEmpireData = this.buildEmpireDataFromSemanticAssets(semanticAssets);
+      normalizedFloorData = this.buildFloorDataFromSemanticAssets(semanticAssets);
     } else {
-      normalizedEmpireData = this.normalizeEmpireData(this.data);
+      normalizedFloorData = this.normalizeFloorData(this.data);
     }
 
     return {
@@ -273,7 +273,7 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
         world_analysis: Array.isArray(parsed?._chainOfThought?.world_analysis) ? parsed._chainOfThought.world_analysis : ['1. 缺少 world_analysis，已由系统兜底。'],
         empire_audit: Array.isArray(parsed?._chainOfThought?.empire_audit) ? parsed._chainOfThought.empire_audit : ['1. 缺少 empire_audit，已由系统兜底。'],
       },
-      empireData: normalizedEmpireData,
+      floorData: normalizedFloorData,
       worldSimulation: this.normalizeWorldSimulation(worldStateRaw),
     };
   },
@@ -284,10 +284,10 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
     try {
       const historyLimit = Number(this.config.SIMULATION?.historyLimit) || 10;
       const historyText = useHistory ? this.formatHistoryText(getChatHistorySafe(historyLimit)) : '';
-      const empireDataText = JSON.stringify(this.data, null, 2);
+      const floorDataText = JSON.stringify(this.data, null, 2);
       const worldStateText = JSON.stringify(this.worldSimulation, null, 2);
 
-      const prompt = await this.buildSimulationPrompt({ historyText, empireDataText, worldStateText, useHistory });
+      const prompt = await this.buildSimulationPrompt({ historyText, floorDataText, worldStateText, useHistory });
       this.lastPromptSnapshot = prompt;
       this.lastPromptBuiltAt = new Date().toISOString();
 
@@ -315,16 +315,16 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
       const previousWorldSimulation = this.worldSimulation;
       const normalized = this.normalizeSimulationOutput(parsed);
       const validationResult = this.validateAIParsedResult(normalized, {
-        empireData: previousData,
+        floorData: previousData,
         worldSimulation: previousWorldSimulation,
       });
       const blockingIssues = Array.isArray(validationResult?.blockingIssues) ? validationResult.blockingIssues : [];
       const warningIssues = Array.isArray(validationResult?.warningIssues) ? validationResult.warningIssues : [];
 
-      if (normalized.empireData) this.data = normalized.empireData;
+      if (normalized.floorData) this.data = normalized.floorData;
       if (normalized.worldSimulation) this.worldSimulation = normalized.worldSimulation;
 
-      const syncResult = await this.syncLatestFloorVariables(normalized.empireData, normalized.worldSimulation);
+      const syncResult = await this.syncLatestFloorVariables(normalized.floorData, normalized.worldSimulation);
       if (!syncResult?.success) {
         this.data = previousData;
         this.worldSimulation = previousWorldSimulation;
@@ -338,7 +338,7 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
         };
       }
 
-      if (syncResult.normalizedEmpireData) this.data = syncResult.normalizedEmpireData;
+      if (syncResult.normalizedFloorData) this.data = syncResult.normalizedFloorData;
       if (syncResult.normalizedWorldSimulation) this.worldSimulation = syncResult.normalizedWorldSimulation;
 
       this.validateCrossSheetIntegrity();
@@ -348,7 +348,7 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
         success: true,
         data: {
           ...normalized,
-          empireData: this.data,
+          floorData: this.data,
           worldSimulation: this.worldSimulation,
           floorSync: {
             messageId: syncResult.messageId,

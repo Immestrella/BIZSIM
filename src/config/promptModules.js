@@ -145,7 +145,7 @@ export function getBuiltInBlockMetadata(id) {
   return metadata;
 }
 
-const DISALLOWED_PLACEHOLDER_PATTERN = /\{\{(HISTORY|EMPIRE_DATA|WORLD_STATE|HISTORY_BLOCK|EMPIRE_DATA_BLOCK|WORLD_STATE_BLOCK)\}\}/;
+const DISALLOWED_PLACEHOLDER_PATTERN = /\{\{(HISTORY|FLOOR_DATA|WORLD_STATE|HISTORY_BLOCK|FLOOR_DATA_BLOCK|WORLD_STATE_BLOCK)\}\}/;
 
 function isValidCurrentScaffold(scaffold) {
   if (!Array.isArray(scaffold) || scaffold.length === 0) return false;

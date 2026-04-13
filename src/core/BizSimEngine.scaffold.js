@@ -202,7 +202,7 @@ function normalizeUserPreference(prefLike) {
  * 用于 buildSimulationPrompt 中将块拼接成最终提示词
  *
  * @param {Object} tpl - 编译后的模板
- * @param {Object} dynamicContent - 动态内容 { historyText, empireText, worldText }
+ * @param {Object} dynamicContent - 动态内容 { historyText, floorText, worldText }
  * @returns {string} 拼接后的完整提示词
  */
 export function buildPromptFromScaffold(tpl, dynamicContent = {}) {

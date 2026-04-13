@@ -124,17 +124,17 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     return rows.map((row) => this.normalizeSemanticRowObject(row, schema.fields, auditLogs, tableName));
   },
 
-  buildSemanticAssetsFromEmpireData(empireData) {
+  buildSemanticAssetsFromFloorData(floorData) {
     const schemaMap = this.getSemanticTableMap();
     const out = {};
     for (const [tableName, schema] of Object.entries(schemaMap)) {
-      const content = empireData?.[schema.sheetKey]?.content;
+      const content = floorData?.[schema.sheetKey]?.content;
       out[tableName] = this.matrixToSemanticRows(content, schema.fields, schema.type);
     }
     return out;
   },
 
-  buildEmpireDataFromSemanticAssets(semanticAssets) {
+  buildFloorDataFromSemanticAssets(semanticAssets) {
     const schemaMap = this.getSemanticTableMap();
     const out = {};
     for (const [tableName, schema] of Object.entries(schemaMap)) {
@@ -558,11 +558,11 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     return parsed;
   },
 
-  buildLatestFloorVariablesPayload(empireData, worldSimulation) {
-    const normalizedEmpireData = this.normalizeEmpireData(empireData);
+  buildLatestFloorVariablesPayload(floorData, worldSimulation) {
+    const normalizedFloorData = this.normalizeFloorData(floorData);
     const normalizedWorldSimulation = this.normalizeWorldSimulation(worldSimulation);
     const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
-    const semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromEmpireData(normalizedEmpireData));
+    const semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromFloorData(normalizedFloorData));
 
     return {
       stat_data: {
@@ -572,7 +572,7 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     };
   },
 
-  async syncLatestFloorVariables(empireData, worldSimulation) {
+  async syncLatestFloorVariables(floorData, worldSimulation) {
     const messageId = getCurrentMessageIdSafe();
     if (messageId === null || messageId === undefined) return false;
 
@@ -583,14 +583,14 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
       || this.extractWorldSimulationPayload(currentScoped)
     );
 
-    const normalizedEmpireData = this.validateAndNormalizeFloorJson(empireData);
+    const normalizedFloorData = this.validateAndNormalizeFloorJson(floorData);
     const normalizedWorldSimulation = this.validateAndNormalizeFloorJson(worldSimulation);
-    if (!normalizedEmpireData || !normalizedWorldSimulation) {
+    if (!normalizedFloorData || !normalizedWorldSimulation) {
       return { success: false, errors: ['楼层变量输入不是合法 JSON 对象'] };
     }
 
     try {
-      let semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromEmpireData(normalizedEmpireData));
+      let semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromFloorData(normalizedFloorData));
       let semanticValidation = this.validateSemanticAssetConstraints(semanticAssets);
       const autoRepairNotes = [];
       if (!semanticValidation.valid) {
@@ -603,15 +603,15 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
         return { success: false, errors: semanticValidation.issues };
       }
 
-      const normalizedEmpireFromSemantic = this.buildEmpireDataFromSemanticAssets(semanticAssets);
-      const payload = this.buildLatestFloorVariablesPayload(normalizedEmpireData, normalizedWorldSimulation);
+      const normalizedEmpireFromSemantic = this.buildFloorDataFromSemanticAssets(semanticAssets);
+      const payload = this.buildLatestFloorVariablesPayload(normalizedFloorData, normalizedWorldSimulation);
       insertOrAssignVariablesSafe(payload, { type: 'message', message_id: messageId });
       return {
         success: true,
         errors: [],
         messageId,
         replacedExisting: hadExistingFloorData,
-        normalizedEmpireData: normalizedEmpireFromSemantic,
+        normalizedFloorData: normalizedEmpireFromSemantic,
         normalizedWorldSimulation: this.normalizeWorldSimulation(normalizedWorldSimulation),
         schemaAuditLogs: [
           ...(Array.isArray(this.lastSchemaAuditLogs) ? this.lastSchemaAuditLogs : []),
