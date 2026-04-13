@@ -91,11 +91,8 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     font-family: var(--font-code); font-size: 12px; font-weight: bold; transition: var(--tr);
     background: rgba(var(--c-card), 0.98); border: 1px solid rgba(var(--c-prim), 0.5);
     padding: 6px 24px; border-radius: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-    max-width: calc(100% - 280px);
-    overflow: hidden;
-    z-index: 1;
 }
-.nos-container.folded .folded-summary { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; pointer-events: auto; }
+.nos-container.folded .folded-summary { transform: translateX(-50%) translateY(-10px) scale(1); opacity: 1; pointer-events: auto; }
 .nos-container.folded .nos-title { opacity: 0; }
 .fs-item { display: flex; align-items: center; gap: 8px; }
 .fs-item i { font-size: 1.1em; }
@@ -109,8 +106,6 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     gap: 10px;
     min-width: 0;
     flex: 0 0 auto;
-    position: relative;
-    z-index: 3;
 }
 
 #nos-time {
@@ -119,8 +114,6 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     font-size: 11px;
     white-space: nowrap;
     flex: 0 0 auto;
-    position: relative;
-    z-index: 3;
 }
 
 #runSimBtn {
@@ -165,12 +158,6 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
         text-overflow: ellipsis;
         white-space: nowrap;
         display: inline-block;
-    }
-
-    .folded-summary {
-        max-width: calc(100% - 140px);
-        padding: 6px 14px;
-        gap: 10px;
     }
 }
 
