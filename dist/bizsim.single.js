@@ -1936,10 +1936,7 @@ const BIZSIM_ENGINE_PROMPT_METHODS = {
 };
 
 // ---- src/core/BizSimEngine.js ----
-class BizSimEngine {
-  constructor() {
-    this.config = deepClone(BIZSIM_CONFIG);
-    this.data = null;
+this.data = null;
     this.worldSimulation = null;
     this.lastPromptSnapshot = '';
     this.lastPromptBuiltAt = null;
@@ -1955,16 +1952,38 @@ class BizSimEngine {
 
   async initialize() {
     try {
+      // 1. 从角色变量读取设置（全局持久）
+      const charVars = await getCharacterVariablesSafe();
+      const savedSettings = getByPath(charVars, `${this.config.VAR_PATH}.settings`);
+
+      if (savedSettings) {
+        if (savedSettings.LLM) {
+          this.config.LLM = { ...this.config.LLM, ...savedSettings.LLM };
+        }
+        if (savedSettings.SIMULATION) {
+          this.config.SIMULATION = { ...this.config.SIMULATION, ...savedSettings.SIMULATION };
+        }
+        if (savedSettings.AUDIT) {
+          this.config.AUDIT = { ...this.config.AUDIT, ...savedSettings.AUDIT };
+        }
+        if (savedSettings.prompts) {
+          this.promptTemplates = { ...this.promptTemplates, ...savedSettings.prompts };
+          if (!this.promptTemplates.CORE_PROMPT_BLOCK && this.promptTemplates.WORLD_SIMULATION) {
+            this.promptTemplates.CORE_PROMPT_BLOCK = this.promptTemplates.WORLD_SIMULATION;
+          }
+        }
+      }
+
+      // 2. 从楼层变量读取数据（每楼独立）
       const messageId = getCurrentMessageIdSafe();
-      const variables = messageId !== null && messageId !== undefined
+      const floorVars = messageId !== null && messageId !== undefined
         ? getMessageVariablesSafe(messageId)
         : null;
 
-      if (variables) {
-        const scoped = this.resolveFloorStatDataSource(variables);
-        const savedData = scoped || variables;
+      if (floorVars) {
+        const scoped = this.resolveFloorStatDataSource(floorVars);
+        const savedData = scoped || floorVars;
 
-        // 提取资产数据
         const empireData = savedData?.empireData || savedData?.bizsim_assets;
         const worldSimulation = savedData?.worldSimulation || savedData?.bizsim_world_state;
 
@@ -1978,24 +1997,6 @@ class BizSimEngine {
           this.worldSimulation = worldSimulation;
         } else {
           this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
-        }
-
-        // 提取设置
-        const settings = savedData?.settings;
-        if (settings?.LLM) {
-          this.config.LLM = { ...this.config.LLM, ...settings.LLM };
-        }
-        if (settings?.SIMULATION) {
-          this.config.SIMULATION = { ...this.config.SIMULATION, ...settings.SIMULATION };
-        }
-        if (settings?.AUDIT) {
-          this.config.AUDIT = { ...this.config.AUDIT, ...settings.AUDIT };
-        }
-        if (settings?.prompts) {
-          this.promptTemplates = { ...this.promptTemplates, ...settings.prompts };
-          if (!this.promptTemplates.CORE_PROMPT_BLOCK && this.promptTemplates.WORLD_SIMULATION) {
-            this.promptTemplates.CORE_PROMPT_BLOCK = this.promptTemplates.WORLD_SIMULATION;
-          }
         }
       } else {
         this.data = this.getDefaultEmpireData();
@@ -2018,7 +2019,6 @@ class BizSimEngine {
       return false;
     }
   }
-
   initializePromptTemplates() {
     const cfg = this.config.SIMULATION;
 
@@ -2050,26 +2050,13 @@ class BizSimEngine {
 
   async saveData() {
     try {
-      const messageId = getCurrentMessageIdSafe();
-      if (messageId === null || messageId === undefined) {
-        console.warn('[BizSim] 无法获取当前消息ID，跳过保存');
-        return false;
-      }
-
+      // 1. 保存设置到角色变量（全局持久）
       const safeLLM = {
         ...this.config.LLM,
         apiKey: this.config.LLM.persistApiKey ? this.config.LLM.apiKey : '',
       };
-
-      const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
-      const semanticAssets = this.normalizeBizsimAssetsPayload(
-        this.buildSemanticAssetsFromEmpireData(this.data)
-      );
-
-      const payload = {
-        stat_data: {
-          [assetsKey]: semanticAssets,
-          [worldStateKey]: this.worldSimulation,
+      const settingsPayload = {
+        [this.config.VAR_PATH]: {
           settings: {
             LLM: safeLLM,
             SIMULATION: this.config.SIMULATION,
@@ -2080,11 +2067,30 @@ class BizSimEngine {
           version: this.config.VERSION,
         },
       };
+      insertOrAssignVariablesSafe(settingsPayload);
 
-      insertOrAssignVariablesSafe(payload, { type: 'message', message_id: messageId });
+      // 2. 保存数据到楼层变量（每楼独立）
+      const messageId = getCurrentMessageIdSafe();
+      if (messageId !== null && messageId !== undefined) {
+        const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
+        const semanticAssets = this.normalizeBizsimAssetsPayload(
+          this.buildSemanticAssetsFromEmpireData(this.data)
+        );
+        const dataPayload = {
+          stat_data: {
+            [assetsKey]: semanticAssets,
+            [worldStateKey]: this.worldSimulation,
+          },
+        };
+        insertOrAssignVariablesSafe(dataPayload, { type: 'message', message_id: messageId });
+      }
+
       return true;
     } catch (error) {
       console.error('[BizSim] 保存失败:', error);
+      return false;
+    }
+  }
       return false;
     }
   }
@@ -2093,9 +2099,14 @@ class BizSimEngine {
     return this.promptTemplates?.[key] || PROMPTS[key] || '';
   }
 
-  async reloadFromVariables() {
+
+Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_METHODS);
+Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_PROMPT_METHODS);
+Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_VALIDATION_METHODS);
+Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_CONTEXT_METHODS);
+  async reloadFromFloorVariables() {
     try {
-      console.log('[BizSim Debug] reloadFromVariables() 开始执行');
+      console.log('[BizSim Debug] reloadFromFloorVariables() 开始执行');
       const messageId = getCurrentMessageIdSafe();
       console.log('[BizSim Debug] currentMessageId:', messageId);
 
@@ -2109,7 +2120,7 @@ class BizSimEngine {
         const savedData = scoped || variables;
         console.log('[BizSim Debug] savedData:', savedData);
 
-        // 提取资产数据
+        // 只提取资产数据（设置从角色变量读取，不在此处更新）
         const empireData = savedData?.empireData || savedData?.bizsim_assets;
         const worldSimulation = savedData?.worldSimulation || savedData?.bizsim_world_state;
 
@@ -2129,27 +2140,6 @@ class BizSimEngine {
           this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
         }
 
-        // 提取设置
-        const settings = savedData?.settings;
-        if (settings?.LLM) {
-          this.config.LLM = { ...this.config.LLM, ...settings.LLM };
-        }
-        if (settings?.SIMULATION) {
-          this.config.SIMULATION = { ...this.config.SIMULATION, ...settings.SIMULATION };
-        }
-        if (settings?.AUDIT) {
-          this.config.AUDIT = { ...this.config.AUDIT, ...settings.AUDIT };
-        }
-        if (settings?.prompts) {
-          this.promptTemplates = { ...this.promptTemplates, ...settings.prompts };
-          if (!this.promptTemplates.CORE_PROMPT_BLOCK && this.promptTemplates.WORLD_SIMULATION) {
-            this.promptTemplates.CORE_PROMPT_BLOCK = this.promptTemplates.WORLD_SIMULATION;
-          }
-        }
-
-        // 重新初始化提示词模板
-        this.initializePromptTemplates();
-
         console.log('[BizSim] 已从楼层变量重新加载数据');
         console.log('[BizSim Debug] 加载后的 this.data:', this.data);
         return true;
@@ -2168,10 +2158,6 @@ class BizSimEngine {
     }
   }
 }
-
-Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_METHODS);
-Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_PROMPT_METHODS);
-Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_VALIDATION_METHODS);
 
 // ---- src/ui/templates.js ----
 function createMainPanelHtml(engine) {
