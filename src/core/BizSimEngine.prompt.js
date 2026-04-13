@@ -15,10 +15,10 @@ export const BIZSIM_ENGINE_PROMPT_METHODS = {
 
     const currentWorldbookContext = await this.buildWorldbookContext();
     const historicalStatContext = includeEmpireData
-      ? this.buildFloorVariableContext(this.config.SIMULATION?.floorStatHistoryLimit || 10, '历史楼层资产统计', 'stat')
+      ? this.buildFloorVariableContext(this.config.SIMULATION?.assetHistoryFloors || 10, '历史楼层资产统计', 'stat')
       : '';
     const historicalWorldContext = includeWorldState
-      ? this.buildFloorVariableContext(this.config.SIMULATION?.floorWorldHistoryLimit || 10, '历史楼层世界推演', 'world')
+      ? this.buildFloorVariableContext(this.config.SIMULATION?.worldHistoryFloors || 10, '历史楼层世界推演', 'world')
       : '';
     const currentFloorStatJson = includeEmpireData ? this.buildCurrentFloorAssetStatJson() : '';
     const currentFloorWorldJson = includeWorldState ? this.buildCurrentFloorWorldSimulationJson() : '';

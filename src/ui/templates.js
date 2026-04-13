@@ -363,8 +363,8 @@ export function createMainPanelHtml(engine) {
             </div>
             <div class="bizsim-grid-3">
               <div class="bizsim-form-group"><label>历史正文楼数</label><input type="number" id="sim-history-limit" min="1" max="100" step="1" value="${engine.config.SIMULATION.historyLimit}"></div>
-              <div class="bizsim-form-group"><label>楼层资产统计</label><input type="number" id="sim-floor-stat-history-limit" min="1" max="100" step="1" value="${engine.config.SIMULATION.floorStatHistoryLimit}"></div>
-              <div class="bizsim-form-group"><label>楼层世界变量</label><input type="number" id="sim-floor-world-history-limit" min="1" max="100" step="1" value="${engine.config.SIMULATION.floorWorldHistoryLimit}"></div>
+              <div class="bizsim-form-group"><label>资产统计楼数</label><input type="number" id="sim-asset-history-floors" min="1" max="100" step="1" value="${engine.config.SIMULATION.assetHistoryFloors}"></div>
+              <div class="bizsim-form-group"><label>世界推演楼数</label><input type="number" id="sim-world-history-floors" min="1" max="100" step="1" value="${engine.config.SIMULATION.worldHistoryFloors}"></div>
             </div>
             <div class="bizsim-grid-3">
               <div class="bizsim-form-group"><label>视角前缀</label><input type="text" id="sim-track-prefix" value="${escapeHtml(engine.config.SIMULATION.trackPrefix)}"></div>

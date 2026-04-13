@@ -123,8 +123,8 @@ export function saveSimulationSettings(ui, silent = false) {
   const useHistory = !!ui.byId('sim-use-history')?.checked;
   const autoSave = !!ui.byId('sim-auto-save')?.checked;
   const historyLimit = Number.parseInt(ui.byId('sim-history-limit')?.value, 10);
-  const floorStatHistoryLimit = Number.parseInt(ui.byId('sim-floor-stat-history-limit')?.value, 10);
-  const floorWorldHistoryLimit = Number.parseInt(ui.byId('sim-floor-world-history-limit')?.value, 10);
+  const assetHistoryFloors = Number.parseInt(ui.byId('sim-asset-history-floors')?.value, 10);
+  const worldHistoryFloors = Number.parseInt(ui.byId('sim-world-history-floors')?.value, 10);
   const includeEmpireData = !!ui.byId('sim-include-empire-data')?.checked;
   const includeWorldState = !!ui.byId('sim-include-world-state')?.checked;
   const retryCount = Number.parseInt(ui.byId('sim-retry-count')?.value, 10);
@@ -155,8 +155,8 @@ export function saveSimulationSettings(ui, silent = false) {
   ui.engine.config.SIMULATION.worldbookName = ui.byId('sim-worldbook-name')?.value?.trim() || '';
 
   if (!Number.isNaN(historyLimit) && historyLimit > 0) ui.engine.config.SIMULATION.historyLimit = historyLimit;
-  if (!Number.isNaN(floorStatHistoryLimit) && floorStatHistoryLimit > 0) ui.engine.config.SIMULATION.floorStatHistoryLimit = floorStatHistoryLimit;
-  if (!Number.isNaN(floorWorldHistoryLimit) && floorWorldHistoryLimit > 0) ui.engine.config.SIMULATION.floorWorldHistoryLimit = floorWorldHistoryLimit;
+  if (!Number.isNaN(assetHistoryFloors) && assetHistoryFloors > 0) ui.engine.config.SIMULATION.assetHistoryFloors = assetHistoryFloors;
+  if (!Number.isNaN(worldHistoryFloors) && worldHistoryFloors > 0) ui.engine.config.SIMULATION.worldHistoryFloors = worldHistoryFloors;
   if (!Number.isNaN(retryCount) && retryCount >= 0) ui.engine.config.SIMULATION.retryCount = retryCount;
   if (!Number.isNaN(autoRunMinChars) && autoRunMinChars >= 0) ui.engine.config.SIMULATION.autoRunMinChars = autoRunMinChars;
   if (!Number.isNaN(autoRunCooldownSec) && autoRunCooldownSec >= 0) ui.engine.config.SIMULATION.autoRunCooldownSec = autoRunCooldownSec;
@@ -188,8 +188,8 @@ export function resetSimulationSettings(ui) {
   if (ui.byId('sim-use-history')) ui.byId('sim-use-history').checked = true;
   if (ui.byId('sim-auto-save')) ui.byId('sim-auto-save').checked = ui.engine.config.SIMULATION.autoSave;
   if (ui.byId('sim-history-limit')) ui.byId('sim-history-limit').value = ui.engine.config.SIMULATION.historyLimit;
-  if (ui.byId('sim-floor-stat-history-limit')) ui.byId('sim-floor-stat-history-limit').value = ui.engine.config.SIMULATION.floorStatHistoryLimit;
-  if (ui.byId('sim-floor-world-history-limit')) ui.byId('sim-floor-world-history-limit').value = ui.engine.config.SIMULATION.floorWorldHistoryLimit;
+  if (ui.byId('sim-asset-history-floors')) ui.byId('sim-asset-history-floors').value = ui.engine.config.SIMULATION.assetHistoryFloors;
+  if (ui.byId('sim-world-history-floors')) ui.byId('sim-world-history-floors').value = ui.engine.config.SIMULATION.worldHistoryFloors;
   if (ui.byId('sim-include-empire-data')) ui.byId('sim-include-empire-data').checked = ui.engine.config.SIMULATION.includeEmpireData;
   if (ui.byId('sim-include-world-state')) ui.byId('sim-include-world-state').checked = ui.engine.config.SIMULATION.includeWorldState;
   if (ui.byId('sim-worldbook-name')) ui.byId('sim-worldbook-name').value = ui.engine.config.SIMULATION.worldbookName || '';

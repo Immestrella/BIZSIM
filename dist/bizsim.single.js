@@ -217,8 +217,8 @@ const BIZSIM_CONFIG = {
     maxTracks: 10,
     trackPrefix: 'BG',
     historyLimit: 10,
-    floorStatHistoryLimit: 10,
-    floorWorldHistoryLimit: 10,
+    assetHistoryFloors: 10,
+    worldHistoryFloors: 10,
     worldbookName: '',
     worldbookSelectedUids: '',
     useActiveWorldbooks: true,
@@ -1830,10 +1830,10 @@ const BIZSIM_ENGINE_PROMPT_METHODS = {
 
     const currentWorldbookContext = await this.buildWorldbookContext();
     const historicalStatContext = includeEmpireData
-      ? this.buildFloorVariableContext(this.config.SIMULATION?.floorStatHistoryLimit || 10, '历史楼层资产统计', 'stat')
+      ? this.buildFloorVariableContext(this.config.SIMULATION?.assetHistoryFloors || 10, '历史楼层资产统计', 'stat')
       : '';
     const historicalWorldContext = includeWorldState
-      ? this.buildFloorVariableContext(this.config.SIMULATION?.floorWorldHistoryLimit || 10, '历史楼层世界推演', 'world')
+      ? this.buildFloorVariableContext(this.config.SIMULATION?.worldHistoryFloors || 10, '历史楼层世界推演', 'world')
       : '';
     const currentFloorStatJson = includeEmpireData ? this.buildCurrentFloorAssetStatJson() : '';
     const currentFloorWorldJson = includeWorldState ? this.buildCurrentFloorWorldSimulationJson() : '';
@@ -2465,8 +2465,8 @@ function createMainPanelHtml(engine) {
             </div>
             <div class="bizsim-grid-3">
               <div class="bizsim-form-group"><label>历史正文楼数</label><input type="number" id="sim-history-limit" min="1" max="100" step="1" value="${engine.config.SIMULATION.historyLimit}"></div>
-              <div class="bizsim-form-group"><label>楼层资产统计</label><input type="number" id="sim-floor-stat-history-limit" min="1" max="100" step="1" value="${engine.config.SIMULATION.floorStatHistoryLimit}"></div>
-              <div class="bizsim-form-group"><label>楼层世界变量</label><input type="number" id="sim-floor-world-history-limit" min="1" max="100" step="1" value="${engine.config.SIMULATION.floorWorldHistoryLimit}"></div>
+              <div class="bizsim-form-group"><label>资产统计楼数</label><input type="number" id="sim-asset-history-floors" min="1" max="100" step="1" value="${engine.config.SIMULATION.assetHistoryFloors}"></div>
+              <div class="bizsim-form-group"><label>世界推演楼数</label><input type="number" id="sim-world-history-floors" min="1" max="100" step="1" value="${engine.config.SIMULATION.worldHistoryFloors}"></div>
             </div>
             <div class="bizsim-grid-3">
               <div class="bizsim-form-group"><label>视角前缀</label><input type="text" id="sim-track-prefix" value="${escapeHtml(engine.config.SIMULATION.trackPrefix)}"></div>
@@ -3210,8 +3210,8 @@ function saveSimulationSettings(ui, silent = false) {
   const useHistory = !!ui.byId('sim-use-history')?.checked;
   const autoSave = !!ui.byId('sim-auto-save')?.checked;
   const historyLimit = Number.parseInt(ui.byId('sim-history-limit')?.value, 10);
-  const floorStatHistoryLimit = Number.parseInt(ui.byId('sim-floor-stat-history-limit')?.value, 10);
-  const floorWorldHistoryLimit = Number.parseInt(ui.byId('sim-floor-world-history-limit')?.value, 10);
+  const assetHistoryFloors = Number.parseInt(ui.byId('sim-asset-history-floors')?.value, 10);
+  const worldHistoryFloors = Number.parseInt(ui.byId('sim-world-history-floors')?.value, 10);
   const includeEmpireData = !!ui.byId('sim-include-empire-data')?.checked;
   const includeWorldState = !!ui.byId('sim-include-world-state')?.checked;
   const retryCount = Number.parseInt(ui.byId('sim-retry-count')?.value, 10);
@@ -3242,8 +3242,8 @@ function saveSimulationSettings(ui, silent = false) {
   ui.engine.config.SIMULATION.worldbookName = ui.byId('sim-worldbook-name')?.value?.trim() || '';
 
   if (!Number.isNaN(historyLimit) && historyLimit > 0) ui.engine.config.SIMULATION.historyLimit = historyLimit;
-  if (!Number.isNaN(floorStatHistoryLimit) && floorStatHistoryLimit > 0) ui.engine.config.SIMULATION.floorStatHistoryLimit = floorStatHistoryLimit;
-  if (!Number.isNaN(floorWorldHistoryLimit) && floorWorldHistoryLimit > 0) ui.engine.config.SIMULATION.floorWorldHistoryLimit = floorWorldHistoryLimit;
+  if (!Number.isNaN(assetHistoryFloors) && assetHistoryFloors > 0) ui.engine.config.SIMULATION.assetHistoryFloors = assetHistoryFloors;
+  if (!Number.isNaN(worldHistoryFloors) && worldHistoryFloors > 0) ui.engine.config.SIMULATION.worldHistoryFloors = worldHistoryFloors;
   if (!Number.isNaN(retryCount) && retryCount >= 0) ui.engine.config.SIMULATION.retryCount = retryCount;
   if (!Number.isNaN(autoRunMinChars) && autoRunMinChars >= 0) ui.engine.config.SIMULATION.autoRunMinChars = autoRunMinChars;
   if (!Number.isNaN(autoRunCooldownSec) && autoRunCooldownSec >= 0) ui.engine.config.SIMULATION.autoRunCooldownSec = autoRunCooldownSec;
@@ -3275,8 +3275,8 @@ function resetSimulationSettings(ui) {
   if (ui.byId('sim-use-history')) ui.byId('sim-use-history').checked = true;
   if (ui.byId('sim-auto-save')) ui.byId('sim-auto-save').checked = ui.engine.config.SIMULATION.autoSave;
   if (ui.byId('sim-history-limit')) ui.byId('sim-history-limit').value = ui.engine.config.SIMULATION.historyLimit;
-  if (ui.byId('sim-floor-stat-history-limit')) ui.byId('sim-floor-stat-history-limit').value = ui.engine.config.SIMULATION.floorStatHistoryLimit;
-  if (ui.byId('sim-floor-world-history-limit')) ui.byId('sim-floor-world-history-limit').value = ui.engine.config.SIMULATION.floorWorldHistoryLimit;
+  if (ui.byId('sim-asset-history-floors')) ui.byId('sim-asset-history-floors').value = ui.engine.config.SIMULATION.assetHistoryFloors;
+  if (ui.byId('sim-world-history-floors')) ui.byId('sim-world-history-floors').value = ui.engine.config.SIMULATION.worldHistoryFloors;
   if (ui.byId('sim-include-empire-data')) ui.byId('sim-include-empire-data').checked = ui.engine.config.SIMULATION.includeEmpireData;
   if (ui.byId('sim-include-world-state')) ui.byId('sim-include-world-state').checked = ui.engine.config.SIMULATION.includeWorldState;
   if (ui.byId('sim-worldbook-name')) ui.byId('sim-worldbook-name').value = ui.engine.config.SIMULATION.worldbookName || '';
