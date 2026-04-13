@@ -46,6 +46,7 @@ export class BizSimUI {
     this.currentWorldbookEntries = [];
     this.promptViewMode = 'preview';
     this.isSimulating = false;
+    this.historyViewMode = 'key';
   }
 
   initWorldbookPanel() {
@@ -275,6 +276,65 @@ export class BizSimUI {
   }
 
   attachEventListeners() {
+    const syncCornerInputsFromMain = () => {
+      const map = [
+        ['sim-auto-run-enabled', 'corner-auto-run-enabled'],
+        ['sim-auto-run-assistant-floor-interval', 'corner-auto-run-interval'],
+        ['sim-auto-run-cooldown', 'corner-auto-run-cooldown'],
+        ['sim-auto-run-min-chars', 'corner-auto-run-min-chars'],
+      ];
+
+      map.forEach(([fromId, toId]) => {
+        const from = this.byId(fromId);
+        const to = this.byId(toId);
+        if (!from || !to) return;
+        if (to.type === 'checkbox') to.checked = !!from.checked;
+        else to.value = from.value;
+      });
+    };
+
+    const syncMainInputsFromCorner = () => {
+      const map = [
+        ['corner-auto-run-enabled', 'sim-auto-run-enabled'],
+        ['corner-auto-run-interval', 'sim-auto-run-assistant-floor-interval'],
+        ['corner-auto-run-cooldown', 'sim-auto-run-cooldown'],
+        ['corner-auto-run-min-chars', 'sim-auto-run-min-chars'],
+      ];
+
+      map.forEach(([fromId, toId]) => {
+        const from = this.byId(fromId);
+        const to = this.byId(toId);
+        if (!from || !to) return;
+        if (from.type === 'checkbox') to.checked = !!from.checked;
+        else to.value = from.value;
+      });
+    };
+
+    const openCornerDrawer = () => {
+      const overlay = this.byId('bizsim-corner-overlay');
+      const drawer = this.byId('bizsim-corner-drawer');
+      syncCornerInputsFromMain();
+      overlay?.classList.add('active');
+      drawer?.classList.add('active');
+    };
+
+    const closeCornerDrawer = () => {
+      const overlay = this.byId('bizsim-corner-overlay');
+      const drawer = this.byId('bizsim-corner-drawer');
+      overlay?.classList.remove('active');
+      drawer?.classList.remove('active');
+    };
+
+    const openImmersiveModal = () => {
+      const modal = this.byId('bizsim-immersive-modal');
+      modal?.classList.add('active');
+    };
+
+    const closeImmersiveModal = () => {
+      const modal = this.byId('bizsim-immersive-modal');
+      modal?.classList.remove('active');
+    };
+
     this.$$('.bizsim-tab').forEach((tab) => {
       tab.addEventListener('click', (e) => {
         this.switchTab(e.currentTarget.dataset.tab);
@@ -300,7 +360,7 @@ export class BizSimUI {
     });
 
     this.byId('btn-open-settings-corner')?.addEventListener('click', () => {
-      this.switchTab('simulation');
+      openCornerDrawer();
     });
 
     this.byId('btn-hero-run')?.addEventListener('click', async () => {
@@ -308,8 +368,37 @@ export class BizSimUI {
     });
 
     this.byId('btn-hero-drill')?.addEventListener('click', () => {
+      openImmersiveModal();
+    });
+
+    this.byId('btn-close-settings-corner')?.addEventListener('click', () => {
+      closeCornerDrawer();
+    });
+
+    this.byId('bizsim-corner-overlay')?.addEventListener('click', () => {
+      closeCornerDrawer();
+    });
+
+    this.byId('btn-corner-open-full')?.addEventListener('click', () => {
+      closeCornerDrawer();
       this.switchTab('simulation');
-      this.log('已进入沉浸详情（一期暂复用推演设置页）');
+    });
+
+    this.byId('btn-corner-save')?.addEventListener('click', async () => {
+      syncMainInputsFromCorner();
+      await this.saveSimulationSettings();
+      this.log('角落设置已保存');
+      closeCornerDrawer();
+    });
+
+    this.byId('btn-close-immersive')?.addEventListener('click', () => {
+      closeImmersiveModal();
+    });
+
+    this.byId('bizsim-immersive-modal')?.addEventListener('click', (e) => {
+      if (e.target?.id === 'bizsim-immersive-modal') {
+        closeImmersiveModal();
+      }
     });
 
     this.byId('btn-open-simulation-tab')?.addEventListener('click', () => {
@@ -409,6 +498,18 @@ export class BizSimUI {
 
     this.byId('worldbook-entry-search')?.addEventListener('input', () => {
       this.renderWorldbookEntries(this.currentWorldbookEntries || []);
+    });
+
+    this.byId('btn-history-mode-key')?.addEventListener('click', () => {
+      this.historyViewMode = 'key';
+      this.log('沉浸模式：关键事件');
+      this.refreshDashboard();
+    });
+
+    this.byId('btn-history-mode-full')?.addEventListener('click', () => {
+      this.historyViewMode = 'full';
+      this.log('沉浸模式：完整历史');
+      this.refreshDashboard();
     });
 
     this.syncModelInputToSelect();

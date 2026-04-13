@@ -1,5 +1,28 @@
 import { escapeHtml } from '../utils/object.js';
 
+function parseAmountToNumber(text) {
+  const raw = String(text ?? '');
+  const m = raw.match(/-?\d+(?:\.\d+)?/);
+  if (!m) return NaN;
+  return Number.parseFloat(m[0]);
+}
+
+function buildHistoryRows(ui, limit = 24) {
+  const rows = Array.isArray(ui.engine.getHistoricalFloorStatDataContext?.(limit))
+    ? ui.engine.getHistoricalFloorStatDataContext(limit)
+    : [];
+
+  return rows.map((item) => {
+    const overview = item?.stat_data?.资产总览表 || {};
+    const liquid = parseAmountToNumber(overview?.流动资产);
+    return {
+      messageId: item?.message_id,
+      liquid,
+      summary: String(overview?.本轮变动摘要 || '').trim(),
+    };
+  }).filter((item) => Number.isFinite(item.liquid));
+}
+
 export function refreshDashboard(ui) {
   const container = ui.byId('dashboard-stats');
   if (!container) return;
@@ -53,6 +76,67 @@ export function refreshDashboard(ui) {
         <div class="bizsim-node">
           <div class="bizsim-node-title">${escapeHtml(track.id || '--')} · ${escapeHtml(track.characterName || '未命名视角')}</div>
           <div class="bizsim-node-meta">${escapeHtml(track.progress || '暂无进展')}</div>
+        </div>
+      `).join('');
+    }
+  }
+
+  const historyRows = buildHistoryRows(ui, 40);
+  const historyMode = ui.historyViewMode === 'full' ? 'full' : 'key';
+  const trendRow = ui.byId('dashboard-trend-row');
+  const trendCaption = ui.byId('dashboard-trend-caption');
+  const immersiveTrendRow = ui.byId('immersive-trend-row');
+  const immersiveTimeline = ui.byId('immersive-timeline');
+  const immersiveSummary = ui.byId('immersive-summary');
+  const immersiveSummaryMeta = ui.byId('immersive-summary-meta');
+  const historyModeKeyBtn = ui.byId('btn-history-mode-key');
+  const historyModeFullBtn = ui.byId('btn-history-mode-full');
+
+  if (historyModeKeyBtn) {
+    historyModeKeyBtn.setAttribute('aria-pressed', historyMode === 'key' ? 'true' : 'false');
+  }
+  if (historyModeFullBtn) {
+    historyModeFullBtn.setAttribute('aria-pressed', historyMode === 'full' ? 'true' : 'false');
+  }
+
+  const trendSource = historyRows.slice(-8);
+  const maxLiquid = trendSource.reduce((m, item) => Math.max(m, item.liquid), 0) || 1;
+  const trendBars = trendSource.length
+    ? trendSource.map((item) => {
+      const h = Math.max(8, Math.round((item.liquid / maxLiquid) * 46));
+      return `<div class="bizsim-trend-bar" style="height:${h}px;"></div>`;
+    }).join('')
+    : '<div class="bizsim-trend-bar" style="height:10px;"></div>';
+
+  if (trendRow) trendRow.innerHTML = trendBars;
+  if (immersiveTrendRow) immersiveTrendRow.innerHTML = trendBars;
+
+  if (trendCaption) {
+    trendCaption.textContent = trendSource.length
+      ? `最近 ${trendSource.length} 层资产脉搏（关键事件过滤）`
+      : '暂无历史资产数据';
+  }
+
+  const latestSummary = historyRows.slice(-1)[0]?.summary || (tracks.slice(0, 1)[0]?.summary || '暂无变化摘要');
+  if (immersiveSummary) immersiveSummary.textContent = latestSummary;
+  if (immersiveSummaryMeta) {
+    const latestId = historyRows.slice(-1)[0]?.messageId;
+    immersiveSummaryMeta.textContent = latestId !== undefined ? `楼层 ${latestId}` : '实时';
+  }
+
+  const timelineRows = historyMode === 'full'
+    ? historyRows.slice(-40)
+    : historyRows.filter((item) => !!item.summary).slice(-20);
+
+  if (immersiveTimeline) {
+    if (!timelineRows.length) {
+      immersiveTimeline.innerHTML = '<div class="bizsim-helper">暂无历史记录</div>';
+    } else {
+      immersiveTimeline.innerHTML = timelineRows.reverse().map((item) => `
+        <div class="bizsim-timeline-item">
+          <div class="bizsim-node-title">楼层 ${escapeHtml(String(item.messageId ?? '--'))}</div>
+          <div class="bizsim-node-meta">流动资产脉搏: ${escapeHtml(Number.isFinite(item.liquid) ? `${item.liquid}` : '--')}</div>
+          <div class="bizsim-node-meta">${escapeHtml(item.summary || '无摘要')}</div>
         </div>
       `).join('');
     }
