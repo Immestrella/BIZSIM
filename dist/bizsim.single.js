@@ -2557,7 +2557,7 @@ function createMainPanelHtml(engine) {
     }
 
     .bizsim-shell {
-      font-family: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+      font-family: Inter, "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
       color: var(--bizsim-text);
       background:
         radial-gradient(circle at top left, rgba(93, 211, 255, 0.18), transparent 32%),
@@ -2618,19 +2618,6 @@ function createMainPanelHtml(engine) {
       border: 1px solid var(--bizsim-line);
       font-size: 12px;
       white-space: nowrap;
-    }
-    .bizsim-chip-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: var(--bizsim-success);
-      box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.38);
-      animation: bizsim-pulse 2.6s ease-in-out infinite;
-    }
-    @keyframes bizsim-pulse {
-      0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.42); }
-      70% { box-shadow: 0 0 0 8px rgba(52, 211, 153, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
     }
     .bizsim-btn {
       border: 0;
@@ -2761,187 +2748,8 @@ function createMainPanelHtml(engine) {
     .bizsim-stat-label { color: var(--bizsim-muted); font-size: 12px; }
     .bizsim-stat-value { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
     .bizsim-stat-hint { color: #b8c5dc; font-size: 12px; }
-    .bizsim-dashboard-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.55fr); gap: 16px; }
+    .bizsim-dashboard-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr); gap: 16px; }
     .bizsim-dashboard-stack { display: grid; gap: 16px; }
-    .bizsim-dashboard-hero {
-      position: relative;
-      overflow: hidden;
-      min-height: 220px;
-      background:
-        radial-gradient(circle at 15% 15%, rgba(93, 211, 255, 0.22), transparent 42%),
-        radial-gradient(circle at 80% 70%, rgba(139, 92, 246, 0.2), transparent 48%),
-        linear-gradient(160deg, rgba(8, 16, 30, 0.96), rgba(11, 21, 39, 0.95));
-    }
-    .bizsim-dashboard-hero::after {
-      content: '';
-      position: absolute;
-      inset: auto -20% -80% -20%;
-      height: 220px;
-      background: radial-gradient(ellipse at center, rgba(93, 211, 255, 0.2), transparent 72%);
-      filter: blur(20px);
-      pointer-events: none;
-      animation: bizsim-drift 12s ease-in-out infinite alternate;
-    }
-    @keyframes bizsim-drift {
-      from { transform: translateX(-2%); }
-      to { transform: translateX(2%); }
-    }
-    .bizsim-hero-grid {
-      position: relative;
-      z-index: 1;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 16px;
-      align-items: start;
-    }
-    .bizsim-hero-title {
-      margin: 0;
-      font-size: 28px;
-      line-height: 1.15;
-      letter-spacing: -0.02em;
-    }
-    .bizsim-hero-subtitle {
-      margin: 10px 0 0;
-      color: #c4d2ea;
-      font-size: 13px;
-      max-width: 56ch;
-    }
-    .bizsim-metric-strip {
-      margin-top: 14px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .bizsim-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      color: #d4e1f6;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(255,255,255,0.04);
-      white-space: nowrap;
-    }
-    .bizsim-evolution-strip {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
-    }
-    .bizsim-trend-row {
-      margin-top: 12px;
-      display: grid;
-      grid-template-columns: repeat(8, minmax(0, 1fr));
-      gap: 6px;
-      align-items: end;
-      min-height: 62px;
-    }
-    .bizsim-trend-bar {
-      border-radius: 8px 8px 2px 2px;
-      background: linear-gradient(180deg, rgba(93,211,255,0.85), rgba(93,211,255,0.3));
-      border: 1px solid rgba(93,211,255,0.35);
-      min-height: 8px;
-    }
-    .bizsim-trend-caption {
-      margin-top: 6px;
-      color: var(--bizsim-muted);
-      font-size: 11px;
-    }
-    .bizsim-node {
-      border-radius: 14px;
-      padding: 12px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-      min-height: 88px;
-    }
-    .bizsim-node-title {
-      font-size: 12px;
-      color: #d9e4f6;
-      margin-bottom: 6px;
-    }
-    .bizsim-node-meta {
-      font-size: 12px;
-      color: var(--bizsim-muted);
-      line-height: 1.45;
-    }
-    .bizsim-corner-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.45);
-      backdrop-filter: blur(4px);
-      z-index: 1100;
-      display: none;
-    }
-    .bizsim-corner-overlay.active { display: block; }
-    .bizsim-corner-drawer {
-      position: fixed;
-      top: 0;
-      right: 0;
-      width: min(420px, 92vw);
-      height: 100vh;
-      background: linear-gradient(180deg, #0b1322 0%, #0a1220 100%);
-      border-left: 1px solid var(--bizsim-line);
-      box-shadow: -20px 0 40px rgba(0,0,0,0.36);
-      z-index: 1101;
-      transform: translateX(100%);
-      transition: transform .22s ease;
-      padding: 18px;
-      overflow: auto;
-    }
-    .bizsim-corner-drawer.active { transform: translateX(0); }
-    .bizsim-corner-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-    .bizsim-mini-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-    .bizsim-immersive-modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(3,8,16,0.78);
-      z-index: 1200;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 18px;
-    }
-    .bizsim-immersive-modal.active { display: flex; }
-    .bizsim-immersive-content {
-      width: min(1200px, 96vw);
-      max-height: 92vh;
-      overflow: auto;
-      background: linear-gradient(180deg, rgba(9,16,28,0.98), rgba(8,15,26,0.98));
-      border: 1px solid var(--bizsim-line);
-      border-radius: 20px;
-      padding: 16px;
-      box-shadow: 0 30px 60px rgba(0,0,0,0.45);
-    }
-    .bizsim-immersive-header {
-      position: sticky;
-      top: 0;
-      z-index: 2;
-      padding-bottom: 10px;
-      margin-bottom: 10px;
-      background: linear-gradient(180deg, rgba(9,16,28,0.98), rgba(9,16,28,0.86));
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-    }
-    .bizsim-timeline {
-      display: grid;
-      gap: 10px;
-      margin-top: 12px;
-    }
-    .bizsim-timeline-item {
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 12px;
-      padding: 10px;
-      background: rgba(255,255,255,0.03);
-    }
     .bizsim-toolbar { display: flex; gap: 10px; flex-wrap: wrap; }
     .bizsim-log {
       background: rgba(4, 10, 18, 0.9);
@@ -2986,8 +2794,6 @@ function createMainPanelHtml(engine) {
     @media (max-width: 1100px) {
       .bizsim-grid-2, .bizsim-dashboard-layout { grid-template-columns: 1fr; }
       .bizsim-grid-3 { grid-template-columns: 1fr; }
-      .bizsim-evolution-strip { grid-template-columns: 1fr; }
-      .bizsim-hero-grid { grid-template-columns: 1fr; }
       .bizsim-hero { align-items: flex-start; flex-direction: column; }
       .bizsim-hero-actions { justify-content: flex-start; }
     }
@@ -3001,9 +2807,7 @@ function createMainPanelHtml(engine) {
         <p>模块化版本 v${engine.config.VERSION} · 独立 LLM · 世界书注入 · 可回放提示词</p>
       </div>
       <div class="bizsim-hero-actions">
-        <div class="bizsim-chip"><span class="bizsim-chip-dot"></span>自动推演运行中</div>
         <div class="bizsim-chip">默认模型：${escapeHtml(engine.config.LLM.model || '未配置')}</div>
-        <button class="bizsim-btn bizsim-btn-secondary" id="btn-open-settings-corner" type="button">设置</button>
         <button class="bizsim-btn bizsim-btn-primary" id="btn-global-simulation" type="button">一键推演</button>
         <button class="bizsim-btn bizsim-btn-secondary" id="btn-global-audit" type="button">快速审计</button>
         <button class="bizsim-btn bizsim-btn-secondary" id="btn-global-export" type="button">导出报告</button>
@@ -3021,49 +2825,10 @@ function createMainPanelHtml(engine) {
       <section class="bizsim-section active" id="tab-dashboard">
         <div class="bizsim-dashboard-layout">
           <div class="bizsim-dashboard-stack">
-            <div class="bizsim-card bizsim-dashboard-hero">
-              <div class="bizsim-hero-grid">
-                <div>
-                  <h2 class="bizsim-hero-title" id="dashboard-hero-title">世界演化态势</h2>
-                  <p class="bizsim-hero-subtitle" id="dashboard-hero-subtitle">等待推演启动，系统将持续追踪资产与多视角演化。</p>
-                  <div class="bizsim-metric-strip" id="dashboard-hero-metrics">
-                    <span class="bizsim-pill">活跃视角: --</span>
-                    <span class="bizsim-pill">校验状态: --</span>
-                    <span class="bizsim-pill">上次推演: --</span>
-                  </div>
-                </div>
-                <div class="bizsim-toolbar">
-                  <button class="bizsim-btn bizsim-btn-primary" id="btn-hero-run" type="button">立即推演</button>
-                  <button class="bizsim-btn bizsim-btn-secondary" id="btn-hero-drill" type="button">进入沉浸详情</button>
-                </div>
-              </div>
-            </div>
-
             <div class="bizsim-grid-3" id="dashboard-stats">
               <div class="bizsim-card bizsim-stat"><div class="bizsim-stat-label">推演视角</div><div class="bizsim-stat-value">0</div><div class="bizsim-stat-hint">等待初始化</div></div>
               <div class="bizsim-card bizsim-stat"><div class="bizsim-stat-label">资产表</div><div class="bizsim-stat-value">0</div><div class="bizsim-stat-hint">角色卡变量中的核心资产表</div></div>
               <div class="bizsim-card bizsim-stat"><div class="bizsim-stat-label">审计状态</div><div class="bizsim-stat-value">--</div><div class="bizsim-stat-hint">跨表一致性检查</div></div>
-            </div>
-
-            <div class="bizsim-card">
-              <div class="bizsim-card-title">
-                <span>演化节点</span>
-                <span class="bizsim-card-subtitle">近期关键变化</span>
-              </div>
-              <div class="bizsim-evolution-strip" id="dashboard-evolution-strip">
-                <div class="bizsim-node"><div class="bizsim-node-title">等待数据</div><div class="bizsim-node-meta">执行一次推演后出现节点摘要</div></div>
-              </div>
-              <div class="bizsim-trend-row" id="dashboard-trend-row">
-                <div class="bizsim-trend-bar" style="height:12px;"></div>
-                <div class="bizsim-trend-bar" style="height:20px;"></div>
-                <div class="bizsim-trend-bar" style="height:18px;"></div>
-                <div class="bizsim-trend-bar" style="height:28px;"></div>
-                <div class="bizsim-trend-bar" style="height:24px;"></div>
-                <div class="bizsim-trend-bar" style="height:30px;"></div>
-                <div class="bizsim-trend-bar" style="height:36px;"></div>
-                <div class="bizsim-trend-bar" style="height:34px;"></div>
-              </div>
-              <div class="bizsim-trend-caption" id="dashboard-trend-caption">最近 8 层资产脉搏（关键事件过滤）</div>
             </div>
 
             <div class="bizsim-card">
@@ -3333,67 +3098,6 @@ function createMainPanelHtml(engine) {
         </div>
       </section>
     </main>
-  </div>
-</div>
-
-<div class="bizsim-corner-overlay" id="bizsim-corner-overlay"></div>
-<aside class="bizsim-corner-drawer" id="bizsim-corner-drawer">
-  <div class="bizsim-corner-header">
-    <div>
-      <div class="bizsim-kicker" style="margin-bottom:6px;">Corner Settings</div>
-      <h3 style="margin:0;font-size:18px;">角落控制中心</h3>
-    </div>
-    <button class="bizsim-btn bizsim-btn-secondary" id="btn-close-settings-corner" type="button">关闭</button>
-  </div>
-
-  <div class="bizsim-card" style="margin-bottom:12px;">
-    <div class="bizsim-card-title"><span>自动推演</span><span class="bizsim-card-subtitle">无感执行</span></div>
-    <div class="bizsim-form-group">
-      <label><input type="checkbox" id="corner-auto-run-enabled"> 启用自动推演</label>
-    </div>
-    <div class="bizsim-mini-grid">
-      <div class="bizsim-form-group"><label>触发间隔</label><input type="number" id="corner-auto-run-interval" min="1" max="20" step="1"></div>
-      <div class="bizsim-form-group"><label>冷却秒数</label><input type="number" id="corner-auto-run-cooldown" min="0" max="600" step="1"></div>
-    </div>
-    <div class="bizsim-form-group"><label>最小正文长度</label><input type="number" id="corner-auto-run-min-chars" min="0" max="5000" step="1"></div>
-    <div class="bizsim-toolbar">
-      <button class="bizsim-btn bizsim-btn-primary" id="btn-corner-save" type="button">保存角落设置</button>
-      <button class="bizsim-btn bizsim-btn-secondary" id="btn-corner-open-full" type="button">打开完整设置</button>
-    </div>
-  </div>
-
-  <div class="bizsim-card">
-    <div class="bizsim-card-title"><span>系统状态</span><span class="bizsim-card-subtitle">只在异常时打扰</span></div>
-    <div class="bizsim-helper" id="corner-status-text">自动推演与校验默认后台执行，异常会在日志和状态条提示。</div>
-  </div>
-</aside>
-
-<div class="bizsim-immersive-modal" id="bizsim-immersive-modal">
-  <div class="bizsim-immersive-content">
-    <div class="bizsim-immersive-header">
-      <div class="bizsim-card-title" style="margin-bottom:0;">
-        <span>沉浸式演化详情</span>
-        <div class="bizsim-toolbar">
-          <button class="bizsim-btn bizsim-btn-secondary" id="btn-history-mode-key" type="button">关键事件模式</button>
-          <button class="bizsim-btn bizsim-btn-secondary" id="btn-history-mode-full" type="button">完整历史模式</button>
-          <button class="bizsim-btn bizsim-btn-secondary" id="btn-close-immersive" type="button">关闭</button>
-        </div>
-      </div>
-    </div>
-    <div class="bizsim-grid-2">
-      <div class="bizsim-card">
-        <div class="bizsim-card-title"><span>本层变化摘要</span><span class="bizsim-card-subtitle" id="immersive-summary-meta">实时</span></div>
-        <div class="bizsim-helper" id="immersive-summary">暂无变化摘要</div>
-      </div>
-      <div class="bizsim-card">
-        <div class="bizsim-card-title"><span>趋势快照</span><span class="bizsim-card-subtitle">资产 & 视角</span></div>
-        <div class="bizsim-trend-row" id="immersive-trend-row"></div>
-      </div>
-    </div>
-    <div class="bizsim-card" style="margin-top:12px;">
-      <div class="bizsim-card-title"><span>时间轴回放</span><span class="bizsim-card-subtitle">可无限回溯</span></div>
-      <div class="bizsim-timeline" id="immersive-timeline"><div class="bizsim-helper">暂无历史记录</div></div>
-    </div>
   </div>
 </div>
 `;
@@ -3669,29 +3373,6 @@ async function copyLastPromptSnapshot(ui) {
 }
 
 // ---- src/ui/BizSimUI.render.js ----
-function parseAmountToNumber(text) {
-  const raw = String(text ?? '');
-  const m = raw.match(/-?\d+(?:\.\d+)?/);
-  if (!m) return NaN;
-  return Number.parseFloat(m[0]);
-}
-
-function buildHistoryRows(ui, limit = 24) {
-  const rows = Array.isArray(ui.engine.getHistoricalFloorStatDataContext?.(limit))
-    ? ui.engine.getHistoricalFloorStatDataContext(limit)
-    : [];
-
-  return rows.map((item) => {
-    const overview = item?.stat_data?.资产总览表 || {};
-    const liquid = parseAmountToNumber(overview?.流动资产);
-    return {
-      messageId: item?.message_id,
-      liquid,
-      summary: String(overview?.本轮变动摘要 || '').trim(),
-    };
-  }).filter((item) => Number.isFinite(item.liquid));
-}
-
 function refreshDashboard(ui) {
   const container = ui.byId('dashboard-stats');
   if (!container) return;
@@ -3713,103 +3394,6 @@ function refreshDashboard(ui) {
       <div class="bizsim-stat-hint">${escapeHtml(card.hint)}</div>
     </div>
   `).join('');
-
-  const heroTitle = ui.byId('dashboard-hero-title');
-  const heroSubtitle = ui.byId('dashboard-hero-subtitle');
-  const heroMetrics = ui.byId('dashboard-hero-metrics');
-  const evolutionStrip = ui.byId('dashboard-evolution-strip');
-
-  if (heroTitle) heroTitle.textContent = audit.valid ? '世界演化态势稳定' : '世界演化出现异常信号';
-  if (heroSubtitle) {
-    heroSubtitle.textContent = audit.valid
-      ? `当前有 ${activeTracks} 个活跃视角在推进，资产与世界线保持同步演化。`
-      : `检测到 ${audit.issues.length} 个跨表异常，建议查看校验细节并复核本层变化。`;
-  }
-
-  if (heroMetrics) {
-    const now = new Date().toLocaleTimeString();
-    heroMetrics.innerHTML = [
-      `活跃视角: ${activeTracks}`,
-      `校验状态: ${audit.valid ? '通过' : '异常'}`,
-      `上次刷新: ${now}`,
-    ].map((line) => `<span class="bizsim-pill">${escapeHtml(line)}</span>`).join('');
-  }
-
-  if (evolutionStrip) {
-    const tracks = Array.isArray(ui.engine.worldSimulation?.tracks) ? ui.engine.worldSimulation.tracks : [];
-    const nodes = tracks.slice(0, 4);
-    if (!nodes.length) {
-      evolutionStrip.innerHTML = '<div class="bizsim-node"><div class="bizsim-node-title">暂无节点</div><div class="bizsim-node-meta">等待推演后生成关键变化摘要</div></div>';
-    } else {
-      evolutionStrip.innerHTML = nodes.map((track) => `
-        <div class="bizsim-node">
-          <div class="bizsim-node-title">${escapeHtml(track.id || '--')} · ${escapeHtml(track.characterName || '未命名视角')}</div>
-          <div class="bizsim-node-meta">${escapeHtml(track.progress || '暂无进展')}</div>
-        </div>
-      `).join('');
-    }
-  }
-
-  const historyRows = buildHistoryRows(ui, 40);
-  const historyMode = ui.historyViewMode === 'full' ? 'full' : 'key';
-  const trendRow = ui.byId('dashboard-trend-row');
-  const trendCaption = ui.byId('dashboard-trend-caption');
-  const immersiveTrendRow = ui.byId('immersive-trend-row');
-  const immersiveTimeline = ui.byId('immersive-timeline');
-  const immersiveSummary = ui.byId('immersive-summary');
-  const immersiveSummaryMeta = ui.byId('immersive-summary-meta');
-  const historyModeKeyBtn = ui.byId('btn-history-mode-key');
-  const historyModeFullBtn = ui.byId('btn-history-mode-full');
-
-  if (historyModeKeyBtn) {
-    historyModeKeyBtn.setAttribute('aria-pressed', historyMode === 'key' ? 'true' : 'false');
-  }
-  if (historyModeFullBtn) {
-    historyModeFullBtn.setAttribute('aria-pressed', historyMode === 'full' ? 'true' : 'false');
-  }
-
-  const trendSource = historyRows.slice(-8);
-  const maxLiquid = trendSource.reduce((m, item) => Math.max(m, item.liquid), 0) || 1;
-  const trendBars = trendSource.length
-    ? trendSource.map((item) => {
-      const h = Math.max(8, Math.round((item.liquid / maxLiquid) * 46));
-      return `<div class="bizsim-trend-bar" style="height:${h}px;"></div>`;
-    }).join('')
-    : '<div class="bizsim-trend-bar" style="height:10px;"></div>';
-
-  if (trendRow) trendRow.innerHTML = trendBars;
-  if (immersiveTrendRow) immersiveTrendRow.innerHTML = trendBars;
-
-  if (trendCaption) {
-    trendCaption.textContent = trendSource.length
-      ? `最近 ${trendSource.length} 层资产脉搏（关键事件过滤）`
-      : '暂无历史资产数据';
-  }
-
-  const latestSummary = historyRows.slice(-1)[0]?.summary || (tracks.slice(0, 1)[0]?.summary || '暂无变化摘要');
-  if (immersiveSummary) immersiveSummary.textContent = latestSummary;
-  if (immersiveSummaryMeta) {
-    const latestId = historyRows.slice(-1)[0]?.messageId;
-    immersiveSummaryMeta.textContent = latestId !== undefined ? `楼层 ${latestId}` : '实时';
-  }
-
-  const timelineRows = historyMode === 'full'
-    ? historyRows.slice(-40)
-    : historyRows.filter((item) => !!item.summary).slice(-20);
-
-  if (immersiveTimeline) {
-    if (!timelineRows.length) {
-      immersiveTimeline.innerHTML = '<div class="bizsim-helper">暂无历史记录</div>';
-    } else {
-      immersiveTimeline.innerHTML = timelineRows.reverse().map((item) => `
-        <div class="bizsim-timeline-item">
-          <div class="bizsim-node-title">楼层 ${escapeHtml(String(item.messageId ?? '--'))}</div>
-          <div class="bizsim-node-meta">流动资产脉搏: ${escapeHtml(Number.isFinite(item.liquid) ? `${item.liquid}` : '--')}</div>
-          <div class="bizsim-node-meta">${escapeHtml(item.summary || '无摘要')}</div>
-        </div>
-      `).join('');
-    }
-  }
 }
 
 function refreshEmpire(ui) {
@@ -5510,7 +5094,6 @@ class BizSimUI {
     this.currentWorldbookEntries = [];
     this.promptViewMode = 'preview';
     this.isSimulating = false;
-    this.historyViewMode = 'key';
   }
 
   initWorldbookPanel() {
@@ -5740,65 +5323,6 @@ class BizSimUI {
   }
 
   attachEventListeners() {
-    const syncCornerInputsFromMain = () => {
-      const map = [
-        ['sim-auto-run-enabled', 'corner-auto-run-enabled'],
-        ['sim-auto-run-assistant-floor-interval', 'corner-auto-run-interval'],
-        ['sim-auto-run-cooldown', 'corner-auto-run-cooldown'],
-        ['sim-auto-run-min-chars', 'corner-auto-run-min-chars'],
-      ];
-
-      map.forEach(([fromId, toId]) => {
-        const from = this.byId(fromId);
-        const to = this.byId(toId);
-        if (!from || !to) return;
-        if (to.type === 'checkbox') to.checked = !!from.checked;
-        else to.value = from.value;
-      });
-    };
-
-    const syncMainInputsFromCorner = () => {
-      const map = [
-        ['corner-auto-run-enabled', 'sim-auto-run-enabled'],
-        ['corner-auto-run-interval', 'sim-auto-run-assistant-floor-interval'],
-        ['corner-auto-run-cooldown', 'sim-auto-run-cooldown'],
-        ['corner-auto-run-min-chars', 'sim-auto-run-min-chars'],
-      ];
-
-      map.forEach(([fromId, toId]) => {
-        const from = this.byId(fromId);
-        const to = this.byId(toId);
-        if (!from || !to) return;
-        if (from.type === 'checkbox') to.checked = !!from.checked;
-        else to.value = from.value;
-      });
-    };
-
-    const openCornerDrawer = () => {
-      const overlay = this.byId('bizsim-corner-overlay');
-      const drawer = this.byId('bizsim-corner-drawer');
-      syncCornerInputsFromMain();
-      overlay?.classList.add('active');
-      drawer?.classList.add('active');
-    };
-
-    const closeCornerDrawer = () => {
-      const overlay = this.byId('bizsim-corner-overlay');
-      const drawer = this.byId('bizsim-corner-drawer');
-      overlay?.classList.remove('active');
-      drawer?.classList.remove('active');
-    };
-
-    const openImmersiveModal = () => {
-      const modal = this.byId('bizsim-immersive-modal');
-      modal?.classList.add('active');
-    };
-
-    const closeImmersiveModal = () => {
-      const modal = this.byId('bizsim-immersive-modal');
-      modal?.classList.remove('active');
-    };
-
     this.$$('.bizsim-tab').forEach((tab) => {
       tab.addEventListener('click', (e) => {
         this.switchTab(e.currentTarget.dataset.tab);
@@ -5821,48 +5345,6 @@ class BizSimUI {
 
     this.byId('btn-global-export')?.addEventListener('click', () => {
       this.exportReport();
-    });
-
-    this.byId('btn-open-settings-corner')?.addEventListener('click', () => {
-      openCornerDrawer();
-    });
-
-    this.byId('btn-hero-run')?.addEventListener('click', async () => {
-      await this.runSimulation();
-    });
-
-    this.byId('btn-hero-drill')?.addEventListener('click', () => {
-      openImmersiveModal();
-    });
-
-    this.byId('btn-close-settings-corner')?.addEventListener('click', () => {
-      closeCornerDrawer();
-    });
-
-    this.byId('bizsim-corner-overlay')?.addEventListener('click', () => {
-      closeCornerDrawer();
-    });
-
-    this.byId('btn-corner-open-full')?.addEventListener('click', () => {
-      closeCornerDrawer();
-      this.switchTab('simulation');
-    });
-
-    this.byId('btn-corner-save')?.addEventListener('click', async () => {
-      syncMainInputsFromCorner();
-      await this.saveSimulationSettings();
-      this.log('角落设置已保存');
-      closeCornerDrawer();
-    });
-
-    this.byId('btn-close-immersive')?.addEventListener('click', () => {
-      closeImmersiveModal();
-    });
-
-    this.byId('bizsim-immersive-modal')?.addEventListener('click', (e) => {
-      if (e.target?.id === 'bizsim-immersive-modal') {
-        closeImmersiveModal();
-      }
     });
 
     this.byId('btn-open-simulation-tab')?.addEventListener('click', () => {
@@ -5962,18 +5444,6 @@ class BizSimUI {
 
     this.byId('worldbook-entry-search')?.addEventListener('input', () => {
       this.renderWorldbookEntries(this.currentWorldbookEntries || []);
-    });
-
-    this.byId('btn-history-mode-key')?.addEventListener('click', () => {
-      this.historyViewMode = 'key';
-      this.log('沉浸模式：关键事件');
-      this.refreshDashboard();
-    });
-
-    this.byId('btn-history-mode-full')?.addEventListener('click', () => {
-      this.historyViewMode = 'full';
-      this.log('沉浸模式：完整历史');
-      this.refreshDashboard();
     });
 
     this.syncModelInputToSelect();
