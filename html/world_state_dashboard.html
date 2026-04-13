@@ -64,24 +64,11 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     background: linear-gradient(90deg, rgba(var(--c-prim), 0.1) 0%, transparent 100%);
     border-bottom: 1px solid rgba(var(--c-border), 0.8);
     padding: 12px 20px; display: flex; justify-content: space-between; align-items: center;
-    column-gap: 12px;
     font-size: 13px; letter-spacing: 1px; position: relative; z-index: 10; transition: var(--tr);
 }
 .nos-container.folded .nos-header { border-bottom-color: transparent; }
 
-.nos-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: 700;
-    color: rgb(var(--c-prim));
-    transition: var(--tr);
-    min-width: 0;
-    flex: 1 1 auto;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+.nos-title { display: flex; align-items: center; gap: 10px; font-weight: 700; color: rgb(var(--c-prim)); transition: var(--tr); }
 .nos-title i { font-size: 1.2em; animation: pulse 2s infinite; }
 
 /* 独立的高清折叠微缩指示器 */
@@ -91,81 +78,36 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     font-family: var(--font-code); font-size: 12px; font-weight: bold; transition: var(--tr);
     background: rgba(var(--c-card), 0.98); border: 1px solid rgba(var(--c-prim), 0.5);
     padding: 6px 24px; border-radius: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-    max-width: calc(100% - 280px);
-    overflow: hidden;
 }
-.nos-container.folded .folded-summary { transform: translateX(-50%) translateY(-10px) scale(1); opacity: 1; pointer-events: auto; }
+.nos-container.folded .folded-summary { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; pointer-events: auto; }
 .nos-container.folded .nos-title { opacity: 0; }
 .fs-item { display: flex; align-items: center; gap: 8px; }
 .fs-item i { font-size: 1.1em; }
 .fs-pass { color: rgb(var(--c-pass)); text-shadow: 0 0 10px rgba(var(--c-pass), 0.4); }
 .fs-warn { color: rgb(var(--c-sec)); text-shadow: 0 0 10px rgba(var(--c-sec), 0.4); }
 
-.header-controls {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
-    min-width: 0;
-    flex: 0 0 auto;
+.header-controls { display: flex; align-items: center; gap: 14px; }
+#nos-time { white-space: nowrap; transition: var(--tr); }
+
+/* 折叠时将 TICK 固定到左侧，避免和新增按钮/中间摘要互相遮挡 */
+.nos-container.folded #nos-time {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 14;
 }
 
-#nos-time {
-    font-family: var(--font-code);
-    color: rgba(var(--c-text), 0.5);
-    font-size: 11px;
-    white-space: nowrap;
-    flex: 0 0 auto;
-}
-
-#runSimBtn {
-    width: auto;
-    min-width: 92px;
-    padding: 0 10px;
-    font-size: 11px;
-    gap: 6px;
-    flex: 0 0 auto;
-}
-
-@media (max-width: 920px) {
-    .nos-header {
-        padding: 10px 12px;
-        flex-wrap: wrap;
-        row-gap: 8px;
+@media (max-width: 640px) {
+    .header-controls { gap: 8px; }
+    .nos-container.folded #nos-time {
+        left: 12px;
+        font-size: 10px !important;
     }
-
-    .nos-title {
-        flex: 1 1 100%;
-    }
-
-    .header-controls {
-        width: 100%;
-        justify-content: flex-end;
-        gap: 8px;
-    }
-
-    #nos-time {
-        margin-right: auto;
-        font-size: 10px;
-    }
-
-    #runSimBtn {
-        min-width: 84px;
-        padding: 0 8px;
-    }
-
-    #runSimText {
-        max-width: 56px;
+    .nos-container.folded .folded-summary {
+        max-width: calc(100% - 120px);
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
-        display: inline-block;
-    }
-
-    .folded-summary {
-        max-width: calc(100% - 140px);
-        padding: 6px 14px;
-        gap: 10px;
     }
 }
 
@@ -359,8 +301,8 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
         </div>
 
         <div class="header-controls">
-            <span id="nos-time">TICK: 00:00</span>
-            <div class="ctrl-btn" id="runSimBtn" title="触发 BizSim 推演"><i class="fa-solid fa-play"></i><span id="runSimText">点击推演</span></div>
+            <span id="nos-time" style="font-family: var(--font-code); color: rgba(var(--c-text),0.5); font-size: 11px;">TICK: 00:00</span>
+            <div class="ctrl-btn" id="runSimBtn" title="触发 BizSim 推演" style="width:auto;padding:0 10px;font-size:11px;gap:6px;"><i class="fa-solid fa-play"></i><span id="runSimText">点击推演</span></div>
             <div class="ctrl-btn" onclick="toggleTheme()" title="切换昼夜镜片"><i class="fa-solid fa-moon" id="themeIcon"></i></div>
             <div class="ctrl-btn fold-btn" onclick="toggleNosFold()" title="收起/展开面板"><i class="fa-solid fa-compress"></i></div>
         </div>
