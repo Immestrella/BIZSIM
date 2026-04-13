@@ -91,6 +91,8 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     font-family: var(--font-code); font-size: 12px; font-weight: bold; transition: var(--tr);
     background: rgba(var(--c-card), 0.98); border: 1px solid rgba(var(--c-prim), 0.5);
     padding: 6px 24px; border-radius: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    max-width: calc(100% - 280px);
+    overflow: hidden;
 }
 .nos-container.folded .folded-summary { transform: translateX(-50%) translateY(-10px) scale(1); opacity: 1; pointer-events: auto; }
 .nos-container.folded .nos-title { opacity: 0; }
@@ -158,6 +160,12 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
         text-overflow: ellipsis;
         white-space: nowrap;
         display: inline-block;
+    }
+
+    .folded-summary {
+        max-width: calc(100% - 140px);
+        padding: 6px 14px;
+        gap: 10px;
     }
 }
 
