@@ -985,11 +985,7 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
   resolveFloorStatDataSource(variables) {
     if (!variables || typeof variables !== 'object') return null;
     if (variables.stat_data && typeof variables.stat_data === 'object') return variables.stat_data;
-
-    const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
-    const hasDirectScopedKeys = [assetsKey, worldStateKey].some((key) => key in variables);
-
-    return hasDirectScopedKeys ? variables : null;
+    return null;
   },
 
   extractAssetStatPayload(statData) {
