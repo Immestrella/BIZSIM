@@ -215,6 +215,9 @@ export class BizSimUI {
   open() {
     if (this.isOpen) return;
 
+    // 重新从变量系统加载数据，确保与最新状态同步
+    void this.engine.reloadFromVariables();
+
     const html = createMainPanelHtml(this.engine);
     const ST = getSillyTavernGlobal();
     const Popup = ST?.Popup;

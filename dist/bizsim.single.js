@@ -1945,6 +1945,49 @@ class BizSimEngine {
   getPromptTemplate(key) {
     return this.promptTemplates?.[key] || PROMPTS[key] || '';
   }
+
+  async reloadFromVariables() {
+    try {
+      const charVars = await getCharacterVariablesSafe();
+      const savedData = getByPath(charVars, this.config.VAR_PATH);
+
+      if (savedData) {
+        this.data = savedData.empireData || this.getDefaultEmpireData();
+        this.worldSimulation = savedData.worldSimulation || deepClone(DEFAULT_WORLD_SIMULATION);
+
+        if (savedData.settings?.LLM) {
+          this.config.LLM = { ...this.config.LLM, ...savedData.settings.LLM };
+        }
+        if (savedData.settings?.SIMULATION) {
+          this.config.SIMULATION = { ...this.config.SIMULATION, ...savedData.settings.SIMULATION };
+        }
+        if (savedData.settings?.AUDIT) {
+          this.config.AUDIT = { ...this.config.AUDIT, ...savedData.settings.AUDIT };
+        }
+        if (savedData.settings?.prompts) {
+          this.promptTemplates = { ...this.promptTemplates, ...savedData.settings.prompts };
+          if (!this.promptTemplates.CORE_PROMPT_BLOCK && this.promptTemplates.WORLD_SIMULATION) {
+            this.promptTemplates.CORE_PROMPT_BLOCK = this.promptTemplates.WORLD_SIMULATION;
+          }
+        }
+
+        // 重新初始化提示词模板
+        this.initializePromptTemplates();
+
+        console.log('[BizSim] 已从变量系统重新加载数据');
+        return true;
+      }
+
+      // 变量系统中无数据，重置为默认
+      this.data = this.getDefaultEmpireData();
+      this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
+      console.log('[BizSim] 变量系统中无数据，已重置为默认值');
+      return true;
+    } catch (error) {
+      console.error('[BizSim] 从变量系统重新加载失败:', error);
+      return false;
+    }
+  }
 }
 
 Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_METHODS);
@@ -4815,6 +4858,9 @@ class BizSimUI {
 
   open() {
     if (this.isOpen) return;
+
+    // 重新从变量系统加载数据，确保与最新状态同步
+    void this.engine.reloadFromVariables();
 
     const html = createMainPanelHtml(this.engine);
     const ST = getSillyTavernGlobal();
