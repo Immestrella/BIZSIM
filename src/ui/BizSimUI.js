@@ -299,6 +299,19 @@ export class BizSimUI {
       this.exportReport();
     });
 
+    this.byId('btn-open-settings-corner')?.addEventListener('click', () => {
+      this.switchTab('simulation');
+    });
+
+    this.byId('btn-hero-run')?.addEventListener('click', async () => {
+      await this.runSimulation();
+    });
+
+    this.byId('btn-hero-drill')?.addEventListener('click', () => {
+      this.switchTab('simulation');
+      this.log('已进入沉浸详情（一期暂复用推演设置页）');
+    });
+
     this.byId('btn-open-simulation-tab')?.addEventListener('click', () => {
       this.switchTab('simulation');
     });

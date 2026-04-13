@@ -21,6 +21,42 @@ export function refreshDashboard(ui) {
       <div class="bizsim-stat-hint">${escapeHtml(card.hint)}</div>
     </div>
   `).join('');
+
+  const heroTitle = ui.byId('dashboard-hero-title');
+  const heroSubtitle = ui.byId('dashboard-hero-subtitle');
+  const heroMetrics = ui.byId('dashboard-hero-metrics');
+  const evolutionStrip = ui.byId('dashboard-evolution-strip');
+
+  if (heroTitle) heroTitle.textContent = audit.valid ? '世界演化态势稳定' : '世界演化出现异常信号';
+  if (heroSubtitle) {
+    heroSubtitle.textContent = audit.valid
+      ? `当前有 ${activeTracks} 个活跃视角在推进，资产与世界线保持同步演化。`
+      : `检测到 ${audit.issues.length} 个跨表异常，建议查看校验细节并复核本层变化。`;
+  }
+
+  if (heroMetrics) {
+    const now = new Date().toLocaleTimeString();
+    heroMetrics.innerHTML = [
+      `活跃视角: ${activeTracks}`,
+      `校验状态: ${audit.valid ? '通过' : '异常'}`,
+      `上次刷新: ${now}`,
+    ].map((line) => `<span class="bizsim-pill">${escapeHtml(line)}</span>`).join('');
+  }
+
+  if (evolutionStrip) {
+    const tracks = Array.isArray(ui.engine.worldSimulation?.tracks) ? ui.engine.worldSimulation.tracks : [];
+    const nodes = tracks.slice(0, 4);
+    if (!nodes.length) {
+      evolutionStrip.innerHTML = '<div class="bizsim-node"><div class="bizsim-node-title">暂无节点</div><div class="bizsim-node-meta">等待推演后生成关键变化摘要</div></div>';
+    } else {
+      evolutionStrip.innerHTML = nodes.map((track) => `
+        <div class="bizsim-node">
+          <div class="bizsim-node-title">${escapeHtml(track.id || '--')} · ${escapeHtml(track.characterName || '未命名视角')}</div>
+          <div class="bizsim-node-meta">${escapeHtml(track.progress || '暂无进展')}</div>
+        </div>
+      `).join('');
+    }
+  }
 }
 
 export function refreshEmpire(ui) {

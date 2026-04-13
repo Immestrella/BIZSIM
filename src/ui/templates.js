@@ -24,7 +24,7 @@ export function createMainPanelHtml(engine) {
     }
 
     .bizsim-shell {
-      font-family: Inter, "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+      font-family: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
       color: var(--bizsim-text);
       background:
         radial-gradient(circle at top left, rgba(93, 211, 255, 0.18), transparent 32%),
@@ -85,6 +85,19 @@ export function createMainPanelHtml(engine) {
       border: 1px solid var(--bizsim-line);
       font-size: 12px;
       white-space: nowrap;
+    }
+    .bizsim-chip-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--bizsim-success);
+      box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.38);
+      animation: bizsim-pulse 2.6s ease-in-out infinite;
+    }
+    @keyframes bizsim-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.42); }
+      70% { box-shadow: 0 0 0 8px rgba(52, 211, 153, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
     }
     .bizsim-btn {
       border: 0;
@@ -215,8 +228,91 @@ export function createMainPanelHtml(engine) {
     .bizsim-stat-label { color: var(--bizsim-muted); font-size: 12px; }
     .bizsim-stat-value { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
     .bizsim-stat-hint { color: #b8c5dc; font-size: 12px; }
-    .bizsim-dashboard-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr); gap: 16px; }
+    .bizsim-dashboard-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.55fr); gap: 16px; }
     .bizsim-dashboard-stack { display: grid; gap: 16px; }
+    .bizsim-dashboard-hero {
+      position: relative;
+      overflow: hidden;
+      min-height: 220px;
+      background:
+        radial-gradient(circle at 15% 15%, rgba(93, 211, 255, 0.22), transparent 42%),
+        radial-gradient(circle at 80% 70%, rgba(139, 92, 246, 0.2), transparent 48%),
+        linear-gradient(160deg, rgba(8, 16, 30, 0.96), rgba(11, 21, 39, 0.95));
+    }
+    .bizsim-dashboard-hero::after {
+      content: '';
+      position: absolute;
+      inset: auto -20% -80% -20%;
+      height: 220px;
+      background: radial-gradient(ellipse at center, rgba(93, 211, 255, 0.2), transparent 72%);
+      filter: blur(20px);
+      pointer-events: none;
+      animation: bizsim-drift 12s ease-in-out infinite alternate;
+    }
+    @keyframes bizsim-drift {
+      from { transform: translateX(-2%); }
+      to { transform: translateX(2%); }
+    }
+    .bizsim-hero-grid {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: start;
+    }
+    .bizsim-hero-title {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+    .bizsim-hero-subtitle {
+      margin: 10px 0 0;
+      color: #c4d2ea;
+      font-size: 13px;
+      max-width: 56ch;
+    }
+    .bizsim-metric-strip {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .bizsim-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: #d4e1f6;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.04);
+      white-space: nowrap;
+    }
+    .bizsim-evolution-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .bizsim-node {
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      min-height: 88px;
+    }
+    .bizsim-node-title {
+      font-size: 12px;
+      color: #d9e4f6;
+      margin-bottom: 6px;
+    }
+    .bizsim-node-meta {
+      font-size: 12px;
+      color: var(--bizsim-muted);
+      line-height: 1.45;
+    }
     .bizsim-toolbar { display: flex; gap: 10px; flex-wrap: wrap; }
     .bizsim-log {
       background: rgba(4, 10, 18, 0.9);
@@ -261,6 +357,8 @@ export function createMainPanelHtml(engine) {
     @media (max-width: 1100px) {
       .bizsim-grid-2, .bizsim-dashboard-layout { grid-template-columns: 1fr; }
       .bizsim-grid-3 { grid-template-columns: 1fr; }
+      .bizsim-evolution-strip { grid-template-columns: 1fr; }
+      .bizsim-hero-grid { grid-template-columns: 1fr; }
       .bizsim-hero { align-items: flex-start; flex-direction: column; }
       .bizsim-hero-actions { justify-content: flex-start; }
     }
@@ -274,7 +372,9 @@ export function createMainPanelHtml(engine) {
         <p>模块化版本 v${engine.config.VERSION} · 独立 LLM · 世界书注入 · 可回放提示词</p>
       </div>
       <div class="bizsim-hero-actions">
+        <div class="bizsim-chip"><span class="bizsim-chip-dot"></span>自动推演运行中</div>
         <div class="bizsim-chip">默认模型：${escapeHtml(engine.config.LLM.model || '未配置')}</div>
+        <button class="bizsim-btn bizsim-btn-secondary" id="btn-open-settings-corner" type="button">设置</button>
         <button class="bizsim-btn bizsim-btn-primary" id="btn-global-simulation" type="button">一键推演</button>
         <button class="bizsim-btn bizsim-btn-secondary" id="btn-global-audit" type="button">快速审计</button>
         <button class="bizsim-btn bizsim-btn-secondary" id="btn-global-export" type="button">导出报告</button>
@@ -292,10 +392,38 @@ export function createMainPanelHtml(engine) {
       <section class="bizsim-section active" id="tab-dashboard">
         <div class="bizsim-dashboard-layout">
           <div class="bizsim-dashboard-stack">
+            <div class="bizsim-card bizsim-dashboard-hero">
+              <div class="bizsim-hero-grid">
+                <div>
+                  <h2 class="bizsim-hero-title" id="dashboard-hero-title">世界演化态势</h2>
+                  <p class="bizsim-hero-subtitle" id="dashboard-hero-subtitle">等待推演启动，系统将持续追踪资产与多视角演化。</p>
+                  <div class="bizsim-metric-strip" id="dashboard-hero-metrics">
+                    <span class="bizsim-pill">活跃视角: --</span>
+                    <span class="bizsim-pill">校验状态: --</span>
+                    <span class="bizsim-pill">上次推演: --</span>
+                  </div>
+                </div>
+                <div class="bizsim-toolbar">
+                  <button class="bizsim-btn bizsim-btn-primary" id="btn-hero-run" type="button">立即推演</button>
+                  <button class="bizsim-btn bizsim-btn-secondary" id="btn-hero-drill" type="button">进入沉浸详情</button>
+                </div>
+              </div>
+            </div>
+
             <div class="bizsim-grid-3" id="dashboard-stats">
               <div class="bizsim-card bizsim-stat"><div class="bizsim-stat-label">推演视角</div><div class="bizsim-stat-value">0</div><div class="bizsim-stat-hint">等待初始化</div></div>
               <div class="bizsim-card bizsim-stat"><div class="bizsim-stat-label">资产表</div><div class="bizsim-stat-value">0</div><div class="bizsim-stat-hint">角色卡变量中的核心资产表</div></div>
               <div class="bizsim-card bizsim-stat"><div class="bizsim-stat-label">审计状态</div><div class="bizsim-stat-value">--</div><div class="bizsim-stat-hint">跨表一致性检查</div></div>
+            </div>
+
+            <div class="bizsim-card">
+              <div class="bizsim-card-title">
+                <span>演化节点</span>
+                <span class="bizsim-card-subtitle">近期关键变化</span>
+              </div>
+              <div class="bizsim-evolution-strip" id="dashboard-evolution-strip">
+                <div class="bizsim-node"><div class="bizsim-node-title">等待数据</div><div class="bizsim-node-meta">执行一次推演后出现节点摘要</div></div>
+              </div>
             </div>
 
             <div class="bizsim-card">
