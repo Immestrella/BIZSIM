@@ -1,11 +1,46 @@
 import { DEFAULT_DATA } from '../config/defaultData.js';
-import { getChatHistorySafe } from '../utils/stCompat.js';
+import { getChatHistorySafe, getChatMessageByIdSafe, setChatMessageTextSafe } from '../utils/stCompat.js';
 
 function escapeRegExp(text) {
   return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export const BIZSIM_ENGINE_SIMULATION_METHODS = {
+  isAssistantMessage(message) {
+    if (!message || typeof message !== 'object') return false;
+    const role = String(message.role || '').toLowerCase();
+    if (role === 'assistant') return true;
+    if (role === 'system') return false;
+    return !(message.is_user === true || message.from_user === true || message.isUser === true || role === 'user');
+  },
+
+  replaceTaggedBlock(text, tagName, newBlock) {
+    const escaped = escapeRegExp(tagName);
+    const pattern = new RegExp(`<${escaped}>([\\s\\S]*?)</${escaped}>`, 'gi');
+    if (pattern.test(text)) {
+      return text.replace(pattern, newBlock);
+    }
+    const trimmed = String(text || '').replace(/\s+$/, '');
+    return trimmed ? `${trimmed}\n\n${newBlock}` : newBlock;
+  },
+
+  async injectBizSimBlocksToMessage(messageId, maxLookback = 10) {
+    const message = getChatMessageByIdSafe(messageId);
+    if (!message || !this.isAssistantMessage(message)) return { success: false, reason: 'not-assistant' };
+
+    const worldBlock = this.buildWorldStateInjectionBlockForMessage(messageId, maxLookback);
+    const assetBlock = this.buildAssetSheetInjectionBlockForMessage(messageId, maxLookback);
+    if (!worldBlock && !assetBlock) return { success: false, reason: 'no-biz-floor-data' };
+
+    const originalText = String(message.message || message.mes || message.content || '');
+    let updatedText = originalText;
+    if (worldBlock) updatedText = this.replaceTaggedBlock(updatedText, 'bz_world_state', worldBlock);
+    if (assetBlock) updatedText = this.replaceTaggedBlock(updatedText, 'bz_asset_sheet', assetBlock);
+    if (updatedText === originalText) return { success: true, updated: false };
+
+    const ok = await setChatMessageTextSafe(messageId, updatedText, 'affected');
+    return { success: ok, updated: ok };
+  },
   getTrackIdPattern() {
     const prefix = escapeRegExp(String(this.config.SIMULATION?.trackPrefix || 'BG'));
     return new RegExp(`^${prefix}\.(\\d+)$`);
@@ -344,6 +379,8 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
       this.validateCrossSheetIntegrity();
       if (this.config.SIMULATION?.autoSave !== false) await this.saveData();
 
+      const injected = await this.injectBizSimBlocksToMessage(syncResult.messageId, 10);
+
       return {
         success: true,
         data: {
@@ -360,6 +397,11 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
           localValidationWarningIssues: warningIssues,
           localValidationWouldBlock: blockingIssues.length > 0,
           localValidationAutoRepaired: !!validationResult?.autoRepaired,
+          bodyInjection: {
+            success: !!injected?.success,
+            updated: !!injected?.updated,
+            reason: injected?.reason || '',
+          },
         },
         chainOfThought: normalized._chainOfThought,
       };

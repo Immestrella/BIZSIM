@@ -159,6 +159,28 @@ export function getChatWorldbookNameSafe(chatName = 'current') {
   return null;
 }
 
+export function getChatMessageByIdSafe(messageId) {
+  try {
+    if (typeof getChatMessages !== 'function' || messageId === null || messageId === undefined) {
+      return null;
+    }
+    const messages = getChatMessages(messageId);
+    if (Array.isArray(messages) && messages.length > 0) return messages[0];
+  } catch {
+  }
+  return null;
+}
+
+export async function setChatMessageTextSafe(messageId, text, refresh = 'affected') {
+  try {
+    if (typeof setChatMessages !== 'function' || messageId === null || messageId === undefined) return false;
+    await setChatMessages([{ message_id: messageId, message: String(text ?? '') }], { refresh });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function getWorldbookSafe(worldbookName) {
   try {
     if (typeof getWorldbook === 'function') return await getWorldbook(worldbookName);

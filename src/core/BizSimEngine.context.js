@@ -282,6 +282,153 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     };
   },
 
+  getRecentChangedFloorSnapshotForMessage(messageId, maxLookback = 10) {
+    const targetMessageId = Number.isInteger(messageId) ? messageId : Number.parseInt(messageId, 10);
+    if (!Number.isInteger(targetMessageId) || targetMessageId < 0) {
+      return {
+        hasData: false,
+        sourceMessageId: null,
+        floorOffset: null,
+        isLatest: false,
+        snapshot: null,
+      };
+    }
+
+    const windowSize = Math.max(1, Number(maxLookback) || 10);
+    const startMessageId = Math.max(0, targetMessageId - windowSize + 1);
+    const snapshots = [];
+
+    for (let cursor = startMessageId; cursor <= targetMessageId; cursor += 1) {
+      const snapshot = this.getFloorSnapshotAt(cursor);
+      if (!snapshot) continue;
+      snapshots.push(snapshot);
+    }
+
+    if (!snapshots.length) {
+      return {
+        hasData: false,
+        sourceMessageId: null,
+        floorOffset: null,
+        isLatest: false,
+        snapshot: null,
+      };
+    }
+
+    let chosen = snapshots[0];
+    for (let i = 0; i < snapshots.length; i += 1) {
+      const current = snapshots[i];
+      const previous = snapshots[i - 1];
+      if (!previous || !this.isFloorSnapshotEqual(previous, current)) {
+        chosen = current;
+      }
+    }
+
+    const floorOffset = targetMessageId - chosen.messageId;
+    return {
+      hasData: true,
+      sourceMessageId: chosen.messageId,
+      floorOffset,
+      isLatest: floorOffset === 0,
+      snapshot: chosen,
+    };
+  },
+
+  buildInjectionMetaLines(snapshotInfo, currentMessageId) {
+    const sourceFloor = snapshotInfo?.sourceMessageId;
+    const safeCurrentFloor = Number.isInteger(currentMessageId) ? currentMessageId : Number.parseInt(currentMessageId, 10);
+    const isLatest = !!snapshotInfo?.isLatest;
+    const staleBy = Number.isInteger(snapshotInfo?.floorOffset) ? snapshotInfo.floorOffset : '';
+    const actionHint = isLatest ? '数据已是最新' : '点击推演生成最新数据';
+
+    return [
+      `source_floor:${sourceFloor ?? ''}`,
+      `current_floor:${Number.isInteger(safeCurrentFloor) ? safeCurrentFloor : ''}`,
+      `is_latest:${isLatest ? 'true' : 'false'}`,
+      `stale_by:${staleBy}`,
+      `action_hint:${actionHint}`,
+    ];
+  },
+
+  buildWorldStateInjectionBlockForMessage(messageId, maxLookback = 10) {
+    const snapshotInfo = this.getRecentChangedFloorSnapshotForMessage(messageId, maxLookback);
+    const worldSimulation = snapshotInfo?.snapshot?.worldData;
+    if (!worldSimulation || !Array.isArray(worldSimulation.tracks) || !worldSimulation.tracks.length) return '';
+
+    const lines = [];
+    lines.push('<bz_world_state>');
+    lines.push(...this.buildInjectionMetaLines(snapshotInfo, messageId));
+
+    for (const track of worldSimulation.tracks) {
+      const key = String(track?.characterName || '未知视角').replace(/"/g, '&quot;');
+      lines.push(`<bg_track key="${key}">`);
+      lines.push(`${String(track?.id || 'BG.?')}[${String(track?.characterName || '未知视角')}][${String(track?.status || '推演中')}][${Number(track?.iteration) || 1}]`);
+      lines.push(`推演次数:${Number(track?.iteration) || 1}`);
+      lines.push(`时间同步:${String(track?.timeSync || '')}`);
+      lines.push(`地点:${String(track?.location || '')}`);
+      lines.push(`视角进度:${String(track?.progress || '')}`);
+      lines.push(`概括:${String(track?.summary || '')}`);
+      lines.push('</bg_track>');
+    }
+
+    const checks = worldSimulation?.checks || {};
+    lines.push('<bg_check>');
+    lines.push(`推演检查:${checks.allTracksAdvanced ? '通过' : '未通过'}`);
+    lines.push(`汇入检查:${checks.convergenceChecked ? '通过' : '未通过'}`);
+    lines.push(`新增检查:${checks.newTracksAdded ? '通过' : '未通过'}`);
+    lines.push('</bg_check>');
+    lines.push('</bz_world_state>');
+
+    return lines.join('\n');
+  },
+
+  getAssetTableCheckStatus(semanticAssets) {
+    const validation = this.validateSemanticAssetConstraints(semanticAssets || {});
+    return validation?.valid ? '通过' : '未通过';
+  },
+
+  buildAssetSheetInjectionBlockForMessage(messageId, maxLookback = 10) {
+    const snapshotInfo = this.getRecentChangedFloorSnapshotForMessage(messageId, maxLookback);
+    const semanticAssets = snapshotInfo?.snapshot?.assetsData;
+    if (!semanticAssets || typeof semanticAssets !== 'object') return '';
+
+    const schemaMap = this.getSemanticTableMap();
+    const lines = [];
+    lines.push('<bz_asset_sheet>');
+    lines.push(...this.buildInjectionMetaLines(snapshotInfo, messageId));
+
+    for (const [tableName, schema] of Object.entries(schemaMap)) {
+      const rows = semanticAssets[tableName];
+      lines.push(`<asset_table key="${String(tableName).replace(/"/g, '&quot;')}">`);
+
+      if (schema.type === 'single') {
+        for (const field of schema.fields) {
+          lines.push(`${field}:${this.coerceCell(rows?.[field])}`);
+        }
+      } else {
+        const rowList = Array.isArray(rows) ? rows : [];
+        if (!rowList.length) {
+          lines.push('empty:true');
+        }
+        for (let i = 0; i < rowList.length; i += 1) {
+          lines.push(`row:${i + 1}`);
+          for (const field of schema.fields) {
+            lines.push(`${field}:${this.coerceCell(rowList[i]?.[field])}`);
+          }
+        }
+      }
+
+      lines.push('</asset_table>');
+    }
+
+    lines.push('<asset_check>');
+    lines.push(`资产检查:${this.getAssetTableCheckStatus(semanticAssets)}`);
+    lines.push(`最新检查:${snapshotInfo?.isLatest ? '通过' : '未通过'}`);
+    lines.push('</asset_check>');
+    lines.push('</bz_asset_sheet>');
+
+    return lines.join('\n');
+  },
+
   getDisplaySemanticTableBySheetKey(sheetKey, maxLookback = 10) {
     const snapshotInfo = this.getRecentChangedFloorSnapshot(maxLookback);
     if (!snapshotInfo?.hasData || !snapshotInfo?.snapshot?.assetsData) {

@@ -184,6 +184,28 @@ function getChatWorldbookNameSafe(chatName = 'current') {
   return null;
 }
 
+function getChatMessageByIdSafe(messageId) {
+  try {
+    if (typeof getChatMessages !== 'function' || messageId === null || messageId === undefined) {
+      return null;
+    }
+    const messages = getChatMessages(messageId);
+    if (Array.isArray(messages) && messages.length > 0) return messages[0];
+  } catch {
+  }
+  return null;
+}
+
+async function setChatMessageTextSafe(messageId, text, refresh = 'affected') {
+  try {
+    if (typeof setChatMessages !== 'function' || messageId === null || messageId === undefined) return false;
+    await setChatMessages([{ message_id: messageId, message: String(text ?? '') }], { refresh });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function getWorldbookSafe(worldbookName) {
   try {
     if (typeof getWorldbook === 'function') return await getWorldbook(worldbookName);
@@ -921,6 +943,153 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
     };
   },
 
+  getRecentChangedFloorSnapshotForMessage(messageId, maxLookback = 10) {
+    const targetMessageId = Number.isInteger(messageId) ? messageId : Number.parseInt(messageId, 10);
+    if (!Number.isInteger(targetMessageId) || targetMessageId < 0) {
+      return {
+        hasData: false,
+        sourceMessageId: null,
+        floorOffset: null,
+        isLatest: false,
+        snapshot: null,
+      };
+    }
+
+    const windowSize = Math.max(1, Number(maxLookback) || 10);
+    const startMessageId = Math.max(0, targetMessageId - windowSize + 1);
+    const snapshots = [];
+
+    for (let cursor = startMessageId; cursor <= targetMessageId; cursor += 1) {
+      const snapshot = this.getFloorSnapshotAt(cursor);
+      if (!snapshot) continue;
+      snapshots.push(snapshot);
+    }
+
+    if (!snapshots.length) {
+      return {
+        hasData: false,
+        sourceMessageId: null,
+        floorOffset: null,
+        isLatest: false,
+        snapshot: null,
+      };
+    }
+
+    let chosen = snapshots[0];
+    for (let i = 0; i < snapshots.length; i += 1) {
+      const current = snapshots[i];
+      const previous = snapshots[i - 1];
+      if (!previous || !this.isFloorSnapshotEqual(previous, current)) {
+        chosen = current;
+      }
+    }
+
+    const floorOffset = targetMessageId - chosen.messageId;
+    return {
+      hasData: true,
+      sourceMessageId: chosen.messageId,
+      floorOffset,
+      isLatest: floorOffset === 0,
+      snapshot: chosen,
+    };
+  },
+
+  buildInjectionMetaLines(snapshotInfo, currentMessageId) {
+    const sourceFloor = snapshotInfo?.sourceMessageId;
+    const safeCurrentFloor = Number.isInteger(currentMessageId) ? currentMessageId : Number.parseInt(currentMessageId, 10);
+    const isLatest = !!snapshotInfo?.isLatest;
+    const staleBy = Number.isInteger(snapshotInfo?.floorOffset) ? snapshotInfo.floorOffset : '';
+    const actionHint = isLatest ? '数据已是最新' : '点击推演生成最新数据';
+
+    return [
+      `source_floor:${sourceFloor ?? ''}`,
+      `current_floor:${Number.isInteger(safeCurrentFloor) ? safeCurrentFloor : ''}`,
+      `is_latest:${isLatest ? 'true' : 'false'}`,
+      `stale_by:${staleBy}`,
+      `action_hint:${actionHint}`,
+    ];
+  },
+
+  buildWorldStateInjectionBlockForMessage(messageId, maxLookback = 10) {
+    const snapshotInfo = this.getRecentChangedFloorSnapshotForMessage(messageId, maxLookback);
+    const worldSimulation = snapshotInfo?.snapshot?.worldData;
+    if (!worldSimulation || !Array.isArray(worldSimulation.tracks) || !worldSimulation.tracks.length) return '';
+
+    const lines = [];
+    lines.push('<bz_world_state>');
+    lines.push(...this.buildInjectionMetaLines(snapshotInfo, messageId));
+
+    for (const track of worldSimulation.tracks) {
+      const key = String(track?.characterName || '未知视角').replace(/"/g, '&quot;');
+      lines.push(`<bg_track key="${key}">`);
+      lines.push(`${String(track?.id || 'BG.?')}[${String(track?.characterName || '未知视角')}][${String(track?.status || '推演中')}][${Number(track?.iteration) || 1}]`);
+      lines.push(`推演次数:${Number(track?.iteration) || 1}`);
+      lines.push(`时间同步:${String(track?.timeSync || '')}`);
+      lines.push(`地点:${String(track?.location || '')}`);
+      lines.push(`视角进度:${String(track?.progress || '')}`);
+      lines.push(`概括:${String(track?.summary || '')}`);
+      lines.push('</bg_track>');
+    }
+
+    const checks = worldSimulation?.checks || {};
+    lines.push('<bg_check>');
+    lines.push(`推演检查:${checks.allTracksAdvanced ? '通过' : '未通过'}`);
+    lines.push(`汇入检查:${checks.convergenceChecked ? '通过' : '未通过'}`);
+    lines.push(`新增检查:${checks.newTracksAdded ? '通过' : '未通过'}`);
+    lines.push('</bg_check>');
+    lines.push('</bz_world_state>');
+
+    return lines.join('\n');
+  },
+
+  getAssetTableCheckStatus(semanticAssets) {
+    const validation = this.validateSemanticAssetConstraints(semanticAssets || {});
+    return validation?.valid ? '通过' : '未通过';
+  },
+
+  buildAssetSheetInjectionBlockForMessage(messageId, maxLookback = 10) {
+    const snapshotInfo = this.getRecentChangedFloorSnapshotForMessage(messageId, maxLookback);
+    const semanticAssets = snapshotInfo?.snapshot?.assetsData;
+    if (!semanticAssets || typeof semanticAssets !== 'object') return '';
+
+    const schemaMap = this.getSemanticTableMap();
+    const lines = [];
+    lines.push('<bz_asset_sheet>');
+    lines.push(...this.buildInjectionMetaLines(snapshotInfo, messageId));
+
+    for (const [tableName, schema] of Object.entries(schemaMap)) {
+      const rows = semanticAssets[tableName];
+      lines.push(`<asset_table key="${String(tableName).replace(/"/g, '&quot;')}">`);
+
+      if (schema.type === 'single') {
+        for (const field of schema.fields) {
+          lines.push(`${field}:${this.coerceCell(rows?.[field])}`);
+        }
+      } else {
+        const rowList = Array.isArray(rows) ? rows : [];
+        if (!rowList.length) {
+          lines.push('empty:true');
+        }
+        for (let i = 0; i < rowList.length; i += 1) {
+          lines.push(`row:${i + 1}`);
+          for (const field of schema.fields) {
+            lines.push(`${field}:${this.coerceCell(rowList[i]?.[field])}`);
+          }
+        }
+      }
+
+      lines.push('</asset_table>');
+    }
+
+    lines.push('<asset_check>');
+    lines.push(`资产检查:${this.getAssetTableCheckStatus(semanticAssets)}`);
+    lines.push(`最新检查:${snapshotInfo?.isLatest ? '通过' : '未通过'}`);
+    lines.push('</asset_check>');
+    lines.push('</bz_asset_sheet>');
+
+    return lines.join('\n');
+  },
+
   getDisplaySemanticTableBySheetKey(sheetKey, maxLookback = 10) {
     const snapshotInfo = this.getRecentChangedFloorSnapshot(maxLookback);
     if (!snapshotInfo?.hasData || !snapshotInfo?.snapshot?.assetsData) {
@@ -1412,6 +1581,41 @@ function escapeRegExp(text) {
 }
 
 const BIZSIM_ENGINE_SIMULATION_METHODS = {
+  isAssistantMessage(message) {
+    if (!message || typeof message !== 'object') return false;
+    const role = String(message.role || '').toLowerCase();
+    if (role === 'assistant') return true;
+    if (role === 'system') return false;
+    return !(message.is_user === true || message.from_user === true || message.isUser === true || role === 'user');
+  },
+
+  replaceTaggedBlock(text, tagName, newBlock) {
+    const escaped = escapeRegExp(tagName);
+    const pattern = new RegExp(`<${escaped}>([\\s\\S]*?)</${escaped}>`, 'gi');
+    if (pattern.test(text)) {
+      return text.replace(pattern, newBlock);
+    }
+    const trimmed = String(text || '').replace(/\s+$/, '');
+    return trimmed ? `${trimmed}\n\n${newBlock}` : newBlock;
+  },
+
+  async injectBizSimBlocksToMessage(messageId, maxLookback = 10) {
+    const message = getChatMessageByIdSafe(messageId);
+    if (!message || !this.isAssistantMessage(message)) return { success: false, reason: 'not-assistant' };
+
+    const worldBlock = this.buildWorldStateInjectionBlockForMessage(messageId, maxLookback);
+    const assetBlock = this.buildAssetSheetInjectionBlockForMessage(messageId, maxLookback);
+    if (!worldBlock && !assetBlock) return { success: false, reason: 'no-biz-floor-data' };
+
+    const originalText = String(message.message || message.mes || message.content || '');
+    let updatedText = originalText;
+    if (worldBlock) updatedText = this.replaceTaggedBlock(updatedText, 'bz_world_state', worldBlock);
+    if (assetBlock) updatedText = this.replaceTaggedBlock(updatedText, 'bz_asset_sheet', assetBlock);
+    if (updatedText === originalText) return { success: true, updated: false };
+
+    const ok = await setChatMessageTextSafe(messageId, updatedText, 'affected');
+    return { success: ok, updated: ok };
+  },
   getTrackIdPattern() {
     const prefix = escapeRegExp(String(this.config.SIMULATION?.trackPrefix || 'BG'));
     return new RegExp(`^${prefix}\.(\\d+)$`);
@@ -1750,6 +1954,8 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
       this.validateCrossSheetIntegrity();
       if (this.config.SIMULATION?.autoSave !== false) await this.saveData();
 
+      const injected = await this.injectBizSimBlocksToMessage(syncResult.messageId, 10);
+
       return {
         success: true,
         data: {
@@ -1766,6 +1972,11 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
           localValidationWarningIssues: warningIssues,
           localValidationWouldBlock: blockingIssues.length > 0,
           localValidationAutoRepaired: !!validationResult?.autoRepaired,
+          bodyInjection: {
+            success: !!injected?.success,
+            updated: !!injected?.updated,
+            reason: injected?.reason || '',
+          },
         },
         chainOfThought: normalized._chainOfThought,
       };
@@ -5624,6 +5835,7 @@ let ui = null;
 let autoSimInFlight = false;
 let lastAutoSimAt = 0;
 let assistantMessageCount = 0;
+let manualSimInFlight = false;
 
 function getMessageFromEvent(messageId) {
   try {
@@ -5709,6 +5921,51 @@ async function maybeAutoSimulate(messageId) {
   }
 }
 
+async function injectForAssistantMessage(messageId) {
+  const message = getMessageFromEvent(messageId);
+  if (!isAssistantMessage(message)) return;
+  const ctx = await initBizSim();
+  try {
+    await ctx.engine.injectBizSimBlocksToMessage(messageId, 10);
+  } catch (error) {
+    console.warn('[BizSim] 正文注入失败:', error?.message || error);
+  }
+}
+
+async function sweepRecentAssistantInjections(maxScan = 120) {
+  const ctx = await initBizSim();
+  if (typeof getLastMessageId !== 'function') return;
+
+  let lastId = -1;
+  try {
+    lastId = Number(getLastMessageId());
+  } catch {
+    return;
+  }
+  if (!Number.isInteger(lastId) || lastId < 0) return;
+
+  const begin = Math.max(0, lastId - Math.max(1, Number(maxScan) || 120) + 1);
+  for (let messageId = begin; messageId <= lastId; messageId += 1) {
+    const message = getMessageFromEvent(messageId);
+    if (!isAssistantMessage(message)) continue;
+    try {
+      await ctx.engine.injectBizSimBlocksToMessage(messageId, 10);
+    } catch {
+    }
+  }
+}
+
+async function triggerSimulationFromHtml() {
+  if (manualSimInFlight || autoSimInFlight) return { success: false, error: '推演中' };
+  manualSimInFlight = true;
+  try {
+    const result = await quickSimulate();
+    return result;
+  } finally {
+    manualSimInFlight = false;
+  }
+}
+
 async function initBizSim() {
   if (!engine) {
     engine = new BizSimEngine();
@@ -5728,23 +5985,29 @@ async function openBizSim() {
 }
 
 async function quickSimulate() {
+  if (manualSimInFlight) return { success: false, error: '推演中' };
+  manualSimInFlight = true;
   const ctx = await initBizSim();
 
   if (typeof toastr !== 'undefined') {
     toastr.info('开始执行推演...', 'BizSim');
   }
 
-  const result = await ctx.engine.runSimulation(true);
-  if (typeof toastr !== 'undefined') {
-    if (result.success) {
-      const count = result.data.worldSimulation?.tracks?.length || 0;
-      toastr.success(`推演完成！共 ${count} 个活跃视角`, 'BizSim');
-    } else {
-      toastr.error(`推演失败: ${result.error}`, 'BizSim');
+  try {
+    const result = await ctx.engine.runSimulation(true);
+    if (typeof toastr !== 'undefined') {
+      if (result.success) {
+        const count = result.data.worldSimulation?.tracks?.length || 0;
+        toastr.success(`推演完成！共 ${count} 个活跃视角`, 'BizSim');
+      } else {
+        toastr.error(`推演失败: ${result.error}`, 'BizSim');
+      }
     }
-  }
 
-  return result;
+    return result;
+  } finally {
+    manualSimInFlight = false;
+  }
 }
 
 function registerBizSimEvents() {
@@ -5761,6 +6024,7 @@ function registerBizSimEvents() {
 
   if (typeof tavern_events !== 'undefined') {
     eventOnSafe(tavern_events.MESSAGE_RECEIVED, async (messageId) => {
+      await injectForAssistantMessage(messageId);
       await maybeAutoSimulate(messageId);
     });
 
@@ -5780,12 +6044,17 @@ function exposeBizSimDebugApi() {
     },
     open: openBizSim,
     simulate: quickSimulate,
+    simulateFromHtml: triggerSimulationFromHtml,
+    get isSimulating() {
+      return manualSimInFlight || autoSimInFlight;
+    },
   };
 }
 
 async function bootBizSim() {
   registerBizSimEvents();
   exposeBizSimDebugApi();
+  await sweepRecentAssistantInjections(120);
 
   console.log('[BizSim] 模块化开发版本已加载，点击"世界推演"按钮使用');
   if (typeof toastr !== 'undefined') {

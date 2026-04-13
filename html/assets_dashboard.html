@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>资产统计面板</title>
+<style>
+:root {
+	--bg: #0c1220;
+	--card: #121a2d;
+	--line: #24314f;
+	--text: #dbe6ff;
+	--sub: #93a9d8;
+	--accent: #5dd3ff;
+	--ok: #1fd48a;
+	--warn: #ffb120;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: transparent; color: var(--text); font: 13px/1.5 "PingFang SC", "Segoe UI", sans-serif; }
+.wrap { max-width: 900px; margin: 10px auto; background: rgba(12,18,32,.92); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.top { padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.title { color: var(--accent); font-weight: 700; letter-spacing: .5px; }
+.meta { color: var(--sub); font-size: 12px; }
+.btn { border: 1px solid var(--line); background: #1a2743; color: var(--text); padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.btn[disabled] { opacity: .7; cursor: not-allowed; }
+.hint { padding: 8px 14px; border-bottom: 1px solid var(--line); color: var(--sub); background: rgba(93,211,255,.06); }
+.grid { display: grid; gap: 12px; padding: 12px; }
+.card { border: 1px solid var(--line); background: var(--card); border-radius: 8px; overflow: hidden; }
+.card-h { padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--accent); font-weight: 700; }
+.table { width: 100%; border-collapse: collapse; }
+.table th,.table td { border-bottom: 1px solid #1d2840; padding: 6px 8px; text-align: left; vertical-align: top; }
+.table th { width: 210px; color: var(--sub); font-weight: 600; }
+.check { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; gap: 16px; flex-wrap: wrap; }
+.ok { color: var(--ok); }
+.warn { color: var(--warn); }
+</style>
+</head>
+<body>
+<div class="wrap">
+	<div class="top">
+		<div>
+			<div class="title">BizSim 资产统计</div>
+			<div class="meta" id="metaLine">正在解析数据...</div>
+		</div>
+		<button id="simBtn" class="btn">点击推演</button>
+	</div>
+	<div id="hint" class="hint">等待资产数据...</div>
+	<div id="grid" class="grid"></div>
+	<div id="check" class="check"></div>
+</div>
+
+<textarea id="capsule" style="display:none;">$1</textarea>
+
+<script>
+(function(){
+	const raw = document.getElementById('capsule').value || '';
+	const grid = document.getElementById('grid');
+	const check = document.getElementById('check');
+	const metaLine = document.getElementById('metaLine');
+	const hint = document.getElementById('hint');
+	const simBtn = document.getElementById('simBtn');
+	let blockMeta = null;
+
+	function esc(t) {
+		const div = document.createElement('div');
+		div.textContent = String(t ?? '');
+		return div.innerHTML;
+	}
+
+	function parseMeta(text) {
+		const pick = (k) => {
+			const m = text.match(new RegExp(`${k}:(.*?)(?=\\n|$)`));
+			return m ? m[1].trim() : '';
+		};
+		return {
+			sourceFloor: pick('source_floor'),
+			currentFloor: pick('current_floor'),
+			isLatest: pick('is_latest').toLowerCase() === 'true',
+			staleBy: pick('stale_by'),
+			actionHint: pick('action_hint') || '点击推演生成最新数据',
+		};
+	}
+
+	function parseAssetTables(text) {
+		const out = [];
+		const regex = /<asset_table\s+key="([^"]+)">([\s\S]*?)<\/asset_table>/g;
+		let m;
+		while ((m = regex.exec(text)) !== null) {
+			const key = m[1];
+			const body = m[2].trim();
+			const lines = body.split('\n').map((line) => line.trim()).filter(Boolean);
+			const rows = [];
+			let current = [];
+			lines.forEach((line) => {
+				if (line === 'empty:true') return;
+				if (line.startsWith('row:')) {
+					if (current.length) rows.push(current);
+					current = [];
+					return;
+				}
+				const idx = line.indexOf(':');
+				if (idx > -1) current.push([line.slice(0, idx), line.slice(idx + 1)]);
+			});
+			if (current.length) rows.push(current);
+			if (!rows.length) rows.push(lines.filter((line) => line.includes(':')).map((line) => {
+				const i = line.indexOf(':');
+				return [line.slice(0, i), line.slice(i + 1)];
+			}));
+			out.push({ key, rows });
+		}
+		return out;
+	}
+
+	function render() {
+		const blockMatch = raw.match(/<bz_asset_sheet>([\s\S]*?)<\/bz_asset_sheet>/);
+		if (!blockMatch) {
+			hint.textContent = '未检测到 <bz_asset_sheet> 数据块';
+			grid.innerHTML = '';
+			check.innerHTML = '<span class="warn">无可渲染资产数据</span>';
+			return;
+		}
+
+		const text = blockMatch[1];
+		blockMeta = parseMeta(text);
+		const tables = parseAssetTables(text);
+
+		metaLine.textContent = `来源楼层 ${blockMeta.sourceFloor || '-'} / 当前楼层 ${blockMeta.currentFloor || '-'}`;
+		hint.innerHTML = blockMeta.isLatest
+			? '<span class="ok">当前展示已是最新资产数据</span>'
+			: `<span class="warn">当前展示非最新（落后 ${esc(blockMeta.staleBy || '?')} 层）</span> · ${esc(blockMeta.actionHint)}`;
+
+		grid.innerHTML = tables.map((table) => {
+			const body = table.rows.map((pairs) => `
+				<table class="table">
+					${pairs.map((pair) => `<tr><th>${esc(pair[0])}</th><td>${esc(pair[1])}</td></tr>`).join('')}
+				</table>
+			`).join('');
+			return `<div class="card"><div class="card-h">${esc(table.key)}</div>${body}</div>`;
+		}).join('');
+
+		const checkMatch = text.match(/<asset_check>([\s\S]*?)<\/asset_check>/);
+		if (checkMatch) {
+			const rows = checkMatch[1].split('\n').map((line) => line.trim()).filter(Boolean);
+			check.innerHTML = rows.map((row) => {
+				const pass = row.includes('通过') && !row.includes('未通过');
+				return `<span class="${pass ? 'ok' : 'warn'}">${esc(row)}</span>`;
+			}).join('');
+		}
+	}
+
+	function setButtonState() {
+		let running = false;
+		try {
+			const api = window.parent?.BizSim || window.BizSim;
+			running = !!api?.isSimulating;
+		} catch {
+		}
+		if (running) {
+			simBtn.disabled = true;
+			simBtn.textContent = '推演中';
+			return;
+		}
+		simBtn.disabled = false;
+		simBtn.textContent = '点击推演';
+		simBtn.title = blockMeta?.isLatest ? '当前已是最新，可手动再推演' : (blockMeta?.actionHint || '点击推演生成最新数据');
+	}
+
+	async function trigger() {
+		setButtonState();
+		try {
+			const api = window.parent?.BizSim || window.BizSim;
+			if (!api?.simulateFromHtml && !api?.simulate) throw new Error('BizSim API 不可用');
+			const result = api.simulateFromHtml ? await api.simulateFromHtml() : await api.simulate();
+			if (!result?.success) throw new Error(result?.error || '推演失败');
+		} catch (err) {
+			console.error('[assets_dashboard] simulate failed', err);
+		} finally {
+			setButtonState();
+		}
+	}
+
+	simBtn.addEventListener('click', trigger);
+	setInterval(setButtonState, 1000);
+	render();
+	setButtonState();
+})();
+</script>
+</body>
+</html>

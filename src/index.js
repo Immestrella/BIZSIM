@@ -7,6 +7,7 @@ let ui = null;
 let autoSimInFlight = false;
 let lastAutoSimAt = 0;
 let assistantMessageCount = 0;
+let manualSimInFlight = false;
 
 function getMessageFromEvent(messageId) {
   try {
@@ -92,6 +93,51 @@ async function maybeAutoSimulate(messageId) {
   }
 }
 
+async function injectForAssistantMessage(messageId) {
+  const message = getMessageFromEvent(messageId);
+  if (!isAssistantMessage(message)) return;
+  const ctx = await initBizSim();
+  try {
+    await ctx.engine.injectBizSimBlocksToMessage(messageId, 10);
+  } catch (error) {
+    console.warn('[BizSim] 正文注入失败:', error?.message || error);
+  }
+}
+
+async function sweepRecentAssistantInjections(maxScan = 120) {
+  const ctx = await initBizSim();
+  if (typeof getLastMessageId !== 'function') return;
+
+  let lastId = -1;
+  try {
+    lastId = Number(getLastMessageId());
+  } catch {
+    return;
+  }
+  if (!Number.isInteger(lastId) || lastId < 0) return;
+
+  const begin = Math.max(0, lastId - Math.max(1, Number(maxScan) || 120) + 1);
+  for (let messageId = begin; messageId <= lastId; messageId += 1) {
+    const message = getMessageFromEvent(messageId);
+    if (!isAssistantMessage(message)) continue;
+    try {
+      await ctx.engine.injectBizSimBlocksToMessage(messageId, 10);
+    } catch {
+    }
+  }
+}
+
+export async function triggerSimulationFromHtml() {
+  if (manualSimInFlight || autoSimInFlight) return { success: false, error: '推演中' };
+  manualSimInFlight = true;
+  try {
+    const result = await quickSimulate();
+    return result;
+  } finally {
+    manualSimInFlight = false;
+  }
+}
+
 export async function initBizSim() {
   if (!engine) {
     engine = new BizSimEngine();
@@ -111,23 +157,29 @@ export async function openBizSim() {
 }
 
 export async function quickSimulate() {
+  if (manualSimInFlight) return { success: false, error: '推演中' };
+  manualSimInFlight = true;
   const ctx = await initBizSim();
 
   if (typeof toastr !== 'undefined') {
     toastr.info('开始执行推演...', 'BizSim');
   }
 
-  const result = await ctx.engine.runSimulation(true);
-  if (typeof toastr !== 'undefined') {
-    if (result.success) {
-      const count = result.data.worldSimulation?.tracks?.length || 0;
-      toastr.success(`推演完成！共 ${count} 个活跃视角`, 'BizSim');
-    } else {
-      toastr.error(`推演失败: ${result.error}`, 'BizSim');
+  try {
+    const result = await ctx.engine.runSimulation(true);
+    if (typeof toastr !== 'undefined') {
+      if (result.success) {
+        const count = result.data.worldSimulation?.tracks?.length || 0;
+        toastr.success(`推演完成！共 ${count} 个活跃视角`, 'BizSim');
+      } else {
+        toastr.error(`推演失败: ${result.error}`, 'BizSim');
+      }
     }
-  }
 
-  return result;
+    return result;
+  } finally {
+    manualSimInFlight = false;
+  }
 }
 
 export function registerBizSimEvents() {
@@ -144,6 +196,7 @@ export function registerBizSimEvents() {
 
   if (typeof tavern_events !== 'undefined') {
     eventOnSafe(tavern_events.MESSAGE_RECEIVED, async (messageId) => {
+      await injectForAssistantMessage(messageId);
       await maybeAutoSimulate(messageId);
     });
 
@@ -163,12 +216,17 @@ export function exposeBizSimDebugApi() {
     },
     open: openBizSim,
     simulate: quickSimulate,
+    simulateFromHtml: triggerSimulationFromHtml,
+    get isSimulating() {
+      return manualSimInFlight || autoSimInFlight;
+    },
   };
 }
 
 export async function bootBizSim() {
   registerBizSimEvents();
   exposeBizSimDebugApi();
+  await sweepRecentAssistantInjections(120);
 
   console.log('[BizSim] 模块化开发版本已加载，点击"世界推演"按钮使用');
   if (typeof toastr !== 'undefined') {

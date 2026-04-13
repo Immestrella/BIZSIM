@@ -279,6 +279,7 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 
         <div class="header-controls">
             <span id="nos-time" style="font-family: var(--font-code); color: rgba(var(--c-text),0.5); font-size: 11px;">TICK: 00:00</span>
+            <div class="ctrl-btn" id="runSimBtn" title="触发 BizSim 推演" style="width:auto;padding:0 10px;font-size:11px;gap:6px;"><i class="fa-solid fa-play"></i><span id="runSimText">点击推演</span></div>
             <div class="ctrl-btn" onclick="toggleTheme()" title="切换昼夜镜片"><i class="fa-solid fa-moon" id="themeIcon"></i></div>
             <div class="ctrl-btn fold-btn" onclick="toggleNosFold()" title="收起/展开面板"><i class="fa-solid fa-compress"></i></div>
         </div>
@@ -318,6 +319,9 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     const fsTrackCount = document.getElementById('fsTrackCount');
     const fsDiagStatus = document.getElementById('fsDiagStatus');
     const themeIcon = document.getElementById('themeIcon');
+    const runSimBtn = document.getElementById('runSimBtn');
+    const runSimText = document.getElementById('runSimText');
+    let blockMeta = null;
     
     function updateSystemTime() {
         const now = new Date();
@@ -472,13 +476,35 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 
     function parseData() {
         const raw = capsule.value || '';
+        const bzWorldMatch = raw.match(/<bz_world_state>([\s\S]*?)<\/bz_world_state>/);
+        const worldBlock = bzWorldMatch ? bzWorldMatch[1] : '';
+        const parseMeta = (text) => {
+            const read = (key) => {
+                const m = text.match(new RegExp(`${key}:(.*?)(?=\\n|$)`));
+                return m ? m[1].trim() : '';
+            };
+            const sourceFloor = read('source_floor');
+            const currentFloor = read('current_floor');
+            const isLatestText = read('is_latest').toLowerCase();
+            const staleBy = read('stale_by');
+            const actionHint = read('action_hint') || '点击推演生成最新数据';
+            return {
+                sourceFloor,
+                currentFloor,
+                isLatest: isLatestText === 'true',
+                staleBy,
+                actionHint,
+            };
+        };
+        blockMeta = parseMeta(worldBlock || raw);
+
         const trackRegex = /<bg_track\s+key="([^"]+)">([\s\S]*?)<\/bg_track>/g;
         let match;
         let htmlTracks = '';
         let isFirst = true;
         let trackCount = 0;
         
-        while ((match = trackRegex.exec(raw)) !== null) {
+        while ((match = trackRegex.exec(worldBlock || raw)) !== null) {
             trackCount++;
             const key = match[1].trim();
             const content = match[2].trim();
@@ -556,7 +582,7 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
             trackGrid.innerHTML = '<div style="color:rgb(var(--c-sec)); text-align:center; padding: 20px; grid-column: 1/-1;"><i class="fa-solid fa-triangle-exclamation"></i> 无法解析数据轨道</div>';
         }
 
-        const checkBlockMatch = raw.match(/<bg_check>([\s\S]*?)<\/bg_check>/);
+        const checkBlockMatch = (worldBlock || raw).match(/<bg_check>([\s\S]*?)<\/bg_check>/);
         let htmlChecks = '';
         let allChecksPass = true;
         
@@ -595,7 +621,56 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
         triggerResize();
     }
 
+    function setRunSimButtonState() {
+        let isRunning = false;
+        try {
+            const api = window.parent?.BizSim || window.BizSim;
+            isRunning = !!api?.isSimulating;
+        } catch {
+        }
+
+        if (isRunning) {
+            runSimText.textContent = '推演中';
+            runSimBtn.style.opacity = '0.75';
+            runSimBtn.style.pointerEvents = 'none';
+            runSimBtn.querySelector('i').className = 'fa-solid fa-circle-notch fa-spin';
+            return;
+        }
+
+        runSimText.textContent = '点击推演';
+        runSimBtn.style.opacity = '1';
+        runSimBtn.style.pointerEvents = 'auto';
+        runSimBtn.querySelector('i').className = blockMeta?.isLatest ? 'fa-solid fa-rotate' : 'fa-solid fa-play';
+        runSimBtn.title = blockMeta?.isLatest
+            ? '当前数据已最新，可手动再推演'
+            : (blockMeta?.actionHint || '点击推演生成最新数据');
+    }
+
+    async function triggerSimulation() {
+        setRunSimButtonState();
+        try {
+            const api = window.parent?.BizSim || window.BizSim;
+            if (!api?.simulateFromHtml && !api?.simulate) throw new Error('BizSim API 不可用');
+            const result = api.simulateFromHtml ? await api.simulateFromHtml() : await api.simulate();
+            if (!result?.success) throw new Error(result?.error || '推演失败');
+            toast.innerHTML = '<i class="fa-solid fa-check"></i> 推演完成';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        } catch (err) {
+            toast.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> 推演失败';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2200);
+            console.error('[NARRATIVE OS] trigger simulation failed', err);
+        } finally {
+            setRunSimButtonState();
+        }
+    }
+
+    runSimBtn?.addEventListener('click', triggerSimulation);
+    setInterval(setRunSimButtonState, 1000);
+
     parseData();
+    setRunSimButtonState();
 })();
 </script>
 </body>
