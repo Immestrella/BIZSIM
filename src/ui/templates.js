@@ -305,8 +305,11 @@ export function createMainPanelHtml(engine) {
               </div>
               <div class="bizsim-sheet-toolbar">
                 <button class="bizsim-btn bizsim-btn-secondary bizsim-sheet-btn active" data-sheet="sheet_assetOVW0">资产总览</button>
+                <button class="bizsim-btn bizsim-btn-secondary bizsim-sheet-btn" data-sheet="sheet_bizStruct">业务结构</button>
                 <button class="bizsim-btn bizsim-btn-secondary bizsim-sheet-btn" data-sheet="sheet_cashInv1a">流动资产</button>
+                <button class="bizsim-btn bizsim-btn-secondary bizsim-sheet-btn" data-sheet="sheet_rlEst02b">不动产</button>
                 <button class="bizsim-btn bizsim-btn-secondary bizsim-sheet-btn" data-sheet="sheet_bizSegments">业务板块</button>
+                <button class="bizsim-btn bizsim-btn-secondary bizsim-sheet-btn" data-sheet="sheet_luxuryAssets">奢侈品</button>
                 <button class="bizsim-btn bizsim-btn-secondary bizsim-sheet-btn" data-sheet="sheet_dbt4Lst4">债务</button>
               </div>
               <div id="empire-table-container"><div class="bizsim-helper">选择上方按钮查看表格</div></div>

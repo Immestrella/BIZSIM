@@ -10,6 +10,7 @@ import { BIZSIM_ENGINE_PROMPT_METHODS } from './BizSimEngine.prompt.js';
 import { BIZSIM_ENGINE_METHODS } from './BizSimEngine.methods.js';
 import { BIZSIM_ENGINE_VALIDATION_METHODS } from './BizSimEngine.validation.js';
 import { BIZSIM_ENGINE_CONTEXT_METHODS } from './BizSimEngine.context.js';
+import { PromptPresetManager } from '../ui/BizSimUI.presets.js';
 
 export class BizSimEngine {
   constructor() {
@@ -176,6 +177,10 @@ export class BizSimEngine {
 
   getPromptTemplate(key) {
     return this.promptTemplates?.[key] || PROMPTS[key] || '';
+  }
+
+  async reloadFromVariables() {
+    return this.reloadFromFloorVariables();
   }
 
   async reloadFromFloorVariables() {

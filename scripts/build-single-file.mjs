@@ -18,6 +18,7 @@ const moduleOrder = [
   'src/core/BizSimEngine.audit.js',
   'src/core/BizSimEngine.methods.js',
   'src/core/BizSimEngine.prompt.js',
+  'src/core/BizSimEngine.validation.js',
   'src/core/BizSimEngine.js',
   'src/ui/templates.js',
   'src/ui/BizSimUI.worldbook.js',

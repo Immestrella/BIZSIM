@@ -680,7 +680,23 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     if (!scoped) return '';
     const worldData = this.extractWorldSimulationPayload(scoped);
     if (!worldData) return '';
-    return this.toPrettyJson(worldData);
+
+    // 过滤已汇入视角
+    const filteredTracks = this.filterConvergedTracks(worldData.tracks || []);
+
+    // 计算所有视角（包括已汇入）的最大编号
+    const allTrackIds = worldData.tracks.map(t => t?.id || '').filter(Boolean);
+    const maxId = allTrackIds.reduce((max, id) => {
+      const match = String(id).match(/BG\.(\d+)/);
+      return match ? Math.max(max, parseInt(match[1], 10)) : max;
+    }, 0);
+
+    // 返回过滤后的数据，添加元数据告诉AI最大编号
+    return this.toPrettyJson({
+      ...worldData,
+      tracks: filteredTracks,
+      _metadata: { maxTrackId: maxId }
+    });
   },
 
   validateAndNormalizeFloorJson(value) {
