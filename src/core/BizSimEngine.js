@@ -8,6 +8,7 @@ import { getCharacterVariablesSafe, insertOrAssignVariablesSafe } from '../utils
 import { deepClone, getByPath } from '../utils/object.js';
 import { BIZSIM_ENGINE_PROMPT_METHODS } from './BizSimEngine.prompt.js';
 import { BIZSIM_ENGINE_METHODS } from './BizSimEngine.methods.js';
+import { BIZSIM_ENGINE_VALIDATION_METHODS } from './BizSimEngine.validation.js';
 import { PromptPresetManager } from '../ui/BizSimUI.presets.js';
 
 export class BizSimEngine {
@@ -193,3 +194,4 @@ export class BizSimEngine {
 
 Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_METHODS);
 Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_PROMPT_METHODS);
+Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_VALIDATION_METHODS);

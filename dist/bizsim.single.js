@@ -325,11 +325,12 @@ const DEFAULT_CORE_PROMPT_MODULES = {
     rule_layer: `=============================
   【模块一：世界推演引擎 (World Simulation)】
   这是一个真实运转的沙盒世界，主角不在场的关键角色或势力必须按自身逻辑继续发展。
-  1. 编号与递增：视角 ID 为 “BG.n” (n为自增序号)。每次推演 iteration 必须 +1。
-  2. 视角数量：同一轮必须推演至少 3 个独立视角。
+  1. 编号与递增：视角 ID 为 “BG.n” (n为自增序号)。每次推演 iteration 必须 +1。命名后不可更改。
+  2. 视角数量：同一轮必须推演至少 3 个独立视角，上不封顶。所有状态为”推演中”的视角每次都要进行推进&更新，一个不漏！
   3. 自由发散：【绝对禁止】将旧视角强行引回主线与主角相遇。任其独立发展、成功或死亡。
   4. 状态流转：仅当剧情逻辑极其合理时（明确相遇/合并），才将 status 设为 “已汇入”，并在下轮彻底移除。
   5. 动态衍生：有核心人物离开主角视线时，必须立即分配新编号（最大编号+1）新增视角。
+  6. 命名规范：已知人物视角必须用人物纯姓名命名，无任何职位、称谓。
 
   =============================
   【模块二：事业审计引擎 (Career Audit)】
@@ -369,38 +370,58 @@ const DEFAULT_CORE_PROMPT_MODULES = {
 
   =============================
   【模块三：表格生命周期约束 (Sheet Lifecycle Constraints)】
-  你必须把每张表视为”有状态对象”，严格遵守以下增删改规则。
+  你必须把每张表视为"有状态对象"，严格遵守以下增删改规则。
 
   【集团架构表】类型: single | 操作: 仅更新，禁止增删
   - 说明：单行顶层节点表，记录主角控制体系最顶层实体核心状态
   - 泛用化：核心管理层→权力架构(CEO/宗主/领主)；上市状态→势力能见度
   - 重点审查：实控持股%[控制力度]、员工审计结构（比例失衡触发失控）
+  - 初始化：按世界观（现代/修仙/废土等）映射语义填写；若无明确名称，填「[主角名]核心势力」
+  - 删除：【禁止删除】此表永久保留
+  - 更新：重大变动时更新；重点审查列3「控制力度」与列11「员工审计」；一旦结构失控，须立即更新，并在本表列10与业务板块扣减利润
 
   【固定资产表】类型: multi | 流动性: B级(3-6月变现，折价30%-50%)
   - 说明：【个人持有】仅记录主角个人名义持有的不动产/领地/灵矿
-  - 操作：新购置可插入；转让/报废可删除；估值/状态变化必须更新；甩卖需记录折价
+  - 初始化：按开局设定扫入已有个人固定资产，术语随世界观转换
+  - 删除：转让完成后删除；在【资产总览】本轮变动摘要里记一笔；强行甩卖按7折结算现金
+  - 更新：估值、状态变化，或遭外部侵占时更新
+  - 插入：新置办个人固定资产时插入
 
   【流动资产表】类型: multi | 流动性: S级(即时调用，100%价值)
   - 说明：【个人流动资产】严格排除集团/公司账户资金，是防御资金链断裂的唯一屏障
-  - 操作：新资产类别可插入；清仓/耗尽可删除；余额变化必须更新
+  - 初始化：扫入主角个人名下的高流动性财物
+  - 删除：资产耗尽或清仓变现后删除对应行
+  - 更新：每轮检查；余额一变就更新
+  - 插入：新开投资账户或新增独立资产类别时插入
 
   【资产总览表】类型: single | 操作: 仅更新，禁止增删
   - 说明：【仪表盘】单行表，主角全部资产负债快照，严格区分【势力资产】与【个人资产】
   - 强制对账：每轮必须完成跨表审计锁校验（流动资产/不动产/企业资产/总负债四栏对齐）
+  - 初始化：按其余各表严格加总计算填入；声望按主角背景初始设定
+  - 删除：【禁止删除】
+  - 更新：按【跨表审计锁规则】对齐数据；名望随重要剧情事件升降
 
   【藏品载具表】类型: multi | 流动性: C级(折价高，流动性差)
   - 说明：【个人持有】高端消费品、载具、法宝、异宠等
-  - 操作：新增战利品/购置可插入；报废/出售可删除；改装/受损/维护成本变化必须更新
+  - 初始化：按设定扫入高级载具/法宝
+  - 删除：报废、出售或战损后删除
+  - 更新：改装、受损或月维护成本变化时更新
+  - 插入：新消费或战利品缴获时插入
 
   【业务板块表】类型: multi | 流动性: D级(账面股权，变现折价70%起步)
   - 说明：【业务/分舵状态】记录主角控制下的各业务/产业模块
   - 真实感约束：月净利 = 核心产出 - 运营成本 - 员工薪酬及赋税；亏损且现金<3个月强制填「危机/濒危」
-  - 操作：开拓新板块可插入；关停/失守/全资收购可删除；经营状态与月净利需持续更新
-  - 控制约束：若控制力度<50%或忠诚暴跌，禁止将该板块利润无条件并入个人可支配现金
+  - 初始化：按当前版图拆成各业务线/领地/堂口填入
+  - 删除：业务关停、领地失守或被全资收购后删除
+  - 更新：严格按公式算月净利；审人员结构与控制力度；控制力度<50%或忠诚暴跌时，禁止向总表随意抽调月净利
+  - 插入：开拓新业务或攻占新领地时插入
 
   【负债清单表】类型: multi
   - 说明：【个人负债/债权】包含欠款(负债)与放贷(应收)
-  - 操作：借入/借出都要记录并持续更新剩余额与状态；两清可删除，并在资产总览本轮变动摘要留痕`,
+  - 初始化：记入开局债务或恩怨账单
+  - 删除：两清后删除；在【资产总览】变动摘要记录
+  - 更新：每月结息并更新剩余额；逾期立即改状态并交给事件引擎
+  - 插入：借钱填坑或对外放款时插入`,
 
   execution_steps: `=============================
 【执行步骤】
@@ -421,8 +442,11 @@ const DEFAULT_CORE_PROMPT_MODULES = {
 {
   "_chainOfThought": {
     "world_analysis": [
-      "\${列出上一轮状态为'推演中'的视角，确定哪些需汇入，哪些需继续}",
-      "\${检查是否有核心角色离场？是否需要新增 BG.n 视角？确保推演数>=3}"
+      "【视角盘点】列出上一轮所有状态为'推演中'的视角，这些视角必须在本轮全部继续推演，一个不漏",
+      "【汇入判断】哪些视角的剧情已自然汇入主线？（与主角相遇/合并）已汇入的标记为'已汇入'，未汇入的保持'推演中'——任其独立发展，禁止硬往主线上靠",
+      "【离场检测】是否有核心角色离开主角视线？如有，必须新增该角色的独立视角（编号=最大编号+1，命名用纯姓名无任何职位/称谓）",
+      "【新增机会】是否有有趣的新视角可以设计？新视角命名规则：BG.n[视角名称][推演中][1]，n为当前最大编号+1",
+      "【数量校验】确保推演中视角数量>=3，不满足则补足"
     ],
     "empire_audit": [
       "\${盘点本轮资金与势力变更，按通用事业框架(公司/宗门/领地等)校验语义映射与跨表审计锁}",
@@ -524,19 +548,19 @@ const DEFAULT_CORE_PROMPT_MODULES = {
       "tracks": [
         {
           "id": "BG.\${n 从最大值+1}",
-          "characterName": "\${纯姓名无任何职位或称谓}",
-          "status": "\${推演中/已汇入}",
-          "iteration": \${数字，每推演一次+1},
-          "timeSync": "\${开始时间 → 结束时间}",
-          "location": "\${有移动需标注}",
+          "characterName": "\${视角名称，注意这是视角名称不是事件标题。已知人物视角必须用人物纯姓名命名，无任何职位、称谓}",
+          "status": "\${推演中/已汇入 二选一，当视角汇入主线时改为已汇入，否则保持推演中}",
+          "iteration": \${推演次数，1开始，每推演一次+1},
+          "timeSync": "\${开始时间 → 结束时间，根据主线推进的精确时间}",
+          "location": "\${地点，视角有移动需标注}",
           "progress": "\${一句话概括视角当前进度}",
-          "summary": "\${事件简述、新增长期存在物品、**人物性格变化**，50字左右，仅叙事不评价}"
+          "summary": "\${事件简述、新增长期存在物品及物品简述、**人物性格变化**，50字左右，仅叙事不评价}"
         }
       ],
       "checks": {
-        "allTracksAdvanced": \${推演检查：状态为推演中的视角已全部更新且数量>=3? true/false},
-        "convergenceChecked": \${汇入检查：与主角交汇的视角是否已更改为已汇入? true/false},
-        "newTracksAdded": \${新增检查：核心离场角色是否已生成纯姓名新视角? true/false}
+        "allTracksAdvanced": \${推演检查：状态为推演中的所有视角(BG.1 BG.2 ... BG.n)已全部推演更新，且数量>=3? true/false},
+        "convergenceChecked": \${汇入检查：与主角交汇&会面的视角，状态是否已更改为已汇入? true/false},
+        "newTracksAdded": \${新增检查：是否有核心角色离开主角视角？如有，是否已新增该角色视角且命名为纯姓名(无职位/称谓)? true/false}
       }
     }
   }
@@ -1150,8 +1174,33 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
     const windowSize = Math.max(1, Number(limit) || 10);
     const startMessageId = Math.max(0, lastMessageId - windowSize + 1);
     const currentMessageId = getCurrentMessageIdSafe();
-    const blocks = [];
 
+    // 第一轮：逆序遍历收集所有已汇入的视角ID
+    // 这样可以从最新楼层向后扫描，确保一旦某个视角在任何楼层被标记为已汇入
+    // 它的ID就会被记录，用于过滤所有更早楼层的历史数据
+    const convergedTrackIds = new Set();
+    for (let messageId = lastMessageId; messageId >= startMessageId; messageId -= 1) {
+      if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
+
+      const variables = getMessageVariablesSafe(messageId);
+      if (!variables) continue;
+
+      const scoped = this.resolveFloorStatDataSource(variables);
+      if (!scoped) continue;
+      const worldData = this.extractWorldSimulationPayload(scoped);
+
+      // 收集本楼层中已汇入的视角ID
+      if (worldData?.tracks?.length > 0) {
+        for (const track of worldData.tracks) {
+          if (track.status === '已汇入' && track.id) {
+            convergedTrackIds.add(track.id);
+          }
+        }
+      }
+    }
+
+    // 第二轮：正序遍历构建输出，过滤掉已汇入的视角
+    const blocks = [];
     for (let messageId = startMessageId; messageId <= lastMessageId; messageId += 1) {
       if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
 
@@ -1164,7 +1213,24 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
       const worldData = this.extractWorldSimulationPayload(scoped);
       if (!statData && !worldData) continue;
 
-      blocks.push({ message_id: messageId, stat_data: statData, world_simulation: worldData });
+      // 过滤 worldData 中的 tracks，移除所有已汇入的视角（包括在当前楼层之后才被标记为已汇入的）
+      let filteredWorldData = worldData;
+      if (worldData?.tracks?.length > 0) {
+        const originalCount = worldData.tracks.length;
+        const filteredTracks = worldData.tracks.filter((track) => !convergedTrackIds.has(track.id));
+
+        if (filteredTracks.length !== originalCount) {
+          // 创建新的 worldData 对象，避免修改原始数据
+          filteredWorldData = {
+            ...worldData,
+            tracks: filteredTracks,
+            // 更新 checks，移除已汇入视角相关的检查项
+            checks: worldData.checks ? { ...worldData.checks } : undefined,
+          };
+        }
+      }
+
+      blocks.push({ message_id: messageId, stat_data: statData, world_simulation: filteredWorldData });
     }
 
     if (!blocks.length) return '';
@@ -1175,7 +1241,9 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
         if (block.stat_data) parts.push(`  - 资产统计: ${this.toPrettyJson(block.stat_data)}`);
       }
       if (kind === 'both' || kind === 'world') {
-        if (block.world_simulation) parts.push(`  - 世界推演变量: ${this.toPrettyJson(block.world_simulation)}`);
+        if (block.world_simulation?.tracks?.length > 0) {
+          parts.push(`  - 世界推演变量: ${this.toPrettyJson(block.world_simulation)}`);
+        }
       }
       return parts.join('\n');
     }).join('\n');
@@ -2031,6 +2099,7 @@ class BizSimEngine {
 
 Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_METHODS);
 Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_PROMPT_METHODS);
+Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_VALIDATION_METHODS);
 
 // ---- src/ui/templates.js ----
 function createMainPanelHtml(engine) {

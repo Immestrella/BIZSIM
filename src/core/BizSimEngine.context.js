@@ -561,8 +561,33 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     const windowSize = Math.max(1, Number(limit) || 10);
     const startMessageId = Math.max(0, lastMessageId - windowSize + 1);
     const currentMessageId = getCurrentMessageIdSafe();
-    const blocks = [];
 
+    // 第一轮：逆序遍历收集所有已汇入的视角ID
+    // 这样可以从最新楼层向后扫描，确保一旦某个视角在任何楼层被标记为已汇入
+    // 它的ID就会被记录，用于过滤所有更早楼层的历史数据
+    const convergedTrackIds = new Set();
+    for (let messageId = lastMessageId; messageId >= startMessageId; messageId -= 1) {
+      if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
+
+      const variables = getMessageVariablesSafe(messageId);
+      if (!variables) continue;
+
+      const scoped = this.resolveFloorStatDataSource(variables);
+      if (!scoped) continue;
+      const worldData = this.extractWorldSimulationPayload(scoped);
+
+      // 收集本楼层中已汇入的视角ID
+      if (worldData?.tracks?.length > 0) {
+        for (const track of worldData.tracks) {
+          if (track.status === '已汇入' && track.id) {
+            convergedTrackIds.add(track.id);
+          }
+        }
+      }
+    }
+
+    // 第二轮：正序遍历构建输出，过滤掉已汇入的视角
+    const blocks = [];
     for (let messageId = startMessageId; messageId <= lastMessageId; messageId += 1) {
       if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
 
@@ -575,7 +600,24 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
       const worldData = this.extractWorldSimulationPayload(scoped);
       if (!statData && !worldData) continue;
 
-      blocks.push({ message_id: messageId, stat_data: statData, world_simulation: worldData });
+      // 过滤 worldData 中的 tracks，移除所有已汇入的视角（包括在当前楼层之后才被标记为已汇入的）
+      let filteredWorldData = worldData;
+      if (worldData?.tracks?.length > 0) {
+        const originalCount = worldData.tracks.length;
+        const filteredTracks = worldData.tracks.filter((track) => !convergedTrackIds.has(track.id));
+
+        if (filteredTracks.length !== originalCount) {
+          // 创建新的 worldData 对象，避免修改原始数据
+          filteredWorldData = {
+            ...worldData,
+            tracks: filteredTracks,
+            // 更新 checks，移除已汇入视角相关的检查项
+            checks: worldData.checks ? { ...worldData.checks } : undefined,
+          };
+        }
+      }
+
+      blocks.push({ message_id: messageId, stat_data: statData, world_simulation: filteredWorldData });
     }
 
     if (!blocks.length) return '';
@@ -586,7 +628,9 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
         if (block.stat_data) parts.push(`  - 资产统计: ${this.toPrettyJson(block.stat_data)}`);
       }
       if (kind === 'both' || kind === 'world') {
-        if (block.world_simulation) parts.push(`  - 世界推演变量: ${this.toPrettyJson(block.world_simulation)}`);
+        if (block.world_simulation?.tracks?.length > 0) {
+          parts.push(`  - 世界推演变量: ${this.toPrettyJson(block.world_simulation)}`);
+        }
       }
       return parts.join('\n');
     }).join('\n');
