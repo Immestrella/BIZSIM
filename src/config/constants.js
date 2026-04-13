@@ -1,0 +1,63 @@
+export const BIZSIM_CONFIG = {
+  NAME: 'BizSim',
+  VERSION: '1.1.1-dev',
+  VAR_PATH: 'bizsim',
+  FLOOR_NAMESPACE: {
+    assetsKey: 'bizsim_assets',
+    worldStateKey: 'bizsim_world_state',
+  },
+  LLM: {
+    apiUrl: 'http://127.0.0.1:3423/v1',
+    apiKey: 'sk-YNyHpwu69NOkHhJUafrn17oo40ch3SSBGXaZs8uB87bWdGAf',
+    persistApiKey: true,
+    model: '公益-Gcli-gemini-3-flash-preview',
+    temperature: 0.6,
+    maxTokens: 88888,
+    timeoutMs: 120000,
+    forceJsonResponse: true,
+    customHeaders: '{}',
+  },
+  SIMULATION: {
+    minTracks: 3,
+    maxTracks: 10,
+    trackPrefix: 'BG',
+    historyLimit: 10,
+    floorStatHistoryLimit: 10,
+    floorWorldHistoryLimit: 10,
+    worldbookName: '',
+    worldbookSelectedUids: '',
+    useActiveWorldbooks: true,
+    worldbookNames: '',
+    worldbookEntrySelectors: '',
+    worldbookEntryLimit: 12,
+    mode: 'balanced',
+    includeEmpireData: true,
+    includeWorldState: true,
+    retryCount: 2,
+    repairOnParseError: true,
+    autoSave: true,
+    autoRunEnabled: false,
+    autoRunOnlyAssistant: true,
+    autoRunUseHistory: true,
+    autoRunMinChars: 300,
+    autoRunCooldownSec: 8,
+  },
+  AUDIT: {
+    cashToleranceWan: 1,
+    enterpriseToleranceWan: 1,
+    liquidationPenalty: {
+      min: 0.3,
+      max: 0.7,
+    },
+    loyaltyThreshold: 50,
+  },
+};
+
+// 提示词块 ID 常量（用于模块化架构）
+export const PROMPT_BLOCK_IDS = {
+  CONSTRAINT_LAYER: 'constraint_layer',
+  RULE_LAYER: 'rule_layer',
+  EXECUTION_STEPS: 'execution_steps',
+  INPUT_CONTEXT: 'input_context',
+  OUTPUT_TEMPLATE: 'output_template',
+};
