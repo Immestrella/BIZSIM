@@ -140,10 +140,16 @@ export class BizSimEngine {
 
   async reloadFromVariables() {
     try {
+      console.log('[BizSim Debug] reloadFromVariables() 开始执行');
       const charVars = await getCharacterVariablesSafe();
+      console.log('[BizSim Debug] charVars:', charVars);
+      console.log('[BizSim Debug] VAR_PATH:', this.config.VAR_PATH);
+
       const savedData = getByPath(charVars, this.config.VAR_PATH);
+      console.log('[BizSim Debug] savedData:', savedData);
 
       if (savedData) {
+        console.log('[BizSim Debug] 找到 savedData，正在加载...');
         this.data = savedData.empireData || this.getDefaultEmpireData();
         this.worldSimulation = savedData.worldSimulation || deepClone(DEFAULT_WORLD_SIMULATION);
 
@@ -167,13 +173,16 @@ export class BizSimEngine {
         this.initializePromptTemplates();
 
         console.log('[BizSim] 已从变量系统重新加载数据');
+        console.log('[BizSim Debug] 加载后的 this.data:', this.data);
         return true;
       }
 
       // 变量系统中无数据，重置为默认
+      console.log('[BizSim Debug] savedData 为空，重置为默认值');
       this.data = this.getDefaultEmpireData();
       this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
       console.log('[BizSim] 变量系统中无数据，已重置为默认值');
+      console.log('[BizSim Debug] 重置后的 this.data:', this.data);
       return true;
     } catch (error) {
       console.error('[BizSim] 从变量系统重新加载失败:', error);
