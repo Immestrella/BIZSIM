@@ -86,7 +86,56 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 .fs-pass { color: rgb(var(--c-pass)); text-shadow: 0 0 10px rgba(var(--c-pass), 0.4); }
 .fs-warn { color: rgb(var(--c-sec)); text-shadow: 0 0 10px rgba(var(--c-sec), 0.4); }
 
-.header-controls { display: flex; align-items: center; gap: 14px; }
+.header-controls { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+#nos-time {
+    font-family: var(--font-code);
+    color: rgba(var(--c-text), 0.5);
+    font-size: 11px;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+#runSimBtn {
+    width: auto;
+    min-width: 92px;
+    padding: 0 10px;
+    font-size: 11px;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+    .nos-header {
+        padding: 10px 12px;
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+
+    .header-controls {
+        width: 100%;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    #nos-time {
+        margin-right: auto;
+        font-size: 10px;
+    }
+
+    #runSimBtn {
+        min-width: 84px;
+        padding: 0 8px;
+    }
+
+    #runSimText {
+        max-width: 56px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: inline-block;
+    }
+}
 
 /* 头部按钮 (主题/收纳) */
 .ctrl-btn {
@@ -278,8 +327,8 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
         </div>
 
         <div class="header-controls">
-            <span id="nos-time" style="font-family: var(--font-code); color: rgba(var(--c-text),0.5); font-size: 11px;">TICK: 00:00</span>
-            <div class="ctrl-btn" id="runSimBtn" title="触发 BizSim 推演" style="width:auto;padding:0 10px;font-size:11px;gap:6px;"><i class="fa-solid fa-play"></i><span id="runSimText">点击推演</span></div>
+            <span id="nos-time">TICK: 00:00</span>
+            <div class="ctrl-btn" id="runSimBtn" title="触发 BizSim 推演"><i class="fa-solid fa-play"></i><span id="runSimText">点击推演</span></div>
             <div class="ctrl-btn" onclick="toggleTheme()" title="切换昼夜镜片"><i class="fa-solid fa-moon" id="themeIcon"></i></div>
             <div class="ctrl-btn fold-btn" onclick="toggleNosFold()" title="收起/展开面板"><i class="fa-solid fa-compress"></i></div>
         </div>
