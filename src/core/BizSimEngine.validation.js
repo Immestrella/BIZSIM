@@ -154,18 +154,14 @@ export const BIZSIM_ENGINE_VALIDATION_METHODS = {
     result.worldSimulation.tracks = trackValidation.tracks;
 
     // 2. 校验资产数据约束
-    const empireData = result?.empireData || result?.stat_data?.bizsim_assets;
+    const empireData = result?.stat_data?.bizsim_assets;
     if (empireData) {
       const empireValidation = this.validateEmpireDataConstraints(empireData);
       if (empireValidation.issues.length > 0) {
         allIssues.push(...empireValidation.issues);
         autoRepaired = true;
       }
-      if (result.empireData) {
-        result.empireData = empireValidation.repaired;
-      } else {
-        result.stat_data.bizsim_assets = empireValidation.repaired;
-      }
+      result.stat_data.bizsim_assets = empireValidation.repaired;
     }
 
     // 3. 校验 checks 字段

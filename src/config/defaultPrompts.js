@@ -119,16 +119,29 @@ export const DEFAULT_CORE_PROMPT_MODULES = {
 【执行步骤】
 在生成 stat_data 之前，你必须先在 _chainOfThought 中完成逻辑盘点和数学验算。`,
 
-  input_context: `=============================
-【输入上下文】
-历史剧情:
-{{HISTORY}}
+  history_floor_info: `=============================
+【历史楼层信息】
+{{HISTORY_FLOOR_INFO_BLOCK}}`,
 
-当前资产状态:
-{{EMPIRE_DATA}}
+  worldbook_context: `=============================
+【世界书模块】
+{{WORLDBOOK_BLOCK}}`,
 
-当前世界状态:
-{{WORLD_STATE}}`,
+  historical_asset_vars: `=============================
+【历史资产变量模块（不含最新楼层）】
+{{HISTORICAL_ASSET_VARS_BLOCK}}`,
+
+  historical_world_vars: `=============================
+【历史世界演化模块（不含最新楼层）】
+{{HISTORICAL_WORLD_VARS_BLOCK}}`,
+
+  current_asset_context: `=============================
+【当前资产模块】
+{{CURRENT_ASSET_BLOCK}}`,
+
+  current_world_context: `=============================
+【当前世界演化模块】
+{{CURRENT_WORLD_BLOCK}}`,
 
   output_template: `【输出模板 (请严格使用以下 JSON 结构，并将 \${} 中的提示作为生成该字段的强制思考约束替换为实际数据)】
 {
@@ -268,7 +281,12 @@ export const DEFAULT_CORE_PROMPT_BLOCK_ORDER = [
   'constraint_layer',
   'rule_layer',
   'execution_steps',
-  'input_context',
+  'history_floor_info',
+  'worldbook_context',
+  'historical_asset_vars',
+  'historical_world_vars',
+  'current_asset_context',
+  'current_world_context',
   'output_template',
   'output_enforcer_user'
 ];

@@ -1,9 +1,8 @@
 import { BIZSIM_CONFIG } from '../config/constants.js';
 import { DEFAULT_DATA, DEFAULT_WORLD_SIMULATION } from '../config/defaultData.js';
 import { PROMPTS } from '../config/prompts.js';
-import { upgradeLegacyBuiltInBlocks } from '../config/promptModules.js';
-import { createDefaultTemplateStructure } from '../config/promptModules.js';
-import { compileTemplateWithUserPref, migrateOldCorePromptBlockToScaffold } from './BizSimEngine.scaffold.js';
+import { createDefaultTemplateStructure, ensureCurrentTemplateStructure } from '../config/promptModules.js';
+import { compileTemplateWithUserPref } from './BizSimEngine.scaffold.js';
 import { getCharacterVariablesSafe, getCurrentMessageIdSafe, getMessageVariablesSafe, insertOrAssignVariablesSafe } from '../utils/stCompat.js';
 import { deepClone, getByPath } from '../utils/object.js';
 import { BIZSIM_ENGINE_PROMPT_METHODS } from './BizSimEngine.prompt.js';
@@ -47,10 +46,6 @@ export class BizSimEngine {
         }
         if (savedSettings.prompts) {
           this.promptTemplates = { ...this.promptTemplates, ...savedSettings.prompts };
-          // Backward compatibility: migrate legacy key to the new core prompt key.
-          if (!this.promptTemplates.CORE_PROMPT_BLOCK && this.promptTemplates.WORLD_SIMULATION) {
-            this.promptTemplates.CORE_PROMPT_BLOCK = this.promptTemplates.WORLD_SIMULATION;
-          }
         }
       }
 
@@ -61,13 +56,11 @@ export class BizSimEngine {
       if (floorVars) {
         const scoped = this.resolveFloorStatDataSource(floorVars);
         if (scoped) {
-          // 提取 empireData 从 savedData?.empireData 或 savedData?.bizsim_assets
           const assetsData = this.extractAssetStatPayload(scoped);
           if (assetsData) {
             this.data = this.buildEmpireDataFromSemanticAssets(assetsData);
           }
 
-          // 提取 worldSimulation 从 savedData?.worldSimulation 或 savedData?.bizsim_world_state
           const worldData = this.extractWorldSimulationPayload(scoped);
           if (worldData) {
             this.worldSimulation = worldData;
@@ -103,26 +96,13 @@ export class BizSimEngine {
   initializePromptTemplates() {
     const cfg = this.config.SIMULATION;
 
-    // 情景 A：从旧配置迁移，CORE_PROMPT_BLOCK 是字符串且无 tplRaw → 转换为 scaffold
-    if (!cfg.tplRaw && typeof this.promptTemplates.CORE_PROMPT_BLOCK === 'string' && this.promptTemplates.CORE_PROMPT_BLOCK.trim()) {
-      try {
-        cfg.tplRaw = migrateOldCorePromptBlockToScaffold(this.promptTemplates.CORE_PROMPT_BLOCK);
-      } catch (e) {
-        console.warn('[BizSim] 迁移旧 CORE_PROMPT_BLOCK 失败，使用默认模版', e);
-        cfg.tplRaw = createDefaultTemplateStructure();
-      }
-    }
-
-    // 情景 B：首次使用或迁移失败，tplRaw 为空 → 创建默认模版
-    if (!cfg.tplRaw) {
+    if (!cfg.tplRaw || !Array.isArray(cfg.tplRaw.scaffold)) {
       cfg.tplRaw = createDefaultTemplateStructure();
     }
 
-    // 编译 tplRaw → tpl（融入 userPref）
-    if (cfg.tplRaw) {
-      cfg.tplRaw = upgradeLegacyBuiltInBlocks(cfg.tplRaw);
-      cfg.tpl = compileTemplateWithUserPref(cfg.tplRaw, cfg.userPref);
-    }
+    cfg.tplRaw = ensureCurrentTemplateStructure(cfg.tplRaw);
+
+    cfg.tpl = compileTemplateWithUserPref(cfg.tplRaw, cfg.userPref);
   }
 
   getDefaultEmpireData() {

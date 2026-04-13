@@ -55,15 +55,56 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
 
     const excludeContentByTags = (text, tags) => {
       if (!text || !tags.length) return text;
+
+      const removeClosedTagBlocks = (source, tag) => {
+        if (!source) return source;
+        const escapedTag = escapeRegExp(tag);
+        const tokenRegex = new RegExp(`<${escapedTag}(?:\\s[^>]*)?>|</${escapedTag}>`, 'gi');
+        const stack = [];
+        const ranges = [];
+
+        let match;
+        while ((match = tokenRegex.exec(source)) !== null) {
+          const token = match[0];
+          const tokenStart = match.index;
+          const tokenEnd = tokenRegex.lastIndex;
+          const isCloseTag = /^<\//.test(token);
+
+          if (!isCloseTag) {
+            stack.push(tokenStart);
+            continue;
+          }
+
+          if (!stack.length) continue;
+          const openStart = stack.pop();
+          ranges.push([openStart, tokenEnd]);
+        }
+
+        if (!ranges.length) return source;
+
+        ranges.sort((a, b) => (a[0] - b[0]) || (a[1] - b[1]));
+        const merged = [];
+        for (const [start, end] of ranges) {
+          if (!merged.length || start > merged[merged.length - 1][1]) {
+            merged.push([start, end]);
+            continue;
+          }
+          merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], end);
+        }
+
+        let cursor = 0;
+        let output = '';
+        for (const [start, end] of merged) {
+          output += source.slice(cursor, start);
+          cursor = end;
+        }
+        output += source.slice(cursor);
+        return output;
+      };
+
       let result = text;
       for (const tag of tags) {
-        const escapedTag = escapeRegExp(tag);
-        // 先移除完整闭合标签块
-        const closedRegex = new RegExp(`<${escapedTag}(?:\\s[^>]*)?>[\\s\\S]*?</${escapedTag}>`, 'gi');
-        result = result.replace(closedRegex, '');
-        // 对单条消息中未闭合标签，移除从起始标签到消息末尾（不跨消息）
-        const openToEndRegex = new RegExp(`<${escapedTag}(?:\\s[^>]*)?>[\\s\\S]*$`, 'gi');
-        result = result.replace(openToEndRegex, '');
+        result = removeClosedTagBlocks(result, tag);
       }
       return result;
     };
@@ -216,8 +257,8 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
   },
 
   normalizeSimulationOutput(parsed) {
-    const semanticAssetsRaw = parsed?.stat_data?.bizsim_assets ?? parsed?.bizsim_assets;
-    const worldStateRaw = parsed?.stat_data?.bizsim_world_state ?? parsed?.bizsim_world_state ?? parsed?.worldSimulation;
+    const semanticAssetsRaw = parsed?.stat_data?.bizsim_assets;
+    const worldStateRaw = parsed?.stat_data?.bizsim_world_state;
 
     let normalizedEmpireData;
     if (semanticAssetsRaw && typeof semanticAssetsRaw === 'object') {

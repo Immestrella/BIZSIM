@@ -10,15 +10,14 @@ import {
   getWorldbookSafe,
   insertOrAssignVariablesSafe,
 } from '../utils/stCompat.js';
-import { deepClone, getByPath } from '../utils/object.js';
+import { deepClone } from '../utils/object.js';
 
 export const BIZSIM_ENGINE_CONTEXT_METHODS = {
   getFloorNamespaceKeys() {
-    const fallback = { assetsKey: 'bizsim_assets', worldStateKey: 'bizsim_world_state' };
     const configured = this.config?.FLOOR_NAMESPACE || {};
     return {
-      assetsKey: String(configured.assetsKey || fallback.assetsKey),
-      worldStateKey: String(configured.worldStateKey || fallback.worldStateKey),
+      assetsKey: String(configured.assetsKey || 'bizsim_assets'),
+      worldStateKey: String(configured.worldStateKey || 'bizsim_world_state'),
     };
   },
 
@@ -66,18 +65,6 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
         rowPrefix: 'DB',
         fields: ['方向', '对方名称', '款项类型', '原始额|剩余额', '年利率|月还款', '到期日', '担保物', '状态'],
       },
-    };
-  },
-
-  getLegacyTableAliases() {
-    return {
-      集团架构表: ['业务结构'],
-      固定资产表: ['不动产'],
-      流动资产表: ['流动资产'],
-      资产总览表: ['资产总览'],
-      藏品载具表: ['奢侈资产', '奢侈品'],
-      业务板块表: ['业务板块'],
-      负债清单表: ['债务清单', '债务'],
     };
   },
 
@@ -165,41 +152,16 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
 
   normalizeBizsimAssetsPayload(input) {
     const schemaMap = this.getSemanticTableMap();
-    const aliases = this.getLegacyTableAliases();
     const auditLogs = [];
     const out = {};
 
     const base = input && typeof input === 'object' ? input : {};
-    const tablesFromLegacy = base.资产表格 && typeof base.资产表格 === 'object' ? base.资产表格 : {};
-    const dynamicFromLegacy = base.资产动态 && typeof base.资产动态 === 'object' ? base.资产动态 : base;
 
     for (const [tableName, schema] of Object.entries(schemaMap)) {
       let source = base[tableName];
 
-      if (source === undefined) {
-        for (const alias of aliases[tableName] || []) {
-          if (base[alias] !== undefined) {
-            source = base[alias];
-            break;
-          }
-        }
-      }
-
-      if (source === undefined) {
-        for (const alias of aliases[tableName] || []) {
-          if (tablesFromLegacy[alias] !== undefined) {
-            source = tablesFromLegacy[alias];
-            break;
-          }
-        }
-      }
-
       if (source && typeof source === 'object' && Array.isArray(source.content)) {
         source = this.matrixToSemanticRows(source.content, schema.fields, schema.type);
-      }
-
-      if (source === undefined && dynamicFromLegacy?.[schema.sheetKey]?.content) {
-        source = this.matrixToSemanticRows(dynamicFromLegacy[schema.sheetKey].content, schema.fields, schema.type);
       }
 
       out[tableName] = this.normalizeSemanticTable(source, schema, tableName, auditLogs);
@@ -386,55 +348,17 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     if (variables.stat_data && typeof variables.stat_data === 'object') return variables.stat_data;
 
     const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
-    const hasDirectScopedKeys = [
-      assetsKey,
-      worldStateKey,
-      'world_simulation',
-      'worldSimulation',
-      '世界推演',
-      '资产动态',
-      '资产统计',
-      '资产表格',
-    ].some((key) => key in variables);
+    const hasDirectScopedKeys = [assetsKey, worldStateKey].some((key) => key in variables);
 
     return hasDirectScopedKeys ? variables : null;
-  },
-
-  hasSemanticAssetTableShape(source) {
-    if (!source || typeof source !== 'object' || Array.isArray(source)) return false;
-    const tableNames = Object.keys(this.getSemanticTableMap());
-    return tableNames.some((tableName) => source[tableName] !== undefined);
-  },
-
-  extractObjectByPaths(source, paths) {
-    if (!source || typeof source !== 'object') return null;
-    for (const path of paths) {
-      const value = getByPath(source, path);
-      if (value && typeof value === 'object') return deepClone(value);
-    }
-    return null;
   },
 
   extractAssetStatPayload(statData) {
     if (!statData || typeof statData !== 'object') return null;
 
     const { assetsKey } = this.getFloorNamespaceKeys();
-
-    if (this.hasSemanticAssetTableShape(statData)) {
-      return this.normalizeBizsimAssetsPayload(statData);
-    }
-
-    const extracted = this.extractObjectByPaths(statData, [
-      assetsKey,
-      `${assetsKey}.资产动态`,
-      '资产动态',
-      '资产表格',
-      '资产统计',
-      'assets',
-      'asset_stats',
-    ]);
-
-    if (!extracted) return null;
+    const extracted = statData[assetsKey];
+    if (!extracted || typeof extracted !== 'object') return null;
     return this.normalizeBizsimAssetsPayload(extracted);
   },
 
@@ -442,20 +366,9 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     if (!statData || typeof statData !== 'object') return null;
 
     const { worldStateKey } = this.getFloorNamespaceKeys();
-
-    if (Array.isArray(statData?.tracks) && statData?.checks && typeof statData.checks === 'object') {
-      return deepClone(statData);
-    }
-
-    const extracted = this.extractObjectByPaths(statData, [
-      worldStateKey,
-      '世界推演',
-      'worldSimulation',
-      'world_simulation',
-    ]);
-
-    if (extracted) return extracted;
-    return null;
+    const extracted = statData[worldStateKey];
+    if (!extracted || typeof extracted !== 'object') return null;
+    return deepClone(extracted);
   },
 
   getActiveWorldbookNames() {
@@ -559,14 +472,17 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     if (lastMessageId === null || lastMessageId === undefined || lastMessageId < 0) return '';
 
     const windowSize = Math.max(1, Number(limit) || 10);
-    const startMessageId = Math.max(0, lastMessageId - windowSize + 1);
+    const historyEndMessageId = lastMessageId - 1;
+    if (historyEndMessageId < 0) return '';
+
+    const startMessageId = Math.max(0, historyEndMessageId - windowSize + 1);
     const currentMessageId = getCurrentMessageIdSafe();
 
     // 第一轮：逆序遍历收集所有已汇入的视角ID
     // 这样可以从最新楼层向后扫描，确保一旦某个视角在任何楼层被标记为已汇入
     // 它的ID就会被记录，用于过滤所有更早楼层的历史数据
     const convergedTrackIds = new Set();
-    for (let messageId = lastMessageId; messageId >= startMessageId; messageId -= 1) {
+    for (let messageId = historyEndMessageId; messageId >= startMessageId; messageId -= 1) {
       if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
 
       const variables = getMessageVariablesSafe(messageId);
@@ -588,7 +504,7 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
 
     // 第二轮：正序遍历构建输出，过滤掉已汇入的视角
     const blocks = [];
-    for (let messageId = startMessageId; messageId <= lastMessageId; messageId += 1) {
+    for (let messageId = startMessageId; messageId <= historyEndMessageId; messageId += 1) {
       if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
 
       const variables = getMessageVariablesSafe(messageId);
@@ -634,69 +550,6 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
       }
       return parts.join('\n');
     }).join('\n');
-  },
-
-  buildCurrentFloorVariableContext() {
-    const messageId = getCurrentMessageIdSafe();
-    if (messageId === null || messageId === undefined) return '';
-
-    const variables = getMessageVariablesSafe(messageId);
-    if (!variables) return '';
-
-    const scoped = this.resolveFloorStatDataSource(variables);
-    if (!scoped) return '';
-    const statData = this.extractAssetStatPayload(scoped);
-    const worldData = this.extractWorldSimulationPayload(scoped);
-    if (!statData && !worldData) return '';
-
-    const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
-
-    return this.toPrettyJson({
-      stat_data: {
-        [assetsKey]: statData || {},
-        [worldStateKey]: worldData || { tracks: [], checks: { allTracksAdvanced: false, convergenceChecked: false, newTracksAdded: false } },
-      },
-    });
-  },
-
-  buildCurrentFloorAssetStatJson() {
-    const messageId = getCurrentMessageIdSafe();
-    if (messageId === null || messageId === undefined) return '';
-    const variables = getMessageVariablesSafe(messageId);
-    if (!variables) return '';
-    const scoped = this.resolveFloorStatDataSource(variables);
-    if (!scoped) return '';
-    const statData = this.extractAssetStatPayload(scoped);
-    if (!statData) return '';
-    return this.toPrettyJson(statData);
-  },
-
-  buildCurrentFloorWorldSimulationJson() {
-    const messageId = getCurrentMessageIdSafe();
-    if (messageId === null || messageId === undefined) return '';
-    const variables = getMessageVariablesSafe(messageId);
-    if (!variables) return '';
-    const scoped = this.resolveFloorStatDataSource(variables);
-    if (!scoped) return '';
-    const worldData = this.extractWorldSimulationPayload(scoped);
-    if (!worldData) return '';
-
-    // 过滤已汇入视角
-    const filteredTracks = this.filterConvergedTracks(worldData.tracks || []);
-
-    // 计算所有视角（包括已汇入）的最大编号
-    const allTrackIds = worldData.tracks.map(t => t?.id || '').filter(Boolean);
-    const maxId = allTrackIds.reduce((max, id) => {
-      const match = String(id).match(/BG\.(\d+)/);
-      return match ? Math.max(max, parseInt(match[1], 10)) : max;
-    }, 0);
-
-    // 返回过滤后的数据，添加元数据告诉AI最大编号
-    return this.toPrettyJson({
-      ...worldData,
-      tracks: filteredTracks,
-      _metadata: { maxTrackId: maxId }
-    });
   },
 
   validateAndNormalizeFloorJson(value) {
@@ -787,12 +640,15 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     const lastMessageId = getLastMessageIdSafe();
     if (lastMessageId === null || lastMessageId === undefined || lastMessageId < 0) return [];
 
+    const historyEndMessageId = lastMessageId - 1;
+    if (historyEndMessageId < 0) return [];
+
     const windowSize = Math.max(1, Number(limit) || 10);
-    const startMessageId = Math.max(0, lastMessageId - windowSize + 1);
+    const startMessageId = Math.max(0, historyEndMessageId - windowSize + 1);
     const currentMessageId = getCurrentMessageIdSafe();
     const history = [];
 
-    for (let messageId = startMessageId; messageId <= lastMessageId; messageId += 1) {
+    for (let messageId = startMessageId; messageId <= historyEndMessageId; messageId += 1) {
       if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
       const variables = getMessageVariablesSafe(messageId);
       const scoped = this.resolveFloorStatDataSource(variables);

@@ -237,7 +237,7 @@ const BIZSIM_CONFIG = {
     autoRunMinChars: 300,
     autoRunCooldownSec: 8,
     contentExtractTags: 'content,game',
-    contentExcludeTags: 'details,UpdateVariable,background,tucao',
+    contentExcludeTags: 'details,UpdateVariable,background,tucao,reasoning,analysis,think,npc_action,recall,dm_box',
   },
   AUDIT: {
     cashToleranceWan: 1,
@@ -255,7 +255,12 @@ const PROMPT_BLOCK_IDS = {
   CONSTRAINT_LAYER: 'constraint_layer',
   RULE_LAYER: 'rule_layer',
   EXECUTION_STEPS: 'execution_steps',
-  INPUT_CONTEXT: 'input_context',
+  HISTORY_FLOOR_INFO: 'history_floor_info',
+  WORLDBOOK_CONTEXT: 'worldbook_context',
+  HISTORICAL_ASSET_VARS: 'historical_asset_vars',
+  HISTORICAL_WORLD_VARS: 'historical_world_vars',
+  CURRENT_ASSET_CONTEXT: 'current_asset_context',
+  CURRENT_WORLD_CONTEXT: 'current_world_context',
   OUTPUT_TEMPLATE: 'output_template',
 };
 
@@ -429,16 +434,29 @@ const DEFAULT_CORE_PROMPT_MODULES = {
 【执行步骤】
 在生成 stat_data 之前，你必须先在 _chainOfThought 中完成逻辑盘点和数学验算。`,
 
-  input_context: `=============================
-【输入上下文】
-历史剧情:
-{{HISTORY}}
+  history_floor_info: `=============================
+【历史楼层信息】
+{{HISTORY_FLOOR_INFO_BLOCK}}`,
 
-当前资产状态:
-{{EMPIRE_DATA}}
+  worldbook_context: `=============================
+【世界书模块】
+{{WORLDBOOK_BLOCK}}`,
 
-当前世界状态:
-{{WORLD_STATE}}`,
+  historical_asset_vars: `=============================
+【历史资产变量模块（不含最新楼层）】
+{{HISTORICAL_ASSET_VARS_BLOCK}}`,
+
+  historical_world_vars: `=============================
+【历史世界演化模块（不含最新楼层）】
+{{HISTORICAL_WORLD_VARS_BLOCK}}`,
+
+  current_asset_context: `=============================
+【当前资产模块】
+{{CURRENT_ASSET_BLOCK}}`,
+
+  current_world_context: `=============================
+【当前世界演化模块】
+{{CURRENT_WORLD_BLOCK}}`,
 
   output_template: `【输出模板 (请严格使用以下 JSON 结构，并将 \${} 中的提示作为生成该字段的强制思考约束替换为实际数据)】
 {
@@ -578,7 +596,12 @@ const DEFAULT_CORE_PROMPT_BLOCK_ORDER = [
   'constraint_layer',
   'rule_layer',
   'execution_steps',
-  'input_context',
+  'history_floor_info',
+  'worldbook_context',
+  'historical_asset_vars',
+  'historical_world_vars',
+  'current_asset_context',
+  'current_world_context',
   'output_template',
   'output_enforcer_user'
 ];
@@ -629,11 +652,10 @@ const PROMPTS = {
 // ---- src/core/BizSimEngine.context.js ----
 const BIZSIM_ENGINE_CONTEXT_METHODS = {
   getFloorNamespaceKeys() {
-    const fallback = { assetsKey: 'bizsim_assets', worldStateKey: 'bizsim_world_state' };
     const configured = this.config?.FLOOR_NAMESPACE || {};
     return {
-      assetsKey: String(configured.assetsKey || fallback.assetsKey),
-      worldStateKey: String(configured.worldStateKey || fallback.worldStateKey),
+      assetsKey: String(configured.assetsKey || 'bizsim_assets'),
+      worldStateKey: String(configured.worldStateKey || 'bizsim_world_state'),
     };
   },
 
@@ -681,18 +703,6 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
         rowPrefix: 'DB',
         fields: ['方向', '对方名称', '款项类型', '原始额|剩余额', '年利率|月还款', '到期日', '担保物', '状态'],
       },
-    };
-  },
-
-  getLegacyTableAliases() {
-    return {
-      集团架构表: ['业务结构'],
-      固定资产表: ['不动产'],
-      流动资产表: ['流动资产'],
-      资产总览表: ['资产总览'],
-      藏品载具表: ['奢侈资产', '奢侈品'],
-      业务板块表: ['业务板块'],
-      负债清单表: ['债务清单', '债务'],
     };
   },
 
@@ -780,41 +790,16 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
 
   normalizeBizsimAssetsPayload(input) {
     const schemaMap = this.getSemanticTableMap();
-    const aliases = this.getLegacyTableAliases();
     const auditLogs = [];
     const out = {};
 
     const base = input && typeof input === 'object' ? input : {};
-    const tablesFromLegacy = base.资产表格 && typeof base.资产表格 === 'object' ? base.资产表格 : {};
-    const dynamicFromLegacy = base.资产动态 && typeof base.资产动态 === 'object' ? base.资产动态 : base;
 
     for (const [tableName, schema] of Object.entries(schemaMap)) {
       let source = base[tableName];
 
-      if (source === undefined) {
-        for (const alias of aliases[tableName] || []) {
-          if (base[alias] !== undefined) {
-            source = base[alias];
-            break;
-          }
-        }
-      }
-
-      if (source === undefined) {
-        for (const alias of aliases[tableName] || []) {
-          if (tablesFromLegacy[alias] !== undefined) {
-            source = tablesFromLegacy[alias];
-            break;
-          }
-        }
-      }
-
       if (source && typeof source === 'object' && Array.isArray(source.content)) {
         source = this.matrixToSemanticRows(source.content, schema.fields, schema.type);
-      }
-
-      if (source === undefined && dynamicFromLegacy?.[schema.sheetKey]?.content) {
-        source = this.matrixToSemanticRows(dynamicFromLegacy[schema.sheetKey].content, schema.fields, schema.type);
       }
 
       out[tableName] = this.normalizeSemanticTable(source, schema, tableName, auditLogs);
@@ -1001,55 +986,17 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
     if (variables.stat_data && typeof variables.stat_data === 'object') return variables.stat_data;
 
     const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
-    const hasDirectScopedKeys = [
-      assetsKey,
-      worldStateKey,
-      'world_simulation',
-      'worldSimulation',
-      '世界推演',
-      '资产动态',
-      '资产统计',
-      '资产表格',
-    ].some((key) => key in variables);
+    const hasDirectScopedKeys = [assetsKey, worldStateKey].some((key) => key in variables);
 
     return hasDirectScopedKeys ? variables : null;
-  },
-
-  hasSemanticAssetTableShape(source) {
-    if (!source || typeof source !== 'object' || Array.isArray(source)) return false;
-    const tableNames = Object.keys(this.getSemanticTableMap());
-    return tableNames.some((tableName) => source[tableName] !== undefined);
-  },
-
-  extractObjectByPaths(source, paths) {
-    if (!source || typeof source !== 'object') return null;
-    for (const path of paths) {
-      const value = getByPath(source, path);
-      if (value && typeof value === 'object') return deepClone(value);
-    }
-    return null;
   },
 
   extractAssetStatPayload(statData) {
     if (!statData || typeof statData !== 'object') return null;
 
     const { assetsKey } = this.getFloorNamespaceKeys();
-
-    if (this.hasSemanticAssetTableShape(statData)) {
-      return this.normalizeBizsimAssetsPayload(statData);
-    }
-
-    const extracted = this.extractObjectByPaths(statData, [
-      assetsKey,
-      `${assetsKey}.资产动态`,
-      '资产动态',
-      '资产表格',
-      '资产统计',
-      'assets',
-      'asset_stats',
-    ]);
-
-    if (!extracted) return null;
+    const extracted = statData[assetsKey];
+    if (!extracted || typeof extracted !== 'object') return null;
     return this.normalizeBizsimAssetsPayload(extracted);
   },
 
@@ -1057,20 +1004,9 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
     if (!statData || typeof statData !== 'object') return null;
 
     const { worldStateKey } = this.getFloorNamespaceKeys();
-
-    if (Array.isArray(statData?.tracks) && statData?.checks && typeof statData.checks === 'object') {
-      return deepClone(statData);
-    }
-
-    const extracted = this.extractObjectByPaths(statData, [
-      worldStateKey,
-      '世界推演',
-      'worldSimulation',
-      'world_simulation',
-    ]);
-
-    if (extracted) return extracted;
-    return null;
+    const extracted = statData[worldStateKey];
+    if (!extracted || typeof extracted !== 'object') return null;
+    return deepClone(extracted);
   },
 
   getActiveWorldbookNames() {
@@ -1174,14 +1110,17 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
     if (lastMessageId === null || lastMessageId === undefined || lastMessageId < 0) return '';
 
     const windowSize = Math.max(1, Number(limit) || 10);
-    const startMessageId = Math.max(0, lastMessageId - windowSize + 1);
+    const historyEndMessageId = lastMessageId - 1;
+    if (historyEndMessageId < 0) return '';
+
+    const startMessageId = Math.max(0, historyEndMessageId - windowSize + 1);
     const currentMessageId = getCurrentMessageIdSafe();
 
     // 第一轮：逆序遍历收集所有已汇入的视角ID
     // 这样可以从最新楼层向后扫描，确保一旦某个视角在任何楼层被标记为已汇入
     // 它的ID就会被记录，用于过滤所有更早楼层的历史数据
     const convergedTrackIds = new Set();
-    for (let messageId = lastMessageId; messageId >= startMessageId; messageId -= 1) {
+    for (let messageId = historyEndMessageId; messageId >= startMessageId; messageId -= 1) {
       if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
 
       const variables = getMessageVariablesSafe(messageId);
@@ -1203,7 +1142,7 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
 
     // 第二轮：正序遍历构建输出，过滤掉已汇入的视角
     const blocks = [];
-    for (let messageId = startMessageId; messageId <= lastMessageId; messageId += 1) {
+    for (let messageId = startMessageId; messageId <= historyEndMessageId; messageId += 1) {
       if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
 
       const variables = getMessageVariablesSafe(messageId);
@@ -1249,69 +1188,6 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
       }
       return parts.join('\n');
     }).join('\n');
-  },
-
-  buildCurrentFloorVariableContext() {
-    const messageId = getCurrentMessageIdSafe();
-    if (messageId === null || messageId === undefined) return '';
-
-    const variables = getMessageVariablesSafe(messageId);
-    if (!variables) return '';
-
-    const scoped = this.resolveFloorStatDataSource(variables);
-    if (!scoped) return '';
-    const statData = this.extractAssetStatPayload(scoped);
-    const worldData = this.extractWorldSimulationPayload(scoped);
-    if (!statData && !worldData) return '';
-
-    const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
-
-    return this.toPrettyJson({
-      stat_data: {
-        [assetsKey]: statData || {},
-        [worldStateKey]: worldData || { tracks: [], checks: { allTracksAdvanced: false, convergenceChecked: false, newTracksAdded: false } },
-      },
-    });
-  },
-
-  buildCurrentFloorAssetStatJson() {
-    const messageId = getCurrentMessageIdSafe();
-    if (messageId === null || messageId === undefined) return '';
-    const variables = getMessageVariablesSafe(messageId);
-    if (!variables) return '';
-    const scoped = this.resolveFloorStatDataSource(variables);
-    if (!scoped) return '';
-    const statData = this.extractAssetStatPayload(scoped);
-    if (!statData) return '';
-    return this.toPrettyJson(statData);
-  },
-
-  buildCurrentFloorWorldSimulationJson() {
-    const messageId = getCurrentMessageIdSafe();
-    if (messageId === null || messageId === undefined) return '';
-    const variables = getMessageVariablesSafe(messageId);
-    if (!variables) return '';
-    const scoped = this.resolveFloorStatDataSource(variables);
-    if (!scoped) return '';
-    const worldData = this.extractWorldSimulationPayload(scoped);
-    if (!worldData) return '';
-
-    // 过滤已汇入视角
-    const filteredTracks = this.filterConvergedTracks(worldData.tracks || []);
-
-    // 计算所有视角（包括已汇入）的最大编号
-    const allTrackIds = worldData.tracks.map(t => t?.id || '').filter(Boolean);
-    const maxId = allTrackIds.reduce((max, id) => {
-      const match = String(id).match(/BG\.(\d+)/);
-      return match ? Math.max(max, parseInt(match[1], 10)) : max;
-    }, 0);
-
-    // 返回过滤后的数据，添加元数据告诉AI最大编号
-    return this.toPrettyJson({
-      ...worldData,
-      tracks: filteredTracks,
-      _metadata: { maxTrackId: maxId }
-    });
   },
 
   validateAndNormalizeFloorJson(value) {
@@ -1402,12 +1278,15 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
     const lastMessageId = getLastMessageIdSafe();
     if (lastMessageId === null || lastMessageId === undefined || lastMessageId < 0) return [];
 
+    const historyEndMessageId = lastMessageId - 1;
+    if (historyEndMessageId < 0) return [];
+
     const windowSize = Math.max(1, Number(limit) || 10);
-    const startMessageId = Math.max(0, lastMessageId - windowSize + 1);
+    const startMessageId = Math.max(0, historyEndMessageId - windowSize + 1);
     const currentMessageId = getCurrentMessageIdSafe();
     const history = [];
 
-    for (let messageId = startMessageId; messageId <= lastMessageId; messageId += 1) {
+    for (let messageId = startMessageId; messageId <= historyEndMessageId; messageId += 1) {
       if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
       const variables = getMessageVariablesSafe(messageId);
       const scoped = this.resolveFloorStatDataSource(variables);
@@ -1475,15 +1354,56 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
 
     const excludeContentByTags = (text, tags) => {
       if (!text || !tags.length) return text;
+
+      const removeClosedTagBlocks = (source, tag) => {
+        if (!source) return source;
+        const escapedTag = escapeRegExp(tag);
+        const tokenRegex = new RegExp(`<${escapedTag}(?:\\s[^>]*)?>|</${escapedTag}>`, 'gi');
+        const stack = [];
+        const ranges = [];
+
+        let match;
+        while ((match = tokenRegex.exec(source)) !== null) {
+          const token = match[0];
+          const tokenStart = match.index;
+          const tokenEnd = tokenRegex.lastIndex;
+          const isCloseTag = /^<\//.test(token);
+
+          if (!isCloseTag) {
+            stack.push(tokenStart);
+            continue;
+          }
+
+          if (!stack.length) continue;
+          const openStart = stack.pop();
+          ranges.push([openStart, tokenEnd]);
+        }
+
+        if (!ranges.length) return source;
+
+        ranges.sort((a, b) => (a[0] - b[0]) || (a[1] - b[1]));
+        const merged = [];
+        for (const [start, end] of ranges) {
+          if (!merged.length || start > merged[merged.length - 1][1]) {
+            merged.push([start, end]);
+            continue;
+          }
+          merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], end);
+        }
+
+        let cursor = 0;
+        let output = '';
+        for (const [start, end] of merged) {
+          output += source.slice(cursor, start);
+          cursor = end;
+        }
+        output += source.slice(cursor);
+        return output;
+      };
+
       let result = text;
       for (const tag of tags) {
-        const escapedTag = escapeRegExp(tag);
-        // 先移除完整闭合标签块
-        const closedRegex = new RegExp(`<${escapedTag}(?:\\s[^>]*)?>[\\s\\S]*?</${escapedTag}>`, 'gi');
-        result = result.replace(closedRegex, '');
-        // 对单条消息中未闭合标签，移除从起始标签到消息末尾（不跨消息）
-        const openToEndRegex = new RegExp(`<${escapedTag}(?:\\s[^>]*)?>[\\s\\S]*$`, 'gi');
-        result = result.replace(openToEndRegex, '');
+        result = removeClosedTagBlocks(result, tag);
       }
       return result;
     };
@@ -1636,8 +1556,8 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
   },
 
   normalizeSimulationOutput(parsed) {
-    const semanticAssetsRaw = parsed?.stat_data?.bizsim_assets ?? parsed?.bizsim_assets;
-    const worldStateRaw = parsed?.stat_data?.bizsim_world_state ?? parsed?.bizsim_world_state ?? parsed?.worldSimulation;
+    const semanticAssetsRaw = parsed?.stat_data?.bizsim_assets;
+    const worldStateRaw = parsed?.stat_data?.bizsim_world_state;
 
     let normalizedEmpireData;
     if (semanticAssetsRaw && typeof semanticAssetsRaw === 'object') {
@@ -1890,86 +1810,83 @@ const BIZSIM_ENGINE_PROMPT_METHODS = {
 
   async buildSimulationPrompt({ historyText = '', empireDataText = '', worldStateText = '', useHistory = true } = {}) {
     const breakPrompt = String(this.getPromptTemplate('BREAK_PROMPT') || '').trim();
-    const composeTemplate = String(this.getPromptTemplate('COMPOSE_PROMPT') || '{{BREAK_PROMPT}\n\n{{CORE_PROMPT_BLOCK}}').trim();
+    const composeTemplate = String(this.getPromptTemplate('COMPOSE_PROMPT') || '{{BREAK_PROMPT}}\n\n{{CORE_PROMPT_BLOCK}}').trim();
 
     const includeEmpireData = this.config.SIMULATION?.includeEmpireData !== false;
     const includeWorldState = this.config.SIMULATION?.includeWorldState !== false;
 
     const currentWorldbookContext = await this.buildWorldbookContext();
-    const historicalStatContext = includeEmpireData
-      ? this.buildFloorVariableContext(this.config.SIMULATION?.assetHistoryFloors || 10, '历史楼层资产统计', 'stat')
+    const historicalAssetContext = includeEmpireData
+      ? this.buildFloorVariableContext(this.config.SIMULATION?.assetHistoryFloors || 10, '历史楼层资产变量', 'stat')
       : '';
     const historicalWorldContext = includeWorldState
-      ? this.buildFloorVariableContext(this.config.SIMULATION?.worldHistoryFloors || 10, '历史楼层世界推演', 'world')
+      ? this.buildFloorVariableContext(this.config.SIMULATION?.worldHistoryFloors || 10, '历史楼层世界演化', 'world')
       : '';
-    const currentFloorStatJson = includeEmpireData ? this.buildCurrentFloorAssetStatJson() : '';
-    const currentFloorWorldJson = includeWorldState ? this.buildCurrentFloorWorldSimulationJson() : '';
+    const historyFloorInfoBlock = useHistory && historyText
+      ? this.buildContextBlock('历史楼层信息', historyText)
+      : '';
+    const worldbookBlock = currentWorldbookContext
+      ? this.buildContextBlock('世界书模块', currentWorldbookContext)
+      : '';
+    const historicalAssetBlock = historicalAssetContext
+      ? this.buildContextBlock('历史资产变量模块（不含最新楼层）', historicalAssetContext)
+      : '';
+    const historicalWorldBlock = historicalWorldContext
+      ? this.buildContextBlock('历史世界演化模块（不含最新楼层）', historicalWorldContext)
+      : '';
 
-    const historyBlocks = [];
-    if (useHistory && historyText) historyBlocks.push(this.buildContextBlock('最近聊天正文', historyText));
-    if (currentWorldbookContext) historyBlocks.push(this.buildContextBlock('世界书条目', currentWorldbookContext));
-    if (historicalStatContext) historyBlocks.push(this.buildContextBlock('历史楼层资产统计', historicalStatContext));
-    if (historicalWorldContext) historyBlocks.push(this.buildContextBlock('历史楼层世界推演', historicalWorldContext));
-    if (currentFloorStatJson) historyBlocks.push(this.buildContextBlock('当前楼层资产统计', currentFloorStatJson));
-    if (currentFloorWorldJson) historyBlocks.push(this.buildContextBlock('当前楼层世界推演', currentFloorWorldJson));
+    let currentAssetText = '';
+    if (includeEmpireData) {
+      const latestSemanticAssets = this.getCurrentFloorSemanticAssets?.();
+      if (latestSemanticAssets && typeof latestSemanticAssets === 'object') {
+        currentAssetText = JSON.stringify(latestSemanticAssets, null, 2);
+      }
+    }
 
-    const empireBlocks = [];
-    if (includeEmpireData && currentFloorStatJson) empireBlocks.push(this.buildContextBlock('当前楼层资产统计', currentFloorStatJson));
-    if (includeEmpireData && empireDataText) empireBlocks.push(this.buildContextBlock('当前资产状态', empireDataText));
-
-    const worldBlocks = [];
-    if (includeWorldState && currentFloorWorldJson) worldBlocks.push(this.buildContextBlock('当前楼层世界推演', currentFloorWorldJson));
-    if (includeWorldState && worldStateText) worldBlocks.push(this.buildContextBlock('当前世界推演状态', worldStateText));
-
-    const historySection = historyBlocks.filter(Boolean).join('\n\n');
-    const empireSection = empireBlocks.filter(Boolean).join('\n\n');
-    const worldSection = worldBlocks.filter(Boolean).join('\n\n');
+    const currentAssetBlock = includeEmpireData && currentAssetText
+      ? this.buildContextBlock('当前资产模块', currentAssetText)
+      : '';
+    const currentWorldBlock = includeWorldState && worldStateText
+      ? this.buildContextBlock('当前世界演化模块', worldStateText)
+      : '';
 
     const simulationModeNote = this.getSimulationModeNote();
     const modeSection = this.buildContextBlock('推演模式说明', simulationModeNote);
 
-    // 使用新的 scaffold 模型构建核心提示词块
     const tpl = this.config.SIMULATION?.tpl;
-    let corePromptBlock;
-    const usingModularScaffold = !!(tpl && Array.isArray(tpl.scaffold));
-
-    if (usingModularScaffold) {
-      // 新的 scaffold 模型
-      corePromptBlock = buildPromptFromScaffold(tpl, {
-        historyText: [modeSection, historySection].filter(Boolean).join('\n\n'),
-        empireText: empireSection,
-        worldText: worldSection,
-      });
-    } else {
-      // 回退到旧的字符串替换方式（向后兼容）
-      const corePromptRaw = String(this.getPromptTemplate('CORE_PROMPT_BLOCK') || '').trim();
-      corePromptBlock = corePromptRaw
-        .replace('{{HISTORY}}', [modeSection, historySection].filter(Boolean).join('\n\n'))
-        .replace('{{EMPIRE_DATA}}', empireSection)
-        .replace('{{WORLD_STATE}}', worldSection);
+    if (!tpl || !Array.isArray(tpl.scaffold)) {
+      throw new Error('提示词模板结构无效：缺少模块化 scaffold');
     }
 
-    const coreAlreadyContainsBreak = !!(breakPrompt && corePromptBlock && corePromptBlock.includes(breakPrompt));
-    const effectiveBreakPrompt = usingModularScaffold ? '' : (coreAlreadyContainsBreak ? '' : breakPrompt);
+    const corePromptBlock = buildPromptFromScaffold(tpl, {
+      historyText: [modeSection, historyFloorInfoBlock].filter(Boolean).join('\n\n'),
+      empireText: currentAssetBlock,
+      worldText: currentWorldBlock,
+      placeholders: {
+        HISTORY_FLOOR_INFO_BLOCK: historyFloorInfoBlock,
+        WORLDBOOK_BLOCK: worldbookBlock,
+        HISTORICAL_ASSET_VARS_BLOCK: historicalAssetBlock,
+        HISTORICAL_WORLD_VARS_BLOCK: historicalWorldBlock,
+        CURRENT_ASSET_BLOCK: currentAssetBlock,
+        CURRENT_WORLD_BLOCK: currentWorldBlock,
+      },
+    });
 
     const moduleMap = {
-      BREAK_PROMPT: effectiveBreakPrompt,
+      BREAK_PROMPT: '',
       CORE_PROMPT_BLOCK: corePromptBlock,
       MODE_NOTE_BLOCK: modeSection,
-      HISTORY_BLOCK: historySection,
-      WORLDBOOK_BLOCK: this.buildContextBlock('世界书条目', currentWorldbookContext),
-      FLOOR_STAT_HISTORY_BLOCK: this.buildContextBlock('历史楼层资产统计', historicalStatContext),
-      FLOOR_WORLD_HISTORY_BLOCK: this.buildContextBlock('历史楼层世界推演', historicalWorldContext),
-      CURRENT_FLOOR_STAT_BLOCK: this.buildContextBlock('当前楼层资产统计', currentFloorStatJson),
-      CURRENT_FLOOR_WORLD_BLOCK: this.buildContextBlock('当前楼层世界推演', currentFloorWorldJson),
-      EMPIRE_DATA_BLOCK: empireSection,
-      WORLD_STATE_BLOCK: worldSection,
+      HISTORY_FLOOR_INFO_BLOCK: historyFloorInfoBlock,
+      WORLDBOOK_BLOCK: worldbookBlock,
+      HISTORICAL_ASSET_VARS_BLOCK: historicalAssetBlock,
+      HISTORICAL_WORLD_VARS_BLOCK: historicalWorldBlock,
+      CURRENT_ASSET_BLOCK: currentAssetBlock,
+      CURRENT_WORLD_BLOCK: currentWorldBlock,
     };
 
     let composedPrompt = composeTemplate.replace(/\{\{([A-Z0-9_]+)\}\}/g, (_, key) => moduleMap[key] || '');
 
-    // 强制兜底：无论用户如何自定义 COMPOSE_PROMPT，最终发送内容必须包含最高优先级 BREAK_PROMPT。
-    if (!usingModularScaffold && breakPrompt && !composedPrompt.includes(breakPrompt)) {
+    if (breakPrompt && !composedPrompt.includes(breakPrompt)) {
       composedPrompt = `${breakPrompt}\n\n${composedPrompt}`;
     }
 
@@ -2137,18 +2054,14 @@ const BIZSIM_ENGINE_VALIDATION_METHODS = {
     result.worldSimulation.tracks = trackValidation.tracks;
 
     // 2. 校验资产数据约束
-    const empireData = result?.empireData || result?.stat_data?.bizsim_assets;
+    const empireData = result?.stat_data?.bizsim_assets;
     if (empireData) {
       const empireValidation = this.validateEmpireDataConstraints(empireData);
       if (empireValidation.issues.length > 0) {
         allIssues.push(...empireValidation.issues);
         autoRepaired = true;
       }
-      if (result.empireData) {
-        result.empireData = empireValidation.repaired;
-      } else {
-        result.stat_data.bizsim_assets = empireValidation.repaired;
-      }
+      result.stat_data.bizsim_assets = empireValidation.repaired;
     }
 
     // 3. 校验 checks 字段
@@ -2388,10 +2301,6 @@ class BizSimEngine {
         }
         if (savedSettings.prompts) {
           this.promptTemplates = { ...this.promptTemplates, ...savedSettings.prompts };
-          // Backward compatibility: migrate legacy key to the new core prompt key.
-          if (!this.promptTemplates.CORE_PROMPT_BLOCK && this.promptTemplates.WORLD_SIMULATION) {
-            this.promptTemplates.CORE_PROMPT_BLOCK = this.promptTemplates.WORLD_SIMULATION;
-          }
         }
       }
 
@@ -2402,13 +2311,11 @@ class BizSimEngine {
       if (floorVars) {
         const scoped = this.resolveFloorStatDataSource(floorVars);
         if (scoped) {
-          // 提取 empireData 从 savedData?.empireData 或 savedData?.bizsim_assets
           const assetsData = this.extractAssetStatPayload(scoped);
           if (assetsData) {
             this.data = this.buildEmpireDataFromSemanticAssets(assetsData);
           }
 
-          // 提取 worldSimulation 从 savedData?.worldSimulation 或 savedData?.bizsim_world_state
           const worldData = this.extractWorldSimulationPayload(scoped);
           if (worldData) {
             this.worldSimulation = worldData;
@@ -2444,26 +2351,13 @@ class BizSimEngine {
   initializePromptTemplates() {
     const cfg = this.config.SIMULATION;
 
-    // 情景 A：从旧配置迁移，CORE_PROMPT_BLOCK 是字符串且无 tplRaw → 转换为 scaffold
-    if (!cfg.tplRaw && typeof this.promptTemplates.CORE_PROMPT_BLOCK === 'string' && this.promptTemplates.CORE_PROMPT_BLOCK.trim()) {
-      try {
-        cfg.tplRaw = migrateOldCorePromptBlockToScaffold(this.promptTemplates.CORE_PROMPT_BLOCK);
-      } catch (e) {
-        console.warn('[BizSim] 迁移旧 CORE_PROMPT_BLOCK 失败，使用默认模版', e);
-        cfg.tplRaw = createDefaultTemplateStructure();
-      }
-    }
-
-    // 情景 B：首次使用或迁移失败，tplRaw 为空 → 创建默认模版
-    if (!cfg.tplRaw) {
+    if (!cfg.tplRaw || !Array.isArray(cfg.tplRaw.scaffold)) {
       cfg.tplRaw = createDefaultTemplateStructure();
     }
 
-    // 编译 tplRaw → tpl（融入 userPref）
-    if (cfg.tplRaw) {
-      cfg.tplRaw = upgradeLegacyBuiltInBlocks(cfg.tplRaw);
-      cfg.tpl = compileTemplateWithUserPref(cfg.tplRaw, cfg.userPref);
-    }
+    cfg.tplRaw = ensureCurrentTemplateStructure(cfg.tplRaw);
+
+    cfg.tpl = compileTemplateWithUserPref(cfg.tplRaw, cfg.userPref);
   }
 
   getDefaultEmpireData() {
@@ -3460,12 +3354,6 @@ function showSheet(ui, sheetName, silent = false) {
   const container = ui.byId('empire-table-container');
   if (!container) return;
 
-  console.log('[BizSim Debug] showSheet:', sheetName);
-  console.log('[BizSim Debug] engine.data:', ui.engine.data);
-
-  const sheetData = ui.engine.data?.[sheetName];
-  console.log('[BizSim Debug] sheetData:', sheetData);
-
   const titleMap = {
     sheet_bizStruct: '业务结构',
     sheet_rlEst02b: '不动产',
@@ -3481,38 +3369,15 @@ function showSheet(ui, sheetName, silent = false) {
     button.classList.toggle('active', button.dataset.sheet === sheetName);
   });
 
-  // 优先使用引擎内存数据（从角色变量加载）
-  if (sheetData && Array.isArray(sheetData.content) && sheetData.content.length > 0) {
-    const rows = sheetData.content;
-    const html = [];
-    html.push(`<div class="bizsim-card" style="margin-bottom:12px;"><div class="bizsim-card-title"><span>${escapeHtml(titleMap[sheetName] || sheetName)}</span><span class="bizsim-card-subtitle">共 ${rows.length - 1} 条记录</span></div></div>`);
-    html.push('<div class="bizsim-table-wrap">');
-    html.push('<table class="bizsim-table">');
-    rows.forEach((row, rowIndex) => {
-      html.push('<tr>');
-      row.forEach((cell) => {
-        const tag = rowIndex === 0 ? 'th' : 'td';
-        html.push(`<${tag}>${escapeHtml(cell ?? '')}</${tag}>`);
-      });
-      html.push('</tr>');
-    });
-    html.push('</table></div>');
-
-    container.innerHTML = html.join('');
-    if (!silent) ui.log(`已切换到表格: ${titleMap[sheetName] || sheetName}`);
-    return;
-  }
-
-  // 内存数据为空时，尝试从楼层变量读取（推演后的临时数据）
+  // 优先直接读取当前楼层变量中的最新语义资产 JSON。
   const semanticTable = ui.engine.getSemanticTableBySheetKey?.(sheetName);
-  console.log('[BizSim Debug] semanticTable (fallback):', semanticTable);
-
   if (semanticTable) {
     const rows = semanticTable.type === 'single' ? [semanticTable.rows] : (Array.isArray(semanticTable.rows) ? semanticTable.rows : []);
     const html = [];
     html.push(`<div class="bizsim-card" style="margin-bottom:12px;"><div class="bizsim-card-title"><span>${escapeHtml(semanticTable.tableName)}</span><span class="bizsim-card-subtitle">共 ${rows.length} 条记录</span></div></div>`);
     html.push('<div class="bizsim-table-wrap">');
     html.push('<table class="bizsim-table">');
+
     html.push('<tr>');
     for (const field of semanticTable.fields) html.push(`<th>${escapeHtml(field)}</th>`);
     html.push('</tr>');
@@ -3527,11 +3392,11 @@ function showSheet(ui, sheetName, silent = false) {
 
     html.push('</table></div>');
     container.innerHTML = html.join('');
-    if (!silent) ui.log(`已切换到表格: ${semanticTable.tableName} (来自楼层变量)`);
+    if (!silent) ui.log(`已切换到表格: ${semanticTable.tableName} (来自最新楼层变量)`);
     return;
   }
 
-  // 两者都为空
+  // 无楼层语义数据时直接提示为空
   container.innerHTML = '<div class="bizsim-helper">表格数据为空或不存在</div>';
   if (!silent) ui.log('表格数据为空或不存在');
 }
@@ -3970,10 +3835,45 @@ const MODULE_META = {
     role: 'system',
     isBuiltIn: true,
   },
-  input_context: {
-    id: 'input_context',
-    name: '输入上下文 - 数据输入源',
-    description: '提供推演所需的原始数据和占位符',
+  history_floor_info: {
+    id: 'history_floor_info',
+    name: '历史楼层信息 - 聊天正文',
+    description: '最近聊天正文，作为历史语境输入',
+    role: 'system',
+    isBuiltIn: true,
+  },
+  worldbook_context: {
+    id: 'worldbook_context',
+    name: '世界书模块 - 条目注入',
+    description: '当前选择的世界书与条目内容',
+    role: 'system',
+    isBuiltIn: true,
+  },
+  historical_asset_vars: {
+    id: 'historical_asset_vars',
+    name: '历史资产变量模块（不含最新楼层）',
+    description: '历史楼层（不含最新楼层）中的资产变量快照',
+    role: 'system',
+    isBuiltIn: true,
+  },
+  historical_world_vars: {
+    id: 'historical_world_vars',
+    name: '历史世界演化模块（不含最新楼层）',
+    description: '历史楼层（不含最新楼层）中的世界推演变量快照',
+    role: 'system',
+    isBuiltIn: true,
+  },
+  current_asset_context: {
+    id: 'current_asset_context',
+    name: '当前资产模块',
+    description: '当前楼层资产状态 JSON',
+    role: 'system',
+    isBuiltIn: true,
+  },
+  current_world_context: {
+    id: 'current_world_context',
+    name: '当前世界演化模块',
+    description: '当前楼层世界演化 JSON',
     role: 'system',
     isBuiltIn: true,
   },
@@ -3993,40 +3893,20 @@ const MODULE_META = {
   },
 };
 
-const strictCore = DEFAULT_CORE_PROMPT_BLOCK.trim();
-const rebuiltCore = DEFAULT_CORE_PROMPT_BLOCK_ORDER
-  .map((id) => DEFAULT_CORE_PROMPT_MODULES[id] || '')
-  .join('\n\n')
-  .trim();
-
-const useModular = strictCore && strictCore === rebuiltCore;
-
-const BUILTIN_PROMPT_MODULES = useModular
-  ? DEFAULT_CORE_PROMPT_BLOCK_ORDER.reduce((acc, id) => {
-    acc[id] = {
-      ...MODULE_META[id],
-      text: DEFAULT_CORE_PROMPT_MODULES[id],
-    };
-    return acc;
-  }, {})
-  : {
-    constraint_layer: {
-      ...MODULE_META.constraint_layer,
-      name: '约束层 - 旧版整体迁移',
-      description: '默认模块校验失败时使用完整提示词兜底',
-      text: DEFAULT_CORE_PROMPT_BLOCK,
-    },
+const BUILTIN_PROMPT_MODULES = DEFAULT_CORE_PROMPT_BLOCK_ORDER.reduce((acc, id) => {
+  acc[id] = {
+    ...MODULE_META[id],
+    text: DEFAULT_CORE_PROMPT_MODULES[id],
   };
+  return acc;
+}, {});
 
 /**
  * 从内置块库创建默认的 template structure
  * @returns {Object} 包含 scaffold 数组和 specialIndex 的模板结构
  */
 function createDefaultTemplateStructure() {
-  const builtInIds = DEFAULT_CORE_PROMPT_BLOCK_ORDER.filter((id) => BUILTIN_PROMPT_MODULES[id]);
-  const fallbackIds = builtInIds.length ? builtInIds : Object.keys(BUILTIN_PROMPT_MODULES);
-
-  const scaffold = fallbackIds.map((id, index) => {
+  const scaffold = DEFAULT_CORE_PROMPT_BLOCK_ORDER.map((id, index) => {
     const module = BUILTIN_PROMPT_MODULES[id];
     return {
       id,
@@ -4038,14 +3918,11 @@ function createDefaultTemplateStructure() {
     };
   });
 
-  // specialIndex 放在 input_context 块之后（位于输出模板与执行锚点之前）
-  const inputContextIndex = scaffold.findIndex(b => b.id === 'input_context');
-
   return {
     version: '2.0',
     builtInSyncMode: 'follow-defaults',
     scaffold,
-    specialIndex: inputContextIndex >= 0 ? inputContextIndex + 1 : undefined
+    specialIndex: undefined
   };
 }
 
@@ -4066,144 +3943,31 @@ function getBuiltInBlockMetadata(id) {
   return metadata;
 }
 
-function isLegacySimplifiedOutputTemplate(text) {
-  if (typeof text !== 'string') return false;
-  return text.includes('"集团架构表": {}')
-    && text.includes('"业务板块表": []')
-    && text.includes('"allTracksAdvanced": false')
-    && !text.includes('"实体名称": "${顶层实体全称或势力名称}"');
+const DISALLOWED_PLACEHOLDER_PATTERN = /\{\{(HISTORY|EMPIRE_DATA|WORLD_STATE|HISTORY_BLOCK|EMPIRE_DATA_BLOCK|WORLD_STATE_BLOCK)\}\}/;
+
+function isValidCurrentScaffold(scaffold) {
+  if (!Array.isArray(scaffold) || scaffold.length === 0) return false;
+
+  const builtInIdSet = new Set(
+    scaffold
+      .filter((block) => block && block.isBuiltIn === true)
+      .map((block) => String(block.id || '').trim())
+      .filter(Boolean)
+  );
+
+  const hasAllRequiredBuiltIns = DEFAULT_CORE_PROMPT_BLOCK_ORDER.every((id) => builtInIdSet.has(id));
+  if (!hasAllRequiredBuiltIns) return false;
+
+  const hasDisallowedPlaceholders = scaffold.some((block) => DISALLOWED_PLACEHOLDER_PATTERN.test(String(block?.text || '')));
+  return !hasDisallowedPlaceholders;
 }
 
-/**
- * 修复历史版本中被简化过的内置模块文本（仅修复已知错误形态）
- */
-function upgradeLegacyBuiltInBlocks(tplRawLike) {
-  if (!tplRawLike || !Array.isArray(tplRawLike.scaffold)) return tplRawLike;
-
-  const explicitSyncMode = String(tplRawLike.builtInSyncMode || '').trim();
-  const inferredFollowDefaults = tplRawLike.scaffold.every((block) => {
-    if (!block || !block.isBuiltIn) return true;
-    const defaultText = BUILTIN_PROMPT_MODULES[block.id]?.text;
-    if (typeof defaultText !== 'string') return true;
-    return block.text === defaultText;
-  });
-  const shouldSyncBuiltIns = explicitSyncMode === 'follow-defaults'
-    || (!explicitSyncMode && inferredFollowDefaults);
-
-  let changed = false;
-  let nextScaffold = tplRawLike.scaffold.map((block) => {
-    if (!block || !block.isBuiltIn) {
-      return block;
-    }
-
-    const defaultText = BUILTIN_PROMPT_MODULES[block.id]?.text;
-
-    // 同步最新默认内置块文本，确保修改 defaultPrompts 后前端能立即看到新内容
-    if (shouldSyncBuiltIns && typeof defaultText === 'string' && block.text !== defaultText) {
-      changed = true;
-      block = {
-        ...block,
-        text: defaultText,
-      };
-    }
-
-    if (block.id !== 'output_template') {
-      return block;
-    }
-
-    if (isLegacySimplifiedOutputTemplate(block.text)) {
-      changed = true;
-      return {
-        ...block,
-        text: BUILTIN_PROMPT_MODULES.output_template?.text || block.text,
-      };
-    }
-
-    return block;
-  });
-
-  const requiredBuiltInIds = DEFAULT_CORE_PROMPT_BLOCK_ORDER.filter((id) => BUILTIN_PROMPT_MODULES[id]);
-
-  if (shouldSyncBuiltIns) {
-    const firstById = new Map();
-    const userBlocks = [];
-
-    for (const block of nextScaffold) {
-      if (!block || typeof block !== 'object') continue;
-      if (block.isBuiltIn && typeof block.id === 'string' && !firstById.has(block.id)) {
-        firstById.set(block.id, block);
-      } else if (!block.isBuiltIn) {
-        userBlocks.push(block);
-      }
-    }
-
-    const rebuiltBuiltIns = requiredBuiltInIds.map((id) => {
-      const existing = firstById.get(id);
-      if (existing) {
-        const latest = BUILTIN_PROMPT_MODULES[id];
-        return {
-          ...existing,
-          name: latest?.name || existing.name,
-          role: latest?.role || existing.role,
-          text: latest?.text || existing.text,
-          isBuiltIn: true,
-        };
-      }
-
-      changed = true;
-      const latest = BUILTIN_PROMPT_MODULES[id];
-      return {
-        id,
-        name: latest?.name || id,
-        role: latest?.role || 'system',
-        text: latest?.text || '',
-        isBuiltIn: true,
-      };
-    });
-
-    const rebuilt = [...rebuiltBuiltIns, ...userBlocks].map((block, index) => ({ ...block, order: index }));
-    if (rebuilt.length !== nextScaffold.length || rebuilt.some((b, idx) => b.id !== nextScaffold[idx]?.id || b.text !== nextScaffold[idx]?.text)) {
-      changed = true;
-      nextScaffold = rebuilt;
-    }
+function ensureCurrentTemplateStructure(tplRawLike) {
+  if (!tplRawLike || !isValidCurrentScaffold(tplRawLike.scaffold)) {
+    return createDefaultTemplateStructure();
   }
 
-  // 历史模板可能缺少 break_prompt（旧版本只通过 COMPOSE 注入），这里补齐到首位。
-  const hasBreakPrompt = nextScaffold.some((block) => block && block.isBuiltIn && block.id === 'break_prompt');
-  if (!hasBreakPrompt && BUILTIN_PROMPT_MODULES.break_prompt?.text) {
-    changed = true;
-    nextScaffold = [
-      {
-        id: 'break_prompt',
-        name: BUILTIN_PROMPT_MODULES.break_prompt.name,
-        role: BUILTIN_PROMPT_MODULES.break_prompt.role,
-        text: BUILTIN_PROMPT_MODULES.break_prompt.text,
-        isBuiltIn: true,
-        order: 0,
-      },
-      ...nextScaffold,
-    ].map((block, index) => ({ ...block, order: index }));
-  }
-
-  const inputIndex = nextScaffold.findIndex((block) => block && block.id === 'input_context');
-  const maxSpecial = nextScaffold.length;
-  let nextSpecialIndex = Number.isInteger(tplRawLike.specialIndex) ? tplRawLike.specialIndex : undefined;
-  if (nextSpecialIndex !== undefined && (nextSpecialIndex < 0 || nextSpecialIndex > maxSpecial)) {
-    nextSpecialIndex = undefined;
-    changed = true;
-  }
-  if (nextSpecialIndex === undefined && inputIndex >= 0) {
-    nextSpecialIndex = Math.min(inputIndex + 1, maxSpecial);
-    changed = true;
-  }
-
-  if (!changed) return tplRawLike;
-  return {
-    ...tplRawLike,
-    builtInSyncMode: shouldSyncBuiltIns ? 'follow-defaults' : (explicitSyncMode || 'customized'),
-    scaffold: nextScaffold,
-    specialIndex: nextSpecialIndex,
-  };
+  return tplRawLike;
 }
 
 // ---- src/core/BizSimEngine.scaffold.js ----
@@ -4419,16 +4183,11 @@ function buildPromptFromScaffold(tpl, dynamicContent = {}) {
 
   const scaffold = tpl.scaffold;
   const hasSpecial = Number.isInteger(tpl.specialIndex);
-  const { historyText = '', empireText = '', worldText = '', placeholders = {} } = dynamicContent;
+  const { placeholders = {} } = dynamicContent;
 
-  const placeholderMap = {
-    HISTORY: historyText,
-    EMPIRE_DATA: empireText,
-    WORLD_STATE: worldText,
-    ...placeholders,
-  };
+  const placeholderMap = { ...placeholders };
 
-  const placeholderPattern = /\{\{HISTORY\}\}|\{\{EMPIRE_DATA\}\}|\{\{WORLD_STATE\}\}/;
+  const placeholderPattern = /\{\{[A-Z0-9_]+\}\}/;
   const hasPlaceholders = scaffold.some((block) => typeof block?.text === 'string' && placeholderPattern.test(block.text));
 
   const parts = [];
@@ -4436,14 +4195,8 @@ function buildPromptFromScaffold(tpl, dynamicContent = {}) {
 
   for (let logicalIdx = 0; logicalIdx < scaffold.length + (hasSpecial ? 1 : 0); logicalIdx++) {
     if (hasSpecial && logicalIdx === tpl.specialIndex) {
-      // 兼容两种模式：
-      // 1) 文本块内有 {{HISTORY}} 等占位符 -> 由块内替换注入
-      // 2) 无占位符 -> 通过 special 插槽注入
-      if (!hasPlaceholders) {
-        if (historyText) parts.push(historyText);
-        if (empireText) parts.push(empireText);
-        if (worldText) parts.push(worldText);
-      }
+      // specialIndex 仅作为插入锚点，不再承担上下文注入逻辑。
+      continue;
     } else {
       // 插入普通块
       if (scaffoldIdx < scaffold.length) {
@@ -4462,35 +4215,6 @@ function buildPromptFromScaffold(tpl, dynamicContent = {}) {
 
   // 拼接所有部分，使用双换行符分隔
   return parts.filter(p => p && p.trim()).join('\n\n');
-}
-
-/**
- * 从 CORE_PROMPT_BLOCK (旧格式) 迁移到新的 scaffold 结构
- * 用于向后兼容
- *
- * @param {string} oldCorePromptBlock - 旧的 CORE_PROMPT_BLOCK 字符串
- * @returns {Object} 新的 TemplateStructure
- */
-function migrateOldCorePromptBlockToScaffold(oldCorePromptBlock) {
-  if (typeof oldCorePromptBlock !== 'string') {
-    console.warn('[migrateOldCorePromptBlockToScaffold] 输入不是字符串');
-    return null;
-  }
-
-  // 简单策略：整个旧块作为一个大 block
-  return {
-    version: '1.0-migrated',
-    scaffold: [
-      {
-        id: 'migrated_core_prompt',
-        name: '迁移的核心提示词 (旧版)',
-        role: 'system',
-        text: oldCorePromptBlock,
-        isBuiltIn: true
-      }
-    ],
-    specialIndex: undefined
-  };
 }
 
 // ---- src/ui/BizSimUI.scaffoldEditor.js ----
@@ -4525,7 +4249,7 @@ function renderScaffoldEditor(container, tpl, handlers = {}) {
     if (v.kind === 'special') {
       return `<div class="scaffold-block special-slot" data-pos="${logicalPos}">
         <div class="block-header">
-          <span class="block-name">历史/世界书/变量 插槽</span>
+          <span class="block-name">自定义插槽</span>
           <button class="btn-toggle-special" data-pos="${logicalPos}" title="移除插槽">✕</button>
         </div>
       </div>`;
@@ -4679,7 +4403,7 @@ function renderInsertAtOptions(tpl) {
     } else if (i > 0 && i <= view.length) {
       const prevItem = view[i - 1];
       if (prevItem.kind === 'special') {
-        label = `第${i}条后（历史/世界书插槽）`;
+        label = `第${i}条后（自定义插槽）`;
       } else {
         label = `第${i}条后（${prevItem.name}）`;
       }
@@ -5017,6 +4741,7 @@ function renderPresetsPanel(container, presets, currentPresetId, handlers = {}) 
  */
 
 
+
 class PromptPresetManager {
   constructor(engine) {
     this.engine = engine;
@@ -5061,7 +4786,9 @@ class PromptPresetManager {
     }
 
     // 深复制预设数据到 engine config
-    this.engine.config.SIMULATION.tplRaw = JSON.parse(JSON.stringify(preset.tplRaw));
+    this.engine.config.SIMULATION.tplRaw = ensureCurrentTemplateStructure(
+      JSON.parse(JSON.stringify(preset.tplRaw))
+    );
     this.engine.config.SIMULATION.userPref = preset.userPref ? JSON.parse(JSON.stringify(preset.userPref)) : null;
 
     // 重新编译
@@ -5175,10 +4902,7 @@ function renderScaffoldEditingUI(ui) {
   const resetBuiltinsBtn = container.querySelector('#btn-reset-builtins-defaults');
 
   resetBuiltinsBtn?.addEventListener('click', () => {
-    const currentTplRaw = engine.config.SIMULATION?.tplRaw;
-    if (!currentTplRaw) return;
-    currentTplRaw.builtInSyncMode = 'follow-defaults';
-    engine.config.SIMULATION.tplRaw = upgradeLegacyBuiltInBlocks(currentTplRaw) || currentTplRaw;
+    engine.config.SIMULATION.tplRaw = createDefaultTemplateStructure();
     engine.config.SIMULATION.tpl = compileTemplateWithUserPref(
       engine.config.SIMULATION.tplRaw,
       engine.config.SIMULATION.userPref

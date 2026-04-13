@@ -3,6 +3,7 @@
  */
 
 import { compileTemplateWithUserPref } from '../core/BizSimEngine.scaffold.js';
+import { ensureCurrentTemplateStructure } from '../config/promptModules.js';
 
 export class PromptPresetManager {
   constructor(engine) {
@@ -48,7 +49,9 @@ export class PromptPresetManager {
     }
 
     // 深复制预设数据到 engine config
-    this.engine.config.SIMULATION.tplRaw = JSON.parse(JSON.stringify(preset.tplRaw));
+    this.engine.config.SIMULATION.tplRaw = ensureCurrentTemplateStructure(
+      JSON.parse(JSON.stringify(preset.tplRaw))
+    );
     this.engine.config.SIMULATION.userPref = preset.userPref ? JSON.parse(JSON.stringify(preset.userPref)) : null;
 
     // 重新编译

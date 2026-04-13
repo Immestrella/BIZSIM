@@ -210,16 +210,11 @@ export function buildPromptFromScaffold(tpl, dynamicContent = {}) {
 
   const scaffold = tpl.scaffold;
   const hasSpecial = Number.isInteger(tpl.specialIndex);
-  const { historyText = '', empireText = '', worldText = '', placeholders = {} } = dynamicContent;
+  const { placeholders = {} } = dynamicContent;
 
-  const placeholderMap = {
-    HISTORY: historyText,
-    EMPIRE_DATA: empireText,
-    WORLD_STATE: worldText,
-    ...placeholders,
-  };
+  const placeholderMap = { ...placeholders };
 
-  const placeholderPattern = /\{\{HISTORY\}\}|\{\{EMPIRE_DATA\}\}|\{\{WORLD_STATE\}\}/;
+  const placeholderPattern = /\{\{[A-Z0-9_]+\}\}/;
   const hasPlaceholders = scaffold.some((block) => typeof block?.text === 'string' && placeholderPattern.test(block.text));
 
   const parts = [];
@@ -227,14 +222,8 @@ export function buildPromptFromScaffold(tpl, dynamicContent = {}) {
 
   for (let logicalIdx = 0; logicalIdx < scaffold.length + (hasSpecial ? 1 : 0); logicalIdx++) {
     if (hasSpecial && logicalIdx === tpl.specialIndex) {
-      // 兼容两种模式：
-      // 1) 文本块内有 {{HISTORY}} 等占位符 -> 由块内替换注入
-      // 2) 无占位符 -> 通过 special 插槽注入
-      if (!hasPlaceholders) {
-        if (historyText) parts.push(historyText);
-        if (empireText) parts.push(empireText);
-        if (worldText) parts.push(worldText);
-      }
+      // specialIndex 仅作为插入锚点，不再承担上下文注入逻辑。
+      continue;
     } else {
       // 插入普通块
       if (scaffoldIdx < scaffold.length) {
@@ -255,31 +244,3 @@ export function buildPromptFromScaffold(tpl, dynamicContent = {}) {
   return parts.filter(p => p && p.trim()).join('\n\n');
 }
 
-/**
- * 从 CORE_PROMPT_BLOCK (旧格式) 迁移到新的 scaffold 结构
- * 用于向后兼容
- *
- * @param {string} oldCorePromptBlock - 旧的 CORE_PROMPT_BLOCK 字符串
- * @returns {Object} 新的 TemplateStructure
- */
-export function migrateOldCorePromptBlockToScaffold(oldCorePromptBlock) {
-  if (typeof oldCorePromptBlock !== 'string') {
-    console.warn('[migrateOldCorePromptBlockToScaffold] 输入不是字符串');
-    return null;
-  }
-
-  // 简单策略：整个旧块作为一个大 block
-  return {
-    version: '1.0-migrated',
-    scaffold: [
-      {
-        id: 'migrated_core_prompt',
-        name: '迁移的核心提示词 (旧版)',
-        role: 'system',
-        text: oldCorePromptBlock,
-        isBuiltIn: true
-      }
-    ],
-    specialIndex: undefined
-  };
-}

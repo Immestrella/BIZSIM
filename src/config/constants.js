@@ -42,7 +42,7 @@ export const BIZSIM_CONFIG = {
     autoRunMinChars: 300,
     autoRunCooldownSec: 8,
     contentExtractTags: 'content,game',
-    contentExcludeTags: 'details,UpdateVariable,background,tucao',
+    contentExcludeTags: 'details,UpdateVariable,background,tucao,reasoning,analysis,think,npc_action,recall,dm_box',
   },
   AUDIT: {
     cashToleranceWan: 1,
@@ -60,6 +60,11 @@ export const PROMPT_BLOCK_IDS = {
   CONSTRAINT_LAYER: 'constraint_layer',
   RULE_LAYER: 'rule_layer',
   EXECUTION_STEPS: 'execution_steps',
-  INPUT_CONTEXT: 'input_context',
+  HISTORY_FLOOR_INFO: 'history_floor_info',
+  WORLDBOOK_CONTEXT: 'worldbook_context',
+  HISTORICAL_ASSET_VARS: 'historical_asset_vars',
+  HISTORICAL_WORLD_VARS: 'historical_world_vars',
+  CURRENT_ASSET_CONTEXT: 'current_asset_context',
+  CURRENT_WORLD_CONTEXT: 'current_world_context',
   OUTPUT_TEMPLATE: 'output_template',
 };

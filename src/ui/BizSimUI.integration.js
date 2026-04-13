@@ -5,7 +5,7 @@
 import { renderScaffoldEditor } from './BizSimUI.scaffoldEditor.js';
 import { renderUserPreferencesPanel, renderPresetsPanel } from './BizSimUI.userPreferences.js';
 import { compileTemplateWithUserPref } from '../core/BizSimEngine.scaffold.js';
-import { upgradeLegacyBuiltInBlocks } from '../config/promptModules.js';
+import { createDefaultTemplateStructure } from '../config/promptModules.js';
 
 /**
  * 渲染完整的模块化编辑界面
@@ -43,10 +43,7 @@ export function renderScaffoldEditingUI(ui) {
   const resetBuiltinsBtn = container.querySelector('#btn-reset-builtins-defaults');
 
   resetBuiltinsBtn?.addEventListener('click', () => {
-    const currentTplRaw = engine.config.SIMULATION?.tplRaw;
-    if (!currentTplRaw) return;
-    currentTplRaw.builtInSyncMode = 'follow-defaults';
-    engine.config.SIMULATION.tplRaw = upgradeLegacyBuiltInBlocks(currentTplRaw) || currentTplRaw;
+    engine.config.SIMULATION.tplRaw = createDefaultTemplateStructure();
     engine.config.SIMULATION.tpl = compileTemplateWithUserPref(
       engine.config.SIMULATION.tplRaw,
       engine.config.SIMULATION.userPref

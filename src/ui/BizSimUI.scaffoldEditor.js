@@ -29,7 +29,7 @@ export function renderScaffoldEditor(container, tpl, handlers = {}) {
     if (v.kind === 'special') {
       return `<div class="scaffold-block special-slot" data-pos="${logicalPos}">
         <div class="block-header">
-          <span class="block-name">历史/世界书/变量 插槽</span>
+          <span class="block-name">自定义插槽</span>
           <button class="btn-toggle-special" data-pos="${logicalPos}" title="移除插槽">✕</button>
         </div>
       </div>`;
@@ -183,7 +183,7 @@ export function renderInsertAtOptions(tpl) {
     } else if (i > 0 && i <= view.length) {
       const prevItem = view[i - 1];
       if (prevItem.kind === 'special') {
-        label = `第${i}条后（历史/世界书插槽）`;
+        label = `第${i}条后（自定义插槽）`;
       } else {
         label = `第${i}条后（${prevItem.name}）`;
       }

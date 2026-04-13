@@ -31,12 +31,6 @@ export function showSheet(ui, sheetName, silent = false) {
   const container = ui.byId('empire-table-container');
   if (!container) return;
 
-  console.log('[BizSim Debug] showSheet:', sheetName);
-  console.log('[BizSim Debug] engine.data:', ui.engine.data);
-
-  const sheetData = ui.engine.data?.[sheetName];
-  console.log('[BizSim Debug] sheetData:', sheetData);
-
   const titleMap = {
     sheet_bizStruct: '业务结构',
     sheet_rlEst02b: '不动产',
@@ -52,38 +46,15 @@ export function showSheet(ui, sheetName, silent = false) {
     button.classList.toggle('active', button.dataset.sheet === sheetName);
   });
 
-  // 优先使用引擎内存数据（从角色变量加载）
-  if (sheetData && Array.isArray(sheetData.content) && sheetData.content.length > 0) {
-    const rows = sheetData.content;
-    const html = [];
-    html.push(`<div class="bizsim-card" style="margin-bottom:12px;"><div class="bizsim-card-title"><span>${escapeHtml(titleMap[sheetName] || sheetName)}</span><span class="bizsim-card-subtitle">共 ${rows.length - 1} 条记录</span></div></div>`);
-    html.push('<div class="bizsim-table-wrap">');
-    html.push('<table class="bizsim-table">');
-    rows.forEach((row, rowIndex) => {
-      html.push('<tr>');
-      row.forEach((cell) => {
-        const tag = rowIndex === 0 ? 'th' : 'td';
-        html.push(`<${tag}>${escapeHtml(cell ?? '')}</${tag}>`);
-      });
-      html.push('</tr>');
-    });
-    html.push('</table></div>');
-
-    container.innerHTML = html.join('');
-    if (!silent) ui.log(`已切换到表格: ${titleMap[sheetName] || sheetName}`);
-    return;
-  }
-
-  // 内存数据为空时，尝试从楼层变量读取（推演后的临时数据）
+  // 优先直接读取当前楼层变量中的最新语义资产 JSON。
   const semanticTable = ui.engine.getSemanticTableBySheetKey?.(sheetName);
-  console.log('[BizSim Debug] semanticTable (fallback):', semanticTable);
-
   if (semanticTable) {
     const rows = semanticTable.type === 'single' ? [semanticTable.rows] : (Array.isArray(semanticTable.rows) ? semanticTable.rows : []);
     const html = [];
     html.push(`<div class="bizsim-card" style="margin-bottom:12px;"><div class="bizsim-card-title"><span>${escapeHtml(semanticTable.tableName)}</span><span class="bizsim-card-subtitle">共 ${rows.length} 条记录</span></div></div>`);
     html.push('<div class="bizsim-table-wrap">');
     html.push('<table class="bizsim-table">');
+
     html.push('<tr>');
     for (const field of semanticTable.fields) html.push(`<th>${escapeHtml(field)}</th>`);
     html.push('</tr>');
@@ -98,11 +69,11 @@ export function showSheet(ui, sheetName, silent = false) {
 
     html.push('</table></div>');
     container.innerHTML = html.join('');
-    if (!silent) ui.log(`已切换到表格: ${semanticTable.tableName} (来自楼层变量)`);
+    if (!silent) ui.log(`已切换到表格: ${semanticTable.tableName} (来自最新楼层变量)`);
     return;
   }
 
-  // 两者都为空
+  // 无楼层语义数据时直接提示为空
   container.innerHTML = '<div class="bizsim-helper">表格数据为空或不存在</div>';
   if (!silent) ui.log('表格数据为空或不存在');
 }
