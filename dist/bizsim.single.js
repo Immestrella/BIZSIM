@@ -4829,6 +4829,9 @@ class BizSimUI {
   }
 
   async initializePanelWhenReady() {
+    // 首先重新从变量系统加载数据，确保与最新状态同步
+    await this.engine.reloadFromVariables();
+
     let ready = false;
 
     for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -4858,9 +4861,6 @@ class BizSimUI {
 
   open() {
     if (this.isOpen) return;
-
-    // 重新从变量系统加载数据，确保与最新状态同步
-    void this.engine.reloadFromVariables();
 
     const html = createMainPanelHtml(this.engine);
     const ST = getSillyTavernGlobal();
@@ -4947,11 +4947,14 @@ class BizSimUI {
       this.switchTab('simulation');
     });
 
-    this.byId('btn-refresh-dashboard')?.addEventListener('click', () => {
+    this.byId('btn-refresh-dashboard')?.addEventListener('click', async () => {
+      // 重新从变量系统加载数据，然后刷新UI
+      await this.engine.reloadFromVariables();
       this.refreshDashboard();
       this.refreshEmpire();
       this.refreshTracks();
       void this.refreshPromptSnapshot();
+      this.log('已刷新面板数据');
     });
 
     this.byId('btn-start-simulation')?.addEventListener('click', async () => {
