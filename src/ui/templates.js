@@ -413,7 +413,8 @@ export function createMainPanelHtml(engine) {
               <div class="bizsim-form-group">
                 <label><input type="checkbox" id="sim-auto-run-use-history" ${engine.config.SIMULATION.autoRunUseHistory !== false ? 'checked' : ''}> 自动推演时带聊天历史</label>
               </div>
-              <div class="bizsim-grid-2">
+              <div class="bizsim-grid-3">
+                <div class="bizsim-form-group"><label>每几条 AI 回复触发</label><input type="number" id="sim-auto-run-assistant-floor-interval" min="1" max="20" step="1" value="${engine.config.SIMULATION.autoRunAssistantFloorInterval ?? 1}"></div>
                 <div class="bizsim-form-group"><label>最小正文长度</label><input type="number" id="sim-auto-run-min-chars" min="0" max="5000" step="1" value="${engine.config.SIMULATION.autoRunMinChars ?? 300}"></div>
                 <div class="bizsim-form-group"><label>触发冷却（秒）</label><input type="number" id="sim-auto-run-cooldown" min="0" max="600" step="1" value="${engine.config.SIMULATION.autoRunCooldownSec ?? 8}"></div>
               </div>

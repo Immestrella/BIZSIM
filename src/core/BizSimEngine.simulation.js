@@ -265,7 +265,7 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
       const semanticAssets = this.normalizeBizsimAssetsPayload(semanticAssetsRaw);
       normalizedEmpireData = this.buildEmpireDataFromSemanticAssets(semanticAssets);
     } else {
-      normalizedEmpireData = this.normalizeEmpireData(parsed?.empireData);
+      normalizedEmpireData = this.normalizeEmpireData(this.data);
     }
 
     return {
@@ -314,6 +314,13 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
       const previousData = this.data;
       const previousWorldSimulation = this.worldSimulation;
       const normalized = this.normalizeSimulationOutput(parsed);
+      const validationResult = this.validateAIParsedResult(normalized, {
+        empireData: previousData,
+        worldSimulation: previousWorldSimulation,
+      });
+      const blockingIssues = Array.isArray(validationResult?.blockingIssues) ? validationResult.blockingIssues : [];
+      const warningIssues = Array.isArray(validationResult?.warningIssues) ? validationResult.warningIssues : [];
+
       if (normalized.empireData) this.data = normalized.empireData;
       if (normalized.worldSimulation) this.worldSimulation = normalized.worldSimulation;
 
@@ -325,6 +332,9 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
           success: false,
           error: '本地约束校验未通过，已阻止写回。',
           constraintErrors: Array.isArray(syncResult?.errors) ? syncResult.errors : ['未知约束错误'],
+          localValidationIssues: Array.isArray(validationResult?.issues) ? validationResult.issues : [],
+          localValidationBlockingIssues: blockingIssues,
+          localValidationWarningIssues: warningIssues,
         };
       }
 
@@ -345,6 +355,11 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
             replacedExisting: !!syncResult.replacedExisting,
           },
           schemaAuditLogs: Array.isArray(syncResult.schemaAuditLogs) ? syncResult.schemaAuditLogs : [],
+          localValidationIssues: Array.isArray(validationResult?.issues) ? validationResult.issues : [],
+          localValidationBlockingIssues: blockingIssues,
+          localValidationWarningIssues: warningIssues,
+          localValidationWouldBlock: blockingIssues.length > 0,
+          localValidationAutoRepaired: !!validationResult?.autoRepaired,
         },
         chainOfThought: normalized._chainOfThought,
       };

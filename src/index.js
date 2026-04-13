@@ -6,6 +6,7 @@ let engine = null;
 let ui = null;
 let autoSimInFlight = false;
 let lastAutoSimAt = 0;
+let assistantMessageCount = 0;
 
 function getMessageFromEvent(messageId) {
   try {
@@ -30,6 +31,14 @@ function isUserMessage(message) {
     || String(message.role || '').toLowerCase() === 'user';
 }
 
+function isAssistantMessage(message) {
+  if (!message || typeof message !== 'object') return false;
+  const role = String(message.role || '').toLowerCase();
+  if (role === 'assistant') return true;
+  if (role === 'system') return false;
+  return !isUserMessage(message);
+}
+
 function shouldRunAutoSimulation(cfg, message) {
   if (!cfg?.autoRunEnabled) return false;
   if (cfg.autoRunOnlyAssistant !== false && isUserMessage(message)) return false;
@@ -50,6 +59,17 @@ async function maybeAutoSimulate(messageId) {
   const ctx = await initBizSim();
   const cfg = ctx.engine?.config?.SIMULATION || {};
   const message = getMessageFromEvent(messageId);
+
+  const assistantOnly = cfg.autoRunOnlyAssistant !== false;
+  const assistantInterval = Math.max(1, Number(cfg.autoRunAssistantFloorInterval) || 1);
+  const isAssistant = isAssistantMessage(message);
+
+  if (assistantOnly && !isAssistant) return;
+
+  if (isAssistant) {
+    assistantMessageCount += 1;
+    if (assistantMessageCount % assistantInterval !== 0) return;
+  }
 
   if (!shouldRunAutoSimulation(cfg, message)) return;
 

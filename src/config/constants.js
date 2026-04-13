@@ -38,6 +38,7 @@ export const BIZSIM_CONFIG = {
     autoSave: true,
     autoRunEnabled: false,
     autoRunOnlyAssistant: true,
+    autoRunAssistantFloorInterval: 1,
     autoRunUseHistory: true,
     autoRunMinChars: 300,
     autoRunCooldownSec: 8,

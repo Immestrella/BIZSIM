@@ -131,6 +131,7 @@ export function saveSimulationSettings(ui, silent = false) {
   const repairOnParseError = !!ui.byId('sim-repair-on-parse')?.checked;
   const autoRunEnabled = !!ui.byId('sim-auto-run-enabled')?.checked;
   const autoRunOnlyAssistant = !!ui.byId('sim-auto-run-only-assistant')?.checked;
+  const autoRunAssistantFloorInterval = Number.parseInt(ui.byId('sim-auto-run-assistant-floor-interval')?.value, 10);
   const autoRunUseHistory = !!ui.byId('sim-auto-run-use-history')?.checked;
   const autoRunMinChars = Number.parseInt(ui.byId('sim-auto-run-min-chars')?.value, 10);
   const autoRunCooldownSec = Number.parseInt(ui.byId('sim-auto-run-cooldown')?.value, 10);
@@ -152,6 +153,9 @@ export function saveSimulationSettings(ui, silent = false) {
   ui.engine.config.SIMULATION.repairOnParseError = repairOnParseError;
   ui.engine.config.SIMULATION.autoRunEnabled = autoRunEnabled;
   ui.engine.config.SIMULATION.autoRunOnlyAssistant = autoRunOnlyAssistant;
+  if (!Number.isNaN(autoRunAssistantFloorInterval) && autoRunAssistantFloorInterval > 0) {
+    ui.engine.config.SIMULATION.autoRunAssistantFloorInterval = autoRunAssistantFloorInterval;
+  }
   ui.engine.config.SIMULATION.autoRunUseHistory = autoRunUseHistory;
   ui.engine.config.SIMULATION.trackPrefix = trackPrefix;
   ui.engine.config.SIMULATION.worldbookName = ui.byId('sim-worldbook-name')?.value?.trim() || '';
@@ -201,6 +205,7 @@ export function resetSimulationSettings(ui) {
   if (ui.byId('sim-repair-on-parse')) ui.byId('sim-repair-on-parse').checked = ui.engine.config.SIMULATION.repairOnParseError;
   if (ui.byId('sim-auto-run-enabled')) ui.byId('sim-auto-run-enabled').checked = !!ui.engine.config.SIMULATION.autoRunEnabled;
   if (ui.byId('sim-auto-run-only-assistant')) ui.byId('sim-auto-run-only-assistant').checked = ui.engine.config.SIMULATION.autoRunOnlyAssistant !== false;
+  if (ui.byId('sim-auto-run-assistant-floor-interval')) ui.byId('sim-auto-run-assistant-floor-interval').value = ui.engine.config.SIMULATION.autoRunAssistantFloorInterval ?? 1;
   if (ui.byId('sim-auto-run-use-history')) ui.byId('sim-auto-run-use-history').checked = ui.engine.config.SIMULATION.autoRunUseHistory !== false;
   if (ui.byId('sim-auto-run-min-chars')) ui.byId('sim-auto-run-min-chars').value = ui.engine.config.SIMULATION.autoRunMinChars ?? 300;
   if (ui.byId('sim-auto-run-cooldown')) ui.byId('sim-auto-run-cooldown').value = ui.engine.config.SIMULATION.autoRunCooldownSec ?? 8;

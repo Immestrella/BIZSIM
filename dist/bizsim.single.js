@@ -233,6 +233,7 @@ const BIZSIM_CONFIG = {
     autoSave: true,
     autoRunEnabled: false,
     autoRunOnlyAssistant: true,
+    autoRunAssistantFloorInterval: 1,
     autoRunUseHistory: true,
     autoRunMinChars: 300,
     autoRunCooldownSec: 8,
@@ -1564,7 +1565,7 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
       const semanticAssets = this.normalizeBizsimAssetsPayload(semanticAssetsRaw);
       normalizedEmpireData = this.buildEmpireDataFromSemanticAssets(semanticAssets);
     } else {
-      normalizedEmpireData = this.normalizeEmpireData(parsed?.empireData);
+      normalizedEmpireData = this.normalizeEmpireData(this.data);
     }
 
     return {
@@ -1613,6 +1614,13 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
       const previousData = this.data;
       const previousWorldSimulation = this.worldSimulation;
       const normalized = this.normalizeSimulationOutput(parsed);
+      const validationResult = this.validateAIParsedResult(normalized, {
+        empireData: previousData,
+        worldSimulation: previousWorldSimulation,
+      });
+      const blockingIssues = Array.isArray(validationResult?.blockingIssues) ? validationResult.blockingIssues : [];
+      const warningIssues = Array.isArray(validationResult?.warningIssues) ? validationResult.warningIssues : [];
+
       if (normalized.empireData) this.data = normalized.empireData;
       if (normalized.worldSimulation) this.worldSimulation = normalized.worldSimulation;
 
@@ -1624,6 +1632,9 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
           success: false,
           error: '本地约束校验未通过，已阻止写回。',
           constraintErrors: Array.isArray(syncResult?.errors) ? syncResult.errors : ['未知约束错误'],
+          localValidationIssues: Array.isArray(validationResult?.issues) ? validationResult.issues : [],
+          localValidationBlockingIssues: blockingIssues,
+          localValidationWarningIssues: warningIssues,
         };
       }
 
@@ -1644,6 +1655,11 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
             replacedExisting: !!syncResult.replacedExisting,
           },
           schemaAuditLogs: Array.isArray(syncResult.schemaAuditLogs) ? syncResult.schemaAuditLogs : [],
+          localValidationIssues: Array.isArray(validationResult?.issues) ? validationResult.issues : [],
+          localValidationBlockingIssues: blockingIssues,
+          localValidationWarningIssues: warningIssues,
+          localValidationWouldBlock: blockingIssues.length > 0,
+          localValidationAutoRepaired: !!validationResult?.autoRepaired,
         },
         chainOfThought: normalized._chainOfThought,
       };
@@ -1905,6 +1921,39 @@ const BIZSIM_ENGINE_PROMPT_METHODS = {
  * 基于前一层楼数据进行递增校验和 sanity check
  */
 const BIZSIM_ENGINE_VALIDATION_METHODS = {
+  classifyValidationIssue(issue) {
+    const text = String(issue || '').trim();
+    if (!text) return 'warning';
+
+    const blockingPatterns = [
+      /推演检查未通过/,
+      /汇入检查未通过/,
+      /列数不足:/,
+      /楼层变量输入不是合法 JSON 对象/,
+    ];
+
+    if (blockingPatterns.some((pattern) => pattern.test(text))) return 'blocking';
+    return 'warning';
+  },
+
+  splitValidationIssues(issues) {
+    const source = Array.isArray(issues) ? issues : [];
+    const blockingIssues = [];
+    const warningIssues = [];
+
+    for (const item of source) {
+      const msg = String(item || '').trim();
+      if (!msg) continue;
+      if (this.classifyValidationIssue(msg) === 'blocking') {
+        blockingIssues.push(msg);
+      } else {
+        warningIssues.push(msg);
+      }
+    }
+
+    return { blockingIssues, warningIssues };
+  },
+
   /**
    * 校验并修复视角推演数据
    * @param {Array} currentTracks - 当前楼层的世界推演轨迹
@@ -2038,7 +2087,7 @@ const BIZSIM_ENGINE_VALIDATION_METHODS = {
     let autoRepaired = false;
 
     // 深拷贝避免修改原始数据
-    const result = deepClone(parsedResult);
+    const result = deepClone(parsedResult || {});
 
     // 1. 校验视角推演
     const prevTracks = previousData?.worldSimulation?.tracks || [];
@@ -2075,10 +2124,14 @@ const BIZSIM_ENGINE_VALIDATION_METHODS = {
       }
     }
 
+    const { blockingIssues, warningIssues } = this.splitValidationIssues(allIssues);
+
     return {
       valid: allIssues.length === 0,
       data: result,
       issues: allIssues,
+      blockingIssues,
+      warningIssues,
       autoRepaired,
     };
   },
@@ -2897,7 +2950,8 @@ function createMainPanelHtml(engine) {
               <div class="bizsim-form-group">
                 <label><input type="checkbox" id="sim-auto-run-use-history" ${engine.config.SIMULATION.autoRunUseHistory !== false ? 'checked' : ''}> 自动推演时带聊天历史</label>
               </div>
-              <div class="bizsim-grid-2">
+              <div class="bizsim-grid-3">
+                <div class="bizsim-form-group"><label>每几条 AI 回复触发</label><input type="number" id="sim-auto-run-assistant-floor-interval" min="1" max="20" step="1" value="${engine.config.SIMULATION.autoRunAssistantFloorInterval ?? 1}"></div>
                 <div class="bizsim-form-group"><label>最小正文长度</label><input type="number" id="sim-auto-run-min-chars" min="0" max="5000" step="1" value="${engine.config.SIMULATION.autoRunMinChars ?? 300}"></div>
                 <div class="bizsim-form-group"><label>触发冷却（秒）</label><input type="number" id="sim-auto-run-cooldown" min="0" max="600" step="1" value="${engine.config.SIMULATION.autoRunCooldownSec ?? 8}"></div>
               </div>
@@ -3584,6 +3638,7 @@ function saveSimulationSettings(ui, silent = false) {
   const repairOnParseError = !!ui.byId('sim-repair-on-parse')?.checked;
   const autoRunEnabled = !!ui.byId('sim-auto-run-enabled')?.checked;
   const autoRunOnlyAssistant = !!ui.byId('sim-auto-run-only-assistant')?.checked;
+  const autoRunAssistantFloorInterval = Number.parseInt(ui.byId('sim-auto-run-assistant-floor-interval')?.value, 10);
   const autoRunUseHistory = !!ui.byId('sim-auto-run-use-history')?.checked;
   const autoRunMinChars = Number.parseInt(ui.byId('sim-auto-run-min-chars')?.value, 10);
   const autoRunCooldownSec = Number.parseInt(ui.byId('sim-auto-run-cooldown')?.value, 10);
@@ -3605,6 +3660,9 @@ function saveSimulationSettings(ui, silent = false) {
   ui.engine.config.SIMULATION.repairOnParseError = repairOnParseError;
   ui.engine.config.SIMULATION.autoRunEnabled = autoRunEnabled;
   ui.engine.config.SIMULATION.autoRunOnlyAssistant = autoRunOnlyAssistant;
+  if (!Number.isNaN(autoRunAssistantFloorInterval) && autoRunAssistantFloorInterval > 0) {
+    ui.engine.config.SIMULATION.autoRunAssistantFloorInterval = autoRunAssistantFloorInterval;
+  }
   ui.engine.config.SIMULATION.autoRunUseHistory = autoRunUseHistory;
   ui.engine.config.SIMULATION.trackPrefix = trackPrefix;
   ui.engine.config.SIMULATION.worldbookName = ui.byId('sim-worldbook-name')?.value?.trim() || '';
@@ -3654,6 +3712,7 @@ function resetSimulationSettings(ui) {
   if (ui.byId('sim-repair-on-parse')) ui.byId('sim-repair-on-parse').checked = ui.engine.config.SIMULATION.repairOnParseError;
   if (ui.byId('sim-auto-run-enabled')) ui.byId('sim-auto-run-enabled').checked = !!ui.engine.config.SIMULATION.autoRunEnabled;
   if (ui.byId('sim-auto-run-only-assistant')) ui.byId('sim-auto-run-only-assistant').checked = ui.engine.config.SIMULATION.autoRunOnlyAssistant !== false;
+  if (ui.byId('sim-auto-run-assistant-floor-interval')) ui.byId('sim-auto-run-assistant-floor-interval').value = ui.engine.config.SIMULATION.autoRunAssistantFloorInterval ?? 1;
   if (ui.byId('sim-auto-run-use-history')) ui.byId('sim-auto-run-use-history').checked = ui.engine.config.SIMULATION.autoRunUseHistory !== false;
   if (ui.byId('sim-auto-run-min-chars')) ui.byId('sim-auto-run-min-chars').value = ui.engine.config.SIMULATION.autoRunMinChars ?? 300;
   if (ui.byId('sim-auto-run-cooldown')) ui.byId('sim-auto-run-cooldown').value = ui.engine.config.SIMULATION.autoRunCooldownSec ?? 8;
@@ -5421,6 +5480,7 @@ let engine = null;
 let ui = null;
 let autoSimInFlight = false;
 let lastAutoSimAt = 0;
+let assistantMessageCount = 0;
 
 function getMessageFromEvent(messageId) {
   try {
@@ -5445,6 +5505,14 @@ function isUserMessage(message) {
     || String(message.role || '').toLowerCase() === 'user';
 }
 
+function isAssistantMessage(message) {
+  if (!message || typeof message !== 'object') return false;
+  const role = String(message.role || '').toLowerCase();
+  if (role === 'assistant') return true;
+  if (role === 'system') return false;
+  return !isUserMessage(message);
+}
+
 function shouldRunAutoSimulation(cfg, message) {
   if (!cfg?.autoRunEnabled) return false;
   if (cfg.autoRunOnlyAssistant !== false && isUserMessage(message)) return false;
@@ -5465,6 +5533,17 @@ async function maybeAutoSimulate(messageId) {
   const ctx = await initBizSim();
   const cfg = ctx.engine?.config?.SIMULATION || {};
   const message = getMessageFromEvent(messageId);
+
+  const assistantOnly = cfg.autoRunOnlyAssistant !== false;
+  const assistantInterval = Math.max(1, Number(cfg.autoRunAssistantFloorInterval) || 1);
+  const isAssistant = isAssistantMessage(message);
+
+  if (assistantOnly && !isAssistant) return;
+
+  if (isAssistant) {
+    assistantMessageCount += 1;
+    if (assistantMessageCount % assistantInterval !== 0) return;
+  }
 
   if (!shouldRunAutoSimulation(cfg, message)) return;
 

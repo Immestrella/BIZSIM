@@ -5,6 +5,39 @@ import { deepClone } from '../utils/object.js';
  * 基于前一层楼数据进行递增校验和 sanity check
  */
 export const BIZSIM_ENGINE_VALIDATION_METHODS = {
+  classifyValidationIssue(issue) {
+    const text = String(issue || '').trim();
+    if (!text) return 'warning';
+
+    const blockingPatterns = [
+      /推演检查未通过/,
+      /汇入检查未通过/,
+      /列数不足:/,
+      /楼层变量输入不是合法 JSON 对象/,
+    ];
+
+    if (blockingPatterns.some((pattern) => pattern.test(text))) return 'blocking';
+    return 'warning';
+  },
+
+  splitValidationIssues(issues) {
+    const source = Array.isArray(issues) ? issues : [];
+    const blockingIssues = [];
+    const warningIssues = [];
+
+    for (const item of source) {
+      const msg = String(item || '').trim();
+      if (!msg) continue;
+      if (this.classifyValidationIssue(msg) === 'blocking') {
+        blockingIssues.push(msg);
+      } else {
+        warningIssues.push(msg);
+      }
+    }
+
+    return { blockingIssues, warningIssues };
+  },
+
   /**
    * 校验并修复视角推演数据
    * @param {Array} currentTracks - 当前楼层的世界推演轨迹
@@ -138,7 +171,7 @@ export const BIZSIM_ENGINE_VALIDATION_METHODS = {
     let autoRepaired = false;
 
     // 深拷贝避免修改原始数据
-    const result = deepClone(parsedResult);
+    const result = deepClone(parsedResult || {});
 
     // 1. 校验视角推演
     const prevTracks = previousData?.worldSimulation?.tracks || [];
@@ -175,10 +208,14 @@ export const BIZSIM_ENGINE_VALIDATION_METHODS = {
       }
     }
 
+    const { blockingIssues, warningIssues } = this.splitValidationIssues(allIssues);
+
     return {
       valid: allIssues.length === 0,
       data: result,
       issues: allIssues,
+      blockingIssues,
+      warningIssues,
       autoRepaired,
     };
   },
