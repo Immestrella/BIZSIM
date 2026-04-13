@@ -4,7 +4,7 @@ import { PROMPTS } from '../config/prompts.js';
 import { upgradeLegacyBuiltInBlocks } from '../config/promptModules.js';
 import { createDefaultTemplateStructure } from '../config/promptModules.js';
 import { compileTemplateWithUserPref, migrateOldCorePromptBlockToScaffold } from './BizSimEngine.scaffold.js';
-import { getCharacterVariablesSafe, insertOrAssignVariablesSafe } from '../utils/stCompat.js';
+import { getCurrentMessageIdSafe, getMessageVariablesSafe, insertOrAssignVariablesSafe } from '../utils/stCompat.js';
 import { deepClone, getByPath } from '../utils/object.js';
 import { BIZSIM_ENGINE_PROMPT_METHODS } from './BizSimEngine.prompt.js';
 import { BIZSIM_ENGINE_METHODS } from './BizSimEngine.methods.js';
@@ -30,25 +30,44 @@ export class BizSimEngine {
 
   async initialize() {
     try {
-      const charVars = await getCharacterVariablesSafe();
-      const savedData = getByPath(charVars, this.config.VAR_PATH);
+      const messageId = getCurrentMessageIdSafe();
+      const variables = messageId !== null && messageId !== undefined
+        ? getMessageVariablesSafe(messageId)
+        : null;
 
-      if (savedData) {
-        this.data = savedData.empireData || this.getDefaultEmpireData();
-        this.worldSimulation = savedData.worldSimulation || deepClone(DEFAULT_WORLD_SIMULATION);
+      if (variables) {
+        const scoped = this.resolveFloorStatDataSource(variables);
+        const savedData = scoped || variables;
 
-        if (savedData.settings?.LLM) {
-          this.config.LLM = { ...this.config.LLM, ...savedData.settings.LLM };
+        // 提取资产数据
+        const empireData = savedData?.empireData || savedData?.bizsim_assets;
+        const worldSimulation = savedData?.worldSimulation || savedData?.bizsim_world_state;
+
+        if (empireData) {
+          this.data = empireData;
+        } else {
+          this.data = this.getDefaultEmpireData();
         }
-        if (savedData.settings?.SIMULATION) {
-          this.config.SIMULATION = { ...this.config.SIMULATION, ...savedData.settings.SIMULATION };
+
+        if (worldSimulation) {
+          this.worldSimulation = worldSimulation;
+        } else {
+          this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
         }
-        if (savedData.settings?.AUDIT) {
-          this.config.AUDIT = { ...this.config.AUDIT, ...savedData.settings.AUDIT };
+
+        // 提取设置
+        const settings = savedData?.settings;
+        if (settings?.LLM) {
+          this.config.LLM = { ...this.config.LLM, ...settings.LLM };
         }
-        if (savedData.settings?.prompts) {
-          this.promptTemplates = { ...this.promptTemplates, ...savedData.settings.prompts };
-          // Backward compatibility: migrate legacy key to the new core prompt key.
+        if (settings?.SIMULATION) {
+          this.config.SIMULATION = { ...this.config.SIMULATION, ...settings.SIMULATION };
+        }
+        if (settings?.AUDIT) {
+          this.config.AUDIT = { ...this.config.AUDIT, ...settings.AUDIT };
+        }
+        if (settings?.prompts) {
+          this.promptTemplates = { ...this.promptTemplates, ...settings.prompts };
           if (!this.promptTemplates.CORE_PROMPT_BLOCK && this.promptTemplates.WORLD_SIMULATION) {
             this.promptTemplates.CORE_PROMPT_BLOCK = this.promptTemplates.WORLD_SIMULATION;
           }
@@ -56,7 +75,6 @@ export class BizSimEngine {
       } else {
         this.data = this.getDefaultEmpireData();
         this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
-        await this.saveData();
       }
 
       // 初始化 tplRaw 和 tpl（支持模块化架构）
@@ -107,15 +125,26 @@ export class BizSimEngine {
 
   async saveData() {
     try {
+      const messageId = getCurrentMessageIdSafe();
+      if (messageId === null || messageId === undefined) {
+        console.warn('[BizSim] 无法获取当前消息ID，跳过保存');
+        return false;
+      }
+
       const safeLLM = {
         ...this.config.LLM,
         apiKey: this.config.LLM.persistApiKey ? this.config.LLM.apiKey : '',
       };
 
+      const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
+      const semanticAssets = this.normalizeBizsimAssetsPayload(
+        this.buildSemanticAssetsFromEmpireData(this.data)
+      );
+
       const payload = {
-        [this.config.VAR_PATH]: {
-          empireData: this.data,
-          worldSimulation: this.worldSimulation,
+        stat_data: {
+          [assetsKey]: semanticAssets,
+          [worldStateKey]: this.worldSimulation,
           settings: {
             LLM: safeLLM,
             SIMULATION: this.config.SIMULATION,
@@ -127,7 +156,7 @@ export class BizSimEngine {
         },
       };
 
-      insertOrAssignVariablesSafe(payload);
+      insertOrAssignVariablesSafe(payload, { type: 'message', message_id: messageId });
       return true;
     } catch (error) {
       console.error('[BizSim] 保存失败:', error);
@@ -142,29 +171,52 @@ export class BizSimEngine {
   async reloadFromVariables() {
     try {
       console.log('[BizSim Debug] reloadFromVariables() 开始执行');
-      const charVars = await getCharacterVariablesSafe();
-      console.log('[BizSim Debug] charVars:', charVars);
-      console.log('[BizSim Debug] VAR_PATH:', this.config.VAR_PATH);
+      const messageId = getCurrentMessageIdSafe();
+      console.log('[BizSim Debug] currentMessageId:', messageId);
 
-      const savedData = getByPath(charVars, this.config.VAR_PATH);
-      console.log('[BizSim Debug] savedData:', savedData);
+      const variables = messageId !== null && messageId !== undefined
+        ? getMessageVariablesSafe(messageId)
+        : null;
+      console.log('[BizSim Debug] variables:', variables);
 
-      if (savedData) {
-        console.log('[BizSim Debug] 找到 savedData，正在加载...');
-        this.data = savedData.empireData || this.getDefaultEmpireData();
-        this.worldSimulation = savedData.worldSimulation || deepClone(DEFAULT_WORLD_SIMULATION);
+      if (variables) {
+        const scoped = this.resolveFloorStatDataSource(variables);
+        const savedData = scoped || variables;
+        console.log('[BizSim Debug] savedData:', savedData);
 
-        if (savedData.settings?.LLM) {
-          this.config.LLM = { ...this.config.LLM, ...savedData.settings.LLM };
+        // 提取资产数据
+        const empireData = savedData?.empireData || savedData?.bizsim_assets;
+        const worldSimulation = savedData?.worldSimulation || savedData?.bizsim_world_state;
+
+        if (empireData) {
+          console.log('[BizSim Debug] 找到 empireData，正在加载...');
+          this.data = empireData;
+        } else {
+          console.log('[BizSim Debug] empireData 为空，使用默认值');
+          this.data = this.getDefaultEmpireData();
         }
-        if (savedData.settings?.SIMULATION) {
-          this.config.SIMULATION = { ...this.config.SIMULATION, ...savedData.settings.SIMULATION };
+
+        if (worldSimulation) {
+          console.log('[BizSim Debug] 找到 worldSimulation，正在加载...');
+          this.worldSimulation = worldSimulation;
+        } else {
+          console.log('[BizSim Debug] worldSimulation 为空，使用默认值');
+          this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
         }
-        if (savedData.settings?.AUDIT) {
-          this.config.AUDIT = { ...this.config.AUDIT, ...savedData.settings.AUDIT };
+
+        // 提取设置
+        const settings = savedData?.settings;
+        if (settings?.LLM) {
+          this.config.LLM = { ...this.config.LLM, ...settings.LLM };
         }
-        if (savedData.settings?.prompts) {
-          this.promptTemplates = { ...this.promptTemplates, ...savedData.settings.prompts };
+        if (settings?.SIMULATION) {
+          this.config.SIMULATION = { ...this.config.SIMULATION, ...settings.SIMULATION };
+        }
+        if (settings?.AUDIT) {
+          this.config.AUDIT = { ...this.config.AUDIT, ...settings.AUDIT };
+        }
+        if (settings?.prompts) {
+          this.promptTemplates = { ...this.promptTemplates, ...settings.prompts };
           if (!this.promptTemplates.CORE_PROMPT_BLOCK && this.promptTemplates.WORLD_SIMULATION) {
             this.promptTemplates.CORE_PROMPT_BLOCK = this.promptTemplates.WORLD_SIMULATION;
           }
@@ -173,20 +225,20 @@ export class BizSimEngine {
         // 重新初始化提示词模板
         this.initializePromptTemplates();
 
-        console.log('[BizSim] 已从变量系统重新加载数据');
+        console.log('[BizSim] 已从楼层变量重新加载数据');
         console.log('[BizSim Debug] 加载后的 this.data:', this.data);
         return true;
       }
 
       // 变量系统中无数据，重置为默认
-      console.log('[BizSim Debug] savedData 为空，重置为默认值');
+      console.log('[BizSim Debug] 楼层变量为空，重置为默认值');
       this.data = this.getDefaultEmpireData();
       this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
-      console.log('[BizSim] 变量系统中无数据，已重置为默认值');
+      console.log('[BizSim] 楼层变量中无数据，已重置为默认值');
       console.log('[BizSim Debug] 重置后的 this.data:', this.data);
       return true;
     } catch (error) {
-      console.error('[BizSim] 从变量系统重新加载失败:', error);
+      console.error('[BizSim] 从楼层变量重新加载失败:', error);
       return false;
     }
   }
