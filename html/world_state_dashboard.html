@@ -64,11 +64,24 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     background: linear-gradient(90deg, rgba(var(--c-prim), 0.1) 0%, transparent 100%);
     border-bottom: 1px solid rgba(var(--c-border), 0.8);
     padding: 12px 20px; display: flex; justify-content: space-between; align-items: center;
+    column-gap: 12px;
     font-size: 13px; letter-spacing: 1px; position: relative; z-index: 10; transition: var(--tr);
 }
 .nos-container.folded .nos-header { border-bottom-color: transparent; }
 
-.nos-title { display: flex; align-items: center; gap: 10px; font-weight: 700; color: rgb(var(--c-prim)); transition: var(--tr); }
+.nos-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    color: rgb(var(--c-prim));
+    transition: var(--tr);
+    min-width: 0;
+    flex: 1 1 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 .nos-title i { font-size: 1.2em; animation: pulse 2s infinite; }
 
 /* 独立的高清折叠微缩指示器 */
@@ -86,7 +99,14 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 .fs-pass { color: rgb(var(--c-pass)); text-shadow: 0 0 10px rgba(var(--c-pass), 0.4); }
 .fs-warn { color: rgb(var(--c-sec)); text-shadow: 0 0 10px rgba(var(--c-sec), 0.4); }
 
-.header-controls { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.header-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    min-width: 0;
+    flex: 0 0 auto;
+}
 
 #nos-time {
     font-family: var(--font-code);
@@ -105,11 +125,15 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     flex: 0 0 auto;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 920px) {
     .nos-header {
         padding: 10px 12px;
         flex-wrap: wrap;
         row-gap: 8px;
+    }
+
+    .nos-title {
+        flex: 1 1 100%;
     }
 
     .header-controls {

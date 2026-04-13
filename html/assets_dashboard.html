@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -18,10 +19,29 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: transparent; color: var(--text); font: 13px/1.5 "PingFang SC", "Segoe UI", sans-serif; }
 .wrap { max-width: 900px; margin: 10px auto; background: rgba(12,18,32,.92); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.top { padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.top {
+	padding: 10px 14px;
+	border-bottom: 1px solid var(--line);
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: nowrap;
+}
+.top-main { min-width: 0; flex: 1 1 auto; }
 .title { color: var(--accent); font-weight: 700; letter-spacing: .5px; }
-.meta { color: var(--sub); font-size: 12px; }
-.btn { border: 1px solid var(--line); background: #1a2743; color: var(--text); padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.meta { color: var(--sub); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn {
+	border: 1px solid var(--line);
+	background: #1a2743;
+	color: var(--text);
+	padding: 6px 10px;
+	border-radius: 6px;
+	cursor: pointer;
+	font-size: 12px;
+	min-width: 90px;
+	flex: 0 0 auto;
+}
 .btn[disabled] { opacity: .7; cursor: not-allowed; }
 .hint { padding: 8px 14px; border-bottom: 1px solid var(--line); color: var(--sub); background: rgba(93,211,255,.06); }
 .grid { display: grid; gap: 12px; padding: 12px; }
@@ -33,12 +53,28 @@ body { margin: 0; background: transparent; color: var(--text); font: 13px/1.5 "P
 .check { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; gap: 16px; flex-wrap: wrap; }
 .ok { color: var(--ok); }
 .warn { color: var(--warn); }
+
+@media (max-width: 760px) {
+	.top {
+		flex-wrap: wrap;
+		row-gap: 8px;
+	}
+
+	.top-main {
+		width: 100%;
+		flex-basis: 100%;
+	}
+
+	.btn {
+		margin-left: auto;
+	}
+}
 </style>
 </head>
 <body>
 <div class="wrap">
 	<div class="top">
-		<div>
+		<div class="top-main">
 			<div class="title">BizSim 资产统计</div>
 			<div class="meta" id="metaLine">正在解析数据...</div>
 		</div>
@@ -187,3 +223,4 @@ body { margin: 0; background: transparent; color: var(--text); font: 13px/1.5 "P
 </script>
 </body>
 </html>
+```
