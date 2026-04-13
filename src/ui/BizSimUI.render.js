@@ -5,13 +5,21 @@ export function refreshDashboard(ui) {
   if (!container) return;
 
   const sheetNames = Object.keys(ui.engine.data || {}).filter((name) => name.startsWith('sheet_'));
-  const activeTracks = ui.engine.worldSimulation?.tracks?.filter((track) => track.status === '推演中').length || 0;
+  const displayWorld = ui.engine.getDisplayWorldSimulation?.(10);
+  const worldSource = displayWorld?.worldSimulation || ui.engine.worldSimulation;
+  const activeTracks = worldSource?.tracks?.filter((track) => track.status === '推演中').length || 0;
   const audit = ui.engine.validateCrossSheetIntegrity();
+  const snapshotInfo = displayWorld?.snapshotInfo || null;
+  const snapshotHint = snapshotInfo?.hasData
+    ? (snapshotInfo.isLatest
+      ? '当前楼层最新变量'
+      : `显示第 ${snapshotInfo.sourceMessageId} 层（落后 ${snapshotInfo.floorOffset} 层）`)
+    : '最近10层无楼层变量';
 
   const cards = [
-    { title: '推演视角', value: String(ui.engine.worldSimulation?.tracks?.length || 0), hint: `活跃 ${activeTracks} 个` },
+    { title: '推演视角', value: String(worldSource?.tracks?.length || 0), hint: `活跃 ${activeTracks} 个` },
     { title: '数据表', value: String(sheetNames.length), hint: '角色卡变量中的资产表' },
-    { title: '审计状态', value: audit.valid ? '通过' : '异常', hint: audit.valid ? '跨表一致性正常' : `${audit.issues.length} 个问题` },
+    { title: '审计状态', value: audit.valid ? '通过' : '异常', hint: audit.valid ? snapshotHint : `${audit.issues.length} 个问题` },
   ];
 
   container.innerHTML = cards.map((card) => `
@@ -46,12 +54,19 @@ export function showSheet(ui, sheetName, silent = false) {
     button.classList.toggle('active', button.dataset.sheet === sheetName);
   });
 
-  // 优先直接读取当前楼层变量中的最新语义资产 JSON。
-  const semanticTable = ui.engine.getSemanticTableBySheetKey?.(sheetName);
+  const display = ui.engine.getDisplaySemanticTableBySheetKey?.(sheetName, 10);
+  const semanticTable = display?.table;
+  const snapshotInfo = display?.snapshotInfo;
   if (semanticTable) {
     const rows = semanticTable.type === 'single' ? [semanticTable.rows] : (Array.isArray(semanticTable.rows) ? semanticTable.rows : []);
     const html = [];
-    html.push(`<div class="bizsim-card" style="margin-bottom:12px;"><div class="bizsim-card-title"><span>${escapeHtml(semanticTable.tableName)}</span><span class="bizsim-card-subtitle">共 ${rows.length} 条记录</span></div></div>`);
+    const sourceHint = snapshotInfo?.isLatest
+      ? '当前楼层最新变量'
+      : `第 ${snapshotInfo?.sourceMessageId ?? '--'} 层变量（落后 ${snapshotInfo?.floorOffset ?? '--'} 层）`;
+    const staleHint = snapshotInfo?.isLatest
+      ? ''
+      : '<div class="bizsim-helper" style="margin-top:8px;color:#fbbf24;">当前显示为历史楼层变量。可点击“开始推演”生成最新层数据。</div>';
+    html.push(`<div class="bizsim-card" style="margin-bottom:12px;"><div class="bizsim-card-title"><span>${escapeHtml(semanticTable.tableName)}</span><span class="bizsim-card-subtitle">共 ${rows.length} 条记录 · ${escapeHtml(sourceHint)}</span></div>${staleHint}</div>`);
     html.push('<div class="bizsim-table-wrap">');
     html.push('<table class="bizsim-table">');
 
@@ -69,7 +84,13 @@ export function showSheet(ui, sheetName, silent = false) {
 
     html.push('</table></div>');
     container.innerHTML = html.join('');
-    if (!silent) ui.log(`已切换到表格: ${semanticTable.tableName} (来自最新楼层变量)`);
+    if (!silent) {
+      if (snapshotInfo?.isLatest) {
+        ui.log(`已切换到表格: ${semanticTable.tableName} (来自当前楼层变量)`);
+      } else {
+        ui.log(`已切换到表格: ${semanticTable.tableName} (来自第${snapshotInfo?.sourceMessageId ?? '--'}层变量，落后${snapshotInfo?.floorOffset ?? '--'}层)`);
+      }
+    }
     return;
   }
 
@@ -82,13 +103,25 @@ export function refreshTracks(ui) {
   const container = ui.byId('world-tracks-container');
   if (!container) return;
 
-  const tracks = ui.engine.worldSimulation?.tracks || [];
+  const display = ui.engine.getDisplayWorldSimulation?.(10);
+  const tracks = display?.worldSimulation?.tracks || [];
+  const snapshotInfo = display?.snapshotInfo;
   if (!tracks.length) {
     container.innerHTML = '<div class="bizsim-helper">暂无推演轨迹</div>';
     return;
   }
 
-  container.innerHTML = tracks.map((track) => `
+  const sourceHint = snapshotInfo?.isLatest
+    ? '当前楼层最新变量'
+    : `第 ${snapshotInfo?.sourceMessageId ?? '--'} 层变量（落后 ${snapshotInfo?.floorOffset ?? '--'} 层）`;
+  const staleHint = snapshotInfo?.isLatest
+    ? ''
+    : '<div class="bizsim-helper" style="margin-bottom:10px;color:#fbbf24;">当前显示为历史楼层变量。可点击“开始推演”生成最新层数据。</div>';
+
+  container.innerHTML = `
+    <div class="bizsim-helper" style="margin-bottom:8px;">轨迹来源：${escapeHtml(sourceHint)}</div>
+    ${staleHint}
+  ` + tracks.map((track) => `
     <div class="bizsim-card" style="margin-bottom:10px;">
       <div class="bizsim-card-title" style="margin-bottom:8px;">
         <span>${escapeHtml(track.id)}: ${escapeHtml(track.characterName)}</span>

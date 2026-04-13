@@ -39,7 +39,11 @@ export class BizSimEngine {
           this.config.LLM = { ...this.config.LLM, ...savedSettings.LLM };
         }
         if (savedSettings.SIMULATION) {
-          this.config.SIMULATION = { ...this.config.SIMULATION, ...savedSettings.SIMULATION };
+          const migratedSimulation = { ...savedSettings.SIMULATION };
+          if (migratedSimulation.includeFloorData === undefined && migratedSimulation.includeEmpireData !== undefined) {
+            migratedSimulation.includeFloorData = !!migratedSimulation.includeEmpireData;
+          }
+          this.config.SIMULATION = { ...this.config.SIMULATION, ...migratedSimulation };
         }
         if (savedSettings.AUDIT) {
           this.config.AUDIT = { ...this.config.AUDIT, ...savedSettings.AUDIT };

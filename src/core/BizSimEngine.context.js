@@ -202,6 +202,116 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     return statData || null;
   },
 
+  isFloorSnapshotEqual(left, right) {
+    if (!left || !right) return false;
+    try {
+      const leftText = JSON.stringify({ assets: left.assetsData || null, world: left.worldData || null });
+      const rightText = JSON.stringify({ assets: right.assetsData || null, world: right.worldData || null });
+      return leftText === rightText;
+    } catch {
+      return false;
+    }
+  },
+
+  getFloorSnapshotAt(messageId) {
+    if (messageId === null || messageId === undefined) return null;
+    const variables = getMessageVariablesSafe(messageId);
+    if (!variables) return null;
+    const scoped = this.resolveFloorStatDataSource(variables);
+    if (!scoped) return null;
+
+    const assetsData = this.extractAssetStatPayload(scoped);
+    const worldData = this.extractWorldSimulationPayload(scoped);
+    if (!assetsData && !worldData) return null;
+
+    return {
+      messageId,
+      assetsData: assetsData || null,
+      worldData: worldData || null,
+    };
+  },
+
+  getRecentChangedFloorSnapshot(maxLookback = 10) {
+    const currentMessageId = getCurrentMessageIdSafe();
+    if (currentMessageId === null || currentMessageId === undefined || currentMessageId < 0) {
+      return {
+        hasData: false,
+        sourceMessageId: null,
+        floorOffset: null,
+        isLatest: false,
+        snapshot: null,
+      };
+    }
+
+    const windowSize = Math.max(1, Number(maxLookback) || 10);
+    const startMessageId = Math.max(0, currentMessageId - windowSize + 1);
+    const snapshots = [];
+
+    for (let messageId = startMessageId; messageId <= currentMessageId; messageId += 1) {
+      const snapshot = this.getFloorSnapshotAt(messageId);
+      if (!snapshot) continue;
+      snapshots.push(snapshot);
+    }
+
+    if (!snapshots.length) {
+      return {
+        hasData: false,
+        sourceMessageId: null,
+        floorOffset: null,
+        isLatest: false,
+        snapshot: null,
+      };
+    }
+
+    let chosen = snapshots[0];
+    for (let i = 0; i < snapshots.length; i += 1) {
+      const current = snapshots[i];
+      const previous = snapshots[i - 1];
+      if (!previous || !this.isFloorSnapshotEqual(previous, current)) {
+        chosen = current;
+      }
+    }
+
+    const floorOffset = currentMessageId - chosen.messageId;
+    return {
+      hasData: true,
+      sourceMessageId: chosen.messageId,
+      floorOffset,
+      isLatest: floorOffset === 0,
+      snapshot: chosen,
+    };
+  },
+
+  getDisplaySemanticTableBySheetKey(sheetKey, maxLookback = 10) {
+    const snapshotInfo = this.getRecentChangedFloorSnapshot(maxLookback);
+    if (!snapshotInfo?.hasData || !snapshotInfo?.snapshot?.assetsData) {
+      return { table: null, snapshotInfo };
+    }
+
+    const tableName = this.getSemanticTableNameBySheetKey(sheetKey);
+    if (!tableName) return { table: null, snapshotInfo };
+
+    const schema = this.getSemanticTableMap()[tableName];
+    const tableData = snapshotInfo.snapshot.assetsData?.[tableName];
+    if (!tableData) return { table: null, snapshotInfo };
+
+    return {
+      table: {
+        tableName,
+        type: schema.type,
+        fields: schema.fields,
+        rows: tableData,
+      },
+      snapshotInfo,
+    };
+  },
+
+  getDisplayWorldSimulation(maxLookback = 10) {
+    const snapshotInfo = this.getRecentChangedFloorSnapshot(maxLookback);
+    const worldSimulation = snapshotInfo?.snapshot?.worldData || null;
+    return { worldSimulation, snapshotInfo };
+  },
+
   validateSemanticAssetConstraints(semanticAssets) {
     const issues = [];
     try {
