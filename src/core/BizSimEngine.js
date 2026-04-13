@@ -9,9 +9,7 @@ import { deepClone, getByPath } from '../utils/object.js';
 import { BIZSIM_ENGINE_PROMPT_METHODS } from './BizSimEngine.prompt.js';
 import { BIZSIM_ENGINE_METHODS } from './BizSimEngine.methods.js';
 import { BIZSIM_ENGINE_VALIDATION_METHODS } from './BizSimEngine.validation.js';
-import { PromptPresetManager } from '../ui/BizSimUI.presets.js';
-
-import { BIZSIM_ENGINE_CONTEXT_METHODS } from './BizSimEngine.context.js'
+import { BIZSIM_ENGINE_CONTEXT_METHODS } from './BizSimEngine.context.js';
 
 export class BizSimEngine {
   constructor() {
@@ -32,7 +30,7 @@ export class BizSimEngine {
 
   async initialize() {
     try {
-      // 1. 从角色变量读取设置（全局持久）
+      // 1. 从角色变量读取设置
       const charVars = await getCharacterVariablesSafe();
       const savedSettings = getByPath(charVars, `${this.config.VAR_PATH}.settings`);
 
@@ -48,38 +46,39 @@ export class BizSimEngine {
         }
         if (savedSettings.prompts) {
           this.promptTemplates = { ...this.promptTemplates, ...savedSettings.prompts };
+          // Backward compatibility: migrate legacy key to the new core prompt key.
           if (!this.promptTemplates.CORE_PROMPT_BLOCK && this.promptTemplates.WORLD_SIMULATION) {
             this.promptTemplates.CORE_PROMPT_BLOCK = this.promptTemplates.WORLD_SIMULATION;
           }
         }
       }
 
-      // 2. 从楼层变量读取数据（每楼独立）
+      // 2. 从楼层变量读取数据
       const messageId = getCurrentMessageIdSafe();
-      const floorVars = messageId !== null && messageId !== undefined
-        ? getMessageVariablesSafe(messageId)
-        : null;
+      const floorVars = getMessageVariablesSafe(messageId);
 
       if (floorVars) {
         const scoped = this.resolveFloorStatDataSource(floorVars);
-        const savedData = scoped || floorVars;
+        if (scoped) {
+          // 提取 empireData 从 savedData?.empireData 或 savedData?.bizsim_assets
+          const assetsData = this.extractAssetStatPayload(scoped);
+          if (assetsData) {
+            this.data = this.buildEmpireDataFromSemanticAssets(assetsData);
+          }
 
-        const empireData = savedData?.empireData || savedData?.bizsim_assets;
-        const worldSimulation = savedData?.worldSimulation || savedData?.bizsim_world_state;
-
-        if (empireData) {
-          this.data = empireData;
-        } else {
-          this.data = this.getDefaultEmpireData();
+          // 提取 worldSimulation 从 savedData?.worldSimulation 或 savedData?.bizsim_world_state
+          const worldData = this.extractWorldSimulationPayload(scoped);
+          if (worldData) {
+            this.worldSimulation = worldData;
+          }
         }
+      }
 
-        if (worldSimulation) {
-          this.worldSimulation = worldSimulation;
-        } else {
-          this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
-        }
-      } else {
+      // 3. 如果没有找到楼层数据，使用默认值
+      if (!this.data) {
         this.data = this.getDefaultEmpireData();
+      }
+      if (!this.worldSimulation) {
         this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
       }
 
@@ -99,6 +98,7 @@ export class BizSimEngine {
       return false;
     }
   }
+
   initializePromptTemplates() {
     const cfg = this.config.SIMULATION;
 
@@ -130,11 +130,12 @@ export class BizSimEngine {
 
   async saveData() {
     try {
-      // 1. 保存设置到角色变量（全局持久）
+      // 1. 保存设置到角色变量
       const safeLLM = {
         ...this.config.LLM,
         apiKey: this.config.LLM.persistApiKey ? this.config.LLM.apiKey : '',
       };
+
       const settingsPayload = {
         [this.config.VAR_PATH]: {
           settings: {
@@ -147,22 +148,23 @@ export class BizSimEngine {
           version: this.config.VERSION,
         },
       };
+
       insertOrAssignVariablesSafe(settingsPayload);
 
-      // 2. 保存数据到楼层变量（每楼独立）
+      // 2. 保存数据到楼层变量
       const messageId = getCurrentMessageIdSafe();
       if (messageId !== null && messageId !== undefined) {
         const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
-        const semanticAssets = this.normalizeBizsimAssetsPayload(
-          this.buildSemanticAssetsFromEmpireData(this.data)
-        );
-        const dataPayload = {
+        const semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromEmpireData(this.data));
+
+        const floorPayload = {
           stat_data: {
             [assetsKey]: semanticAssets,
             [worldStateKey]: this.worldSimulation,
           },
         };
-        insertOrAssignVariablesSafe(dataPayload, { type: 'message', message_id: messageId });
+
+        insertOrAssignVariablesSafe(floorPayload, { type: 'message', message_id: messageId });
       }
 
       return true;
@@ -171,62 +173,59 @@ export class BizSimEngine {
       return false;
     }
   }
-      return false;
-    }
-  }
 
   getPromptTemplate(key) {
     return this.promptTemplates?.[key] || PROMPTS[key] || '';
   }
 
-
-Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_METHODS);
-Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_PROMPT_METHODS);
-Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_VALIDATION_METHODS);
-Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_CONTEXT_METHODS);
   async reloadFromFloorVariables() {
     try {
       console.log('[BizSim Debug] reloadFromFloorVariables() 开始执行');
+
+      // 只从楼层变量读取数据
       const messageId = getCurrentMessageIdSafe();
-      console.log('[BizSim Debug] currentMessageId:', messageId);
+      console.log('[BizSim Debug] messageId:', messageId);
 
-      const variables = messageId !== null && messageId !== undefined
-        ? getMessageVariablesSafe(messageId)
-        : null;
-      console.log('[BizSim Debug] variables:', variables);
+      const floorVars = getMessageVariablesSafe(messageId);
+      console.log('[BizSim Debug] floorVars:', floorVars);
 
-      if (variables) {
-        const scoped = this.resolveFloorStatDataSource(variables);
-        const savedData = scoped || variables;
-        console.log('[BizSim Debug] savedData:', savedData);
+      if (floorVars) {
+        const scoped = this.resolveFloorStatDataSource(floorVars);
+        console.log('[BizSim Debug] scoped:', scoped);
 
-        // 只提取资产数据（设置从角色变量读取，不在此处更新）
-        const empireData = savedData?.empireData || savedData?.bizsim_assets;
-        const worldSimulation = savedData?.worldSimulation || savedData?.bizsim_world_state;
+        if (scoped) {
+          // 提取 empireData
+          const assetsData = this.extractAssetStatPayload(scoped);
+          console.log('[BizSim Debug] assetsData:', assetsData);
 
-        if (empireData) {
-          console.log('[BizSim Debug] 找到 empireData，正在加载...');
-          this.data = empireData;
-        } else {
-          console.log('[BizSim Debug] empireData 为空，使用默认值');
-          this.data = this.getDefaultEmpireData();
+          if (assetsData) {
+            this.data = this.buildEmpireDataFromSemanticAssets(assetsData);
+          }
+
+          // 提取 worldSimulation
+          const worldData = this.extractWorldSimulationPayload(scoped);
+          console.log('[BizSim Debug] worldData:', worldData);
+
+          if (worldData) {
+            this.worldSimulation = worldData;
+          }
+
+          // 如果没有找到楼层数据，使用默认值
+          if (!this.data) {
+            this.data = this.getDefaultEmpireData();
+          }
+          if (!this.worldSimulation) {
+            this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
+          }
+
+          console.log('[BizSim] 已从楼层变量重新加载数据');
+          console.log('[BizSim Debug] 加载后的 this.data:', this.data);
+          return true;
         }
-
-        if (worldSimulation) {
-          console.log('[BizSim Debug] 找到 worldSimulation，正在加载...');
-          this.worldSimulation = worldSimulation;
-        } else {
-          console.log('[BizSim Debug] worldSimulation 为空，使用默认值');
-          this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
-        }
-
-        console.log('[BizSim] 已从楼层变量重新加载数据');
-        console.log('[BizSim Debug] 加载后的 this.data:', this.data);
-        return true;
       }
 
-      // 变量系统中无数据，重置为默认
-      console.log('[BizSim Debug] 楼层变量为空，重置为默认值');
+      // 楼层变量中无数据，重置为默认
+      console.log('[BizSim Debug] 楼层变量中无数据，重置为默认值');
       this.data = this.getDefaultEmpireData();
       this.worldSimulation = deepClone(DEFAULT_WORLD_SIMULATION);
       console.log('[BizSim] 楼层变量中无数据，已重置为默认值');
@@ -238,3 +237,8 @@ Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_CONTEXT_METHODS);
     }
   }
 }
+
+Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_METHODS);
+Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_PROMPT_METHODS);
+Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_VALIDATION_METHODS);
+Object.assign(BizSimEngine.prototype, BIZSIM_ENGINE_CONTEXT_METHODS);
