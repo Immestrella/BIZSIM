@@ -112,7 +112,7 @@ body { margin: 0; background: transparent; color: var(--text); font: 13px/1.5 "P
 	}
 
 	function render() {
-		const blockMatch = raw.match(/<bz_asset_sheet>([\s\S]*?)<\/bz_asset_sheet>/);
+		const blockMatch = raw.match(/<\s*bz_asset_sheet\s*>([\s\S]*?)<\s*\/\s*bz_asset_sheet\s*>/i);
 		if (!blockMatch) {
 			hint.textContent = '未检测到 <bz_asset_sheet> 数据块';
 			grid.innerHTML = '';

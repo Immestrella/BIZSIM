@@ -264,6 +264,8 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 .modal-fallback { text-align: center; color: rgb(var(--c-prim)); padding: 40px 20px; font-size: 14px; }
 
 .mes_text > background { display: none !important; }
+.mes_text > bz_world_state,
+.mes_text > bz_asset_sheet { display: none !important; }
 </style>
 </head>
 <body>
@@ -476,7 +478,7 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 
     function parseData() {
         const raw = capsule.value || '';
-        const bzWorldMatch = raw.match(/<bz_world_state>([\s\S]*?)<\/bz_world_state>/);
+        const bzWorldMatch = raw.match(/<\s*bz_world_state\s*>([\s\S]*?)<\s*\/\s*bz_world_state\s*>/i);
         const worldBlock = bzWorldMatch ? bzWorldMatch[1] : '';
         const parseMeta = (text) => {
             const read = (key) => {
