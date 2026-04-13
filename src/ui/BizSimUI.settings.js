@@ -135,6 +135,7 @@ export function saveSimulationSettings(ui, silent = false) {
   const autoRunMinChars = Number.parseInt(ui.byId('sim-auto-run-min-chars')?.value, 10);
   const autoRunCooldownSec = Number.parseInt(ui.byId('sim-auto-run-cooldown')?.value, 10);
   const trackPrefix = (ui.byId('sim-track-prefix')?.value || 'BG').trim() || 'BG';
+  const contentExtractTags = (ui.byId("sim-content-extract-tags")?.value || "content,game").trim();
   const minTracks = Number.parseInt(ui.byId('sim-min-tracks')?.value, 10);
   const maxTracks = Number.parseInt(ui.byId('sim-max-tracks')?.value, 10);
   const cashToleranceWan = Number.parseFloat(ui.byId('sim-cash-tolerance')?.value);
@@ -162,6 +163,7 @@ export function saveSimulationSettings(ui, silent = false) {
   if (!Number.isNaN(autoRunCooldownSec) && autoRunCooldownSec >= 0) ui.engine.config.SIMULATION.autoRunCooldownSec = autoRunCooldownSec;
   if (!Number.isNaN(minTracks) && minTracks > 0) ui.engine.config.SIMULATION.minTracks = minTracks;
   if (!Number.isNaN(maxTracks) && maxTracks >= ui.engine.config.SIMULATION.minTracks) ui.engine.config.SIMULATION.maxTracks = maxTracks;
+  ui.engine.config.SIMULATION.contentExtractTags = contentExtractTags;
   if (!Number.isNaN(cashToleranceWan) && cashToleranceWan >= 0) ui.engine.config.AUDIT.cashToleranceWan = cashToleranceWan;
   if (!Number.isNaN(enterpriseToleranceWan) && enterpriseToleranceWan >= 0) ui.engine.config.AUDIT.enterpriseToleranceWan = enterpriseToleranceWan;
   if (!Number.isNaN(loyaltyThreshold) && loyaltyThreshold >= 0) ui.engine.config.AUDIT.loyaltyThreshold = loyaltyThreshold;
@@ -200,6 +202,7 @@ export function resetSimulationSettings(ui) {
   if (ui.byId('sim-auto-run-use-history')) ui.byId('sim-auto-run-use-history').checked = ui.engine.config.SIMULATION.autoRunUseHistory !== false;
   if (ui.byId('sim-auto-run-min-chars')) ui.byId('sim-auto-run-min-chars').value = ui.engine.config.SIMULATION.autoRunMinChars ?? 300;
   if (ui.byId('sim-auto-run-cooldown')) ui.byId('sim-auto-run-cooldown').value = ui.engine.config.SIMULATION.autoRunCooldownSec ?? 8;
+  if (ui.byId("sim-content-extract-tags")) ui.byId("sim-content-extract-tags").value = ui.engine.config.SIMULATION.contentExtractTags;
   if (ui.byId('sim-track-prefix')) ui.byId('sim-track-prefix').value = ui.engine.config.SIMULATION.trackPrefix;
   if (ui.byId('sim-min-tracks')) ui.byId('sim-min-tracks').value = ui.engine.config.SIMULATION.minTracks;
   if (ui.byId('sim-max-tracks')) ui.byId('sim-max-tracks').value = ui.engine.config.SIMULATION.maxTracks;

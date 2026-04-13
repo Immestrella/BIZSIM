@@ -41,6 +41,7 @@ export const BIZSIM_CONFIG = {
     autoRunUseHistory: true,
     autoRunMinChars: 300,
     autoRunCooldownSec: 8,
+    contentExtractTags: 'content,game',
   },
   AUDIT: {
     cashToleranceWan: 1,

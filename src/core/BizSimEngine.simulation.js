@@ -8,7 +8,7 @@ function escapeRegExp(text) {
 export const BIZSIM_ENGINE_SIMULATION_METHODS = {
   getTrackIdPattern() {
     const prefix = escapeRegExp(String(this.config.SIMULATION?.trackPrefix || 'BG'));
-    return new RegExp(`^${prefix}\\.(\\d+)$`);
+    return new RegExp(`^${prefix}\.(\\d+)$`);
   },
 
   normalizeChatCompletionsUrl(url) {
@@ -23,12 +23,31 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
 
   formatHistoryText(history) {
     if (!Array.isArray(history)) return '';
+    const extractTags = String(this.config.SIMULATION?.contentExtractTags || 'content,game')
+      .split(/[,，;；]/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const extractContentByTags = (text, tags) => {
+      if (!text || !tags.length) return text;
+      const results = [];
+      for (const tag of tags) {
+        const regex = new RegExp(`<${escapeRegExp(tag)}>([\\s\\S]*?)</${escapeRegExp(tag)}>`, 'gi');
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          results.push(match[1].trim());
+        }
+      }
+      return results.length > 0 ? results.join('\n') : text;
+    };
+
     return history
       .map((h) => {
         const speaker = String(h?.name || h?.speaker_name || h?.character_name || (h?.is_user ? 'User' : 'Assistant') || 'Unknown');
         const rawText = String(h?.mes || h?.message || h?.content || '').trim();
         if (!rawText) return '';
-        return `[${speaker}] ${rawText}`;
+        const extractedText = extractContentByTags(rawText, extractTags);
+        return `[${speaker}] ${extractedText}`;
       })
       .filter(Boolean)
       .join('\n\n');

@@ -236,6 +236,7 @@ const BIZSIM_CONFIG = {
     autoRunUseHistory: true,
     autoRunMinChars: 300,
     autoRunCooldownSec: 8,
+    contentExtractTags: 'content,game',
   },
   AUDIT: {
     cashToleranceWan: 1,
@@ -1410,7 +1411,7 @@ function escapeRegExp(text) {
 const BIZSIM_ENGINE_SIMULATION_METHODS = {
   getTrackIdPattern() {
     const prefix = escapeRegExp(String(this.config.SIMULATION?.trackPrefix || 'BG'));
-    return new RegExp(`^${prefix}\\.(\\d+)$`);
+    return new RegExp(`^${prefix}\.(\\d+)$`);
   },
 
   normalizeChatCompletionsUrl(url) {
@@ -1425,12 +1426,31 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
 
   formatHistoryText(history) {
     if (!Array.isArray(history)) return '';
+    const extractTags = String(this.config.SIMULATION?.contentExtractTags || 'content,game')
+      .split(/[,，;；]/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const extractContentByTags = (text, tags) => {
+      if (!text || !tags.length) return text;
+      const results = [];
+      for (const tag of tags) {
+        const regex = new RegExp(`<${escapeRegExp(tag)}>([\\s\\S]*?)</${escapeRegExp(tag)}>`, 'gi');
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          results.push(match[1].trim());
+        }
+      }
+      return results.length > 0 ? results.join('\n') : text;
+    };
+
     return history
       .map((h) => {
         const speaker = String(h?.name || h?.speaker_name || h?.character_name || (h?.is_user ? 'User' : 'Assistant') || 'Unknown');
         const rawText = String(h?.mes || h?.message || h?.content || '').trim();
         if (!rawText) return '';
-        return `[${speaker}] ${rawText}`;
+        const extractedText = extractContentByTags(rawText, extractTags);
+        return `[${speaker}] ${extractedText}`;
       })
       .filter(Boolean)
       .join('\n\n');
@@ -2516,6 +2536,11 @@ function createMainPanelHtml(engine) {
                 <div class="bizsim-form-group"><label>最小正文长度</label><input type="number" id="sim-auto-run-min-chars" min="0" max="5000" step="1" value="${engine.config.SIMULATION.autoRunMinChars ?? 300}"></div>
                 <div class="bizsim-form-group"><label>触发冷却（秒）</label><input type="number" id="sim-auto-run-cooldown" min="0" max="600" step="1" value="${engine.config.SIMULATION.autoRunCooldownSec ?? 8}"></div>
               </div>
+              <div class="bizsim-form-group">
+                <label>正文提取标签（逗号分隔）</label>
+                <input type="text" id="sim-content-extract-tags" value="${escapeHtml(engine.config.SIMULATION.contentExtractTags || 'content,game')}" placeholder="content,game,story">
+                <div class="bizsim-helper">从消息中提取 &lt;content&gt;...&lt;/content&gt; 等标签包裹的有效内容，多个标签合并提取。未匹配时返回原始内容。</div>
+              </div>
               <div class="bizsim-helper">触发事件: 新消息到达（MESSAGE_RECEIVED）。满足条件时自动执行一次推演。</div>
             </div>
             <div class="bizsim-toolbar">
@@ -3222,6 +3247,7 @@ function saveSimulationSettings(ui, silent = false) {
   const autoRunMinChars = Number.parseInt(ui.byId('sim-auto-run-min-chars')?.value, 10);
   const autoRunCooldownSec = Number.parseInt(ui.byId('sim-auto-run-cooldown')?.value, 10);
   const trackPrefix = (ui.byId('sim-track-prefix')?.value || 'BG').trim() || 'BG';
+  const contentExtractTags = (ui.byId("sim-content-extract-tags")?.value || "content,game").trim();
   const minTracks = Number.parseInt(ui.byId('sim-min-tracks')?.value, 10);
   const maxTracks = Number.parseInt(ui.byId('sim-max-tracks')?.value, 10);
   const cashToleranceWan = Number.parseFloat(ui.byId('sim-cash-tolerance')?.value);
@@ -3249,6 +3275,7 @@ function saveSimulationSettings(ui, silent = false) {
   if (!Number.isNaN(autoRunCooldownSec) && autoRunCooldownSec >= 0) ui.engine.config.SIMULATION.autoRunCooldownSec = autoRunCooldownSec;
   if (!Number.isNaN(minTracks) && minTracks > 0) ui.engine.config.SIMULATION.minTracks = minTracks;
   if (!Number.isNaN(maxTracks) && maxTracks >= ui.engine.config.SIMULATION.minTracks) ui.engine.config.SIMULATION.maxTracks = maxTracks;
+  ui.engine.config.SIMULATION.contentExtractTags = contentExtractTags;
   if (!Number.isNaN(cashToleranceWan) && cashToleranceWan >= 0) ui.engine.config.AUDIT.cashToleranceWan = cashToleranceWan;
   if (!Number.isNaN(enterpriseToleranceWan) && enterpriseToleranceWan >= 0) ui.engine.config.AUDIT.enterpriseToleranceWan = enterpriseToleranceWan;
   if (!Number.isNaN(loyaltyThreshold) && loyaltyThreshold >= 0) ui.engine.config.AUDIT.loyaltyThreshold = loyaltyThreshold;
@@ -3287,6 +3314,7 @@ function resetSimulationSettings(ui) {
   if (ui.byId('sim-auto-run-use-history')) ui.byId('sim-auto-run-use-history').checked = ui.engine.config.SIMULATION.autoRunUseHistory !== false;
   if (ui.byId('sim-auto-run-min-chars')) ui.byId('sim-auto-run-min-chars').value = ui.engine.config.SIMULATION.autoRunMinChars ?? 300;
   if (ui.byId('sim-auto-run-cooldown')) ui.byId('sim-auto-run-cooldown').value = ui.engine.config.SIMULATION.autoRunCooldownSec ?? 8;
+  if (ui.byId("sim-content-extract-tags")) ui.byId("sim-content-extract-tags").value = ui.engine.config.SIMULATION.contentExtractTags;
   if (ui.byId('sim-track-prefix')) ui.byId('sim-track-prefix').value = ui.engine.config.SIMULATION.trackPrefix;
   if (ui.byId('sim-min-tracks')) ui.byId('sim-min-tracks').value = ui.engine.config.SIMULATION.minTracks;
   if (ui.byId('sim-max-tracks')) ui.byId('sim-max-tracks').value = ui.engine.config.SIMULATION.maxTracks;

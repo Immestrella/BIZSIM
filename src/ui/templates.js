@@ -414,6 +414,11 @@ export function createMainPanelHtml(engine) {
                 <div class="bizsim-form-group"><label>最小正文长度</label><input type="number" id="sim-auto-run-min-chars" min="0" max="5000" step="1" value="${engine.config.SIMULATION.autoRunMinChars ?? 300}"></div>
                 <div class="bizsim-form-group"><label>触发冷却（秒）</label><input type="number" id="sim-auto-run-cooldown" min="0" max="600" step="1" value="${engine.config.SIMULATION.autoRunCooldownSec ?? 8}"></div>
               </div>
+              <div class="bizsim-form-group">
+                <label>正文提取标签（逗号分隔）</label>
+                <input type="text" id="sim-content-extract-tags" value="${escapeHtml(engine.config.SIMULATION.contentExtractTags || 'content,game')}" placeholder="content,game,story">
+                <div class="bizsim-helper">从消息中提取 &lt;content&gt;...&lt;/content&gt; 等标签包裹的有效内容，多个标签合并提取。未匹配时返回原始内容。</div>
+              </div>
               <div class="bizsim-helper">触发事件: 新消息到达（MESSAGE_RECEIVED）。满足条件时自动执行一次推演。</div>
             </div>
             <div class="bizsim-toolbar">
