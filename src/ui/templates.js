@@ -420,7 +420,12 @@ export function createMainPanelHtml(engine) {
               <div class="bizsim-form-group">
                 <label>正文提取标签（逗号分隔）</label>
                 <input type="text" id="sim-content-extract-tags" value="${escapeHtml(engine.config.SIMULATION.contentExtractTags || 'content,game')}" placeholder="content,game,story">
-                <div class="bizsim-helper">从消息中提取 &lt;content&gt;...&lt;/content&gt; 等标签包裹的有效内容，多个标签合并提取。未匹配时返回原始内容。</div>
+                <div class="bizsim-helper">仅对 AI 消息生效：从消息中提取 &lt;content&gt;...&lt;/content&gt; 等标签包裹的有效内容，多个标签合并提取。未匹配时返回原始内容。</div>
+              </div>
+              <div class="bizsim-form-group">
+                <label>正文排除标签（逗号分隔）</label>
+                <input type="text" id="sim-content-exclude-tags" value="${escapeHtml(engine.config.SIMULATION.contentExcludeTags || '')}" placeholder="think,analysis,reasoning">
+                <div class="bizsim-helper">对所有消息生效：移除指定标签包裹内容。未闭合标签仅在当前单条消息内截断，不跨消息。</div>
               </div>
               <div class="bizsim-helper">触发事件: 新消息到达（MESSAGE_RECEIVED）。满足条件时自动执行一次推演。</div>
             </div>

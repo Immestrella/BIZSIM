@@ -27,6 +27,18 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
       .split(/[,，;；]/)
       .map((t) => t.trim())
       .filter(Boolean);
+    const excludeTags = String(this.config.SIMULATION?.contentExcludeTags || '')
+      .split(/[,，;；]/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const isUserMessage = (message) => {
+      if (!message || typeof message !== 'object') return false;
+      return message.is_user === true
+        || message.from_user === true
+        || message.isUser === true
+        || String(message.role || '').toLowerCase() === 'user';
+    };
 
     const extractContentByTags = (text, tags) => {
       if (!text || !tags.length) return text;
@@ -41,13 +53,31 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
       return results.length > 0 ? results.join('\n') : text;
     };
 
+    const excludeContentByTags = (text, tags) => {
+      if (!text || !tags.length) return text;
+      let result = text;
+      for (const tag of tags) {
+        const escapedTag = escapeRegExp(tag);
+        // 先移除完整闭合标签块
+        const closedRegex = new RegExp(`<${escapedTag}(?:\\s[^>]*)?>[\\s\\S]*?</${escapedTag}>`, 'gi');
+        result = result.replace(closedRegex, '');
+        // 对单条消息中未闭合标签，移除从起始标签到消息末尾（不跨消息）
+        const openToEndRegex = new RegExp(`<${escapedTag}(?:\\s[^>]*)?>[\\s\\S]*$`, 'gi');
+        result = result.replace(openToEndRegex, '');
+      }
+      return result;
+    };
+
     return history
       .map((h) => {
         const speaker = String(h?.name || h?.speaker_name || h?.character_name || (h?.is_user ? 'User' : 'Assistant') || 'Unknown');
         const rawText = String(h?.mes || h?.message || h?.content || '').trim();
         if (!rawText) return '';
-        const extractedText = extractContentByTags(rawText, extractTags);
-        return `[${speaker}] ${extractedText}`;
+        // 提取仅作用于 AI 消息；排除作用于所有消息
+        const baseText = isUserMessage(h) ? rawText : extractContentByTags(rawText, extractTags);
+        const cleanedText = excludeContentByTags(baseText, excludeTags).trim();
+        if (!cleanedText) return '';
+        return `[${speaker}] ${cleanedText}`;
       })
       .filter(Boolean)
       .join('\n\n');

@@ -42,6 +42,7 @@ export const BIZSIM_CONFIG = {
     autoRunMinChars: 300,
     autoRunCooldownSec: 8,
     contentExtractTags: 'content,game',
+    contentExcludeTags: 'details,UpdateVariable,background,tucao',
   },
   AUDIT: {
     cashToleranceWan: 1,

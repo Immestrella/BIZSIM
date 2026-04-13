@@ -237,6 +237,7 @@ const BIZSIM_CONFIG = {
     autoRunMinChars: 300,
     autoRunCooldownSec: 8,
     contentExtractTags: 'content,game',
+    contentExcludeTags: 'details,UpdateVariable,background,tucao',
   },
   AUDIT: {
     cashToleranceWan: 1,
@@ -1446,6 +1447,18 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
       .split(/[,，;；]/)
       .map((t) => t.trim())
       .filter(Boolean);
+    const excludeTags = String(this.config.SIMULATION?.contentExcludeTags || '')
+      .split(/[,，;；]/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const isUserMessage = (message) => {
+      if (!message || typeof message !== 'object') return false;
+      return message.is_user === true
+        || message.from_user === true
+        || message.isUser === true
+        || String(message.role || '').toLowerCase() === 'user';
+    };
 
     const extractContentByTags = (text, tags) => {
       if (!text || !tags.length) return text;
@@ -1460,13 +1473,31 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
       return results.length > 0 ? results.join('\n') : text;
     };
 
+    const excludeContentByTags = (text, tags) => {
+      if (!text || !tags.length) return text;
+      let result = text;
+      for (const tag of tags) {
+        const escapedTag = escapeRegExp(tag);
+        // 先移除完整闭合标签块
+        const closedRegex = new RegExp(`<${escapedTag}(?:\\s[^>]*)?>[\\s\\S]*?</${escapedTag}>`, 'gi');
+        result = result.replace(closedRegex, '');
+        // 对单条消息中未闭合标签，移除从起始标签到消息末尾（不跨消息）
+        const openToEndRegex = new RegExp(`<${escapedTag}(?:\\s[^>]*)?>[\\s\\S]*$`, 'gi');
+        result = result.replace(openToEndRegex, '');
+      }
+      return result;
+    };
+
     return history
       .map((h) => {
         const speaker = String(h?.name || h?.speaker_name || h?.character_name || (h?.is_user ? 'User' : 'Assistant') || 'Unknown');
         const rawText = String(h?.mes || h?.message || h?.content || '').trim();
         if (!rawText) return '';
-        const extractedText = extractContentByTags(rawText, extractTags);
-        return `[${speaker}] ${extractedText}`;
+        // 提取仅作用于 AI 消息；排除作用于所有消息
+        const baseText = isUserMessage(h) ? rawText : extractContentByTags(rawText, extractTags);
+        const cleanedText = excludeContentByTags(baseText, excludeTags).trim();
+        if (!cleanedText) return '';
+        return `[${speaker}] ${cleanedText}`;
       })
       .filter(Boolean)
       .join('\n\n');
@@ -2979,7 +3010,12 @@ function createMainPanelHtml(engine) {
               <div class="bizsim-form-group">
                 <label>正文提取标签（逗号分隔）</label>
                 <input type="text" id="sim-content-extract-tags" value="${escapeHtml(engine.config.SIMULATION.contentExtractTags || 'content,game')}" placeholder="content,game,story">
-                <div class="bizsim-helper">从消息中提取 &lt;content&gt;...&lt;/content&gt; 等标签包裹的有效内容，多个标签合并提取。未匹配时返回原始内容。</div>
+                <div class="bizsim-helper">仅对 AI 消息生效：从消息中提取 &lt;content&gt;...&lt;/content&gt; 等标签包裹的有效内容，多个标签合并提取。未匹配时返回原始内容。</div>
+              </div>
+              <div class="bizsim-form-group">
+                <label>正文排除标签（逗号分隔）</label>
+                <input type="text" id="sim-content-exclude-tags" value="${escapeHtml(engine.config.SIMULATION.contentExcludeTags || '')}" placeholder="think,analysis,reasoning">
+                <div class="bizsim-helper">对所有消息生效：移除指定标签包裹内容。未闭合标签仅在当前单条消息内截断，不跨消息。</div>
               </div>
               <div class="bizsim-helper">触发事件: 新消息到达（MESSAGE_RECEIVED）。满足条件时自动执行一次推演。</div>
             </div>
@@ -3688,6 +3724,7 @@ function saveSimulationSettings(ui, silent = false) {
   const autoRunCooldownSec = Number.parseInt(ui.byId('sim-auto-run-cooldown')?.value, 10);
   const trackPrefix = (ui.byId('sim-track-prefix')?.value || 'BG').trim() || 'BG';
   const contentExtractTags = (ui.byId("sim-content-extract-tags")?.value || "content,game").trim();
+  const contentExcludeTags = (ui.byId('sim-content-exclude-tags')?.value || '').trim();
   const minTracks = Number.parseInt(ui.byId('sim-min-tracks')?.value, 10);
   const maxTracks = Number.parseInt(ui.byId('sim-max-tracks')?.value, 10);
   const cashToleranceWan = Number.parseFloat(ui.byId('sim-cash-tolerance')?.value);
@@ -3716,6 +3753,7 @@ function saveSimulationSettings(ui, silent = false) {
   if (!Number.isNaN(minTracks) && minTracks > 0) ui.engine.config.SIMULATION.minTracks = minTracks;
   if (!Number.isNaN(maxTracks) && maxTracks >= ui.engine.config.SIMULATION.minTracks) ui.engine.config.SIMULATION.maxTracks = maxTracks;
   ui.engine.config.SIMULATION.contentExtractTags = contentExtractTags;
+  ui.engine.config.SIMULATION.contentExcludeTags = contentExcludeTags;
   if (!Number.isNaN(cashToleranceWan) && cashToleranceWan >= 0) ui.engine.config.AUDIT.cashToleranceWan = cashToleranceWan;
   if (!Number.isNaN(enterpriseToleranceWan) && enterpriseToleranceWan >= 0) ui.engine.config.AUDIT.enterpriseToleranceWan = enterpriseToleranceWan;
   if (!Number.isNaN(loyaltyThreshold) && loyaltyThreshold >= 0) ui.engine.config.AUDIT.loyaltyThreshold = loyaltyThreshold;
@@ -3755,6 +3793,7 @@ function resetSimulationSettings(ui) {
   if (ui.byId('sim-auto-run-min-chars')) ui.byId('sim-auto-run-min-chars').value = ui.engine.config.SIMULATION.autoRunMinChars ?? 300;
   if (ui.byId('sim-auto-run-cooldown')) ui.byId('sim-auto-run-cooldown').value = ui.engine.config.SIMULATION.autoRunCooldownSec ?? 8;
   if (ui.byId("sim-content-extract-tags")) ui.byId("sim-content-extract-tags").value = ui.engine.config.SIMULATION.contentExtractTags;
+  if (ui.byId('sim-content-exclude-tags')) ui.byId('sim-content-exclude-tags').value = ui.engine.config.SIMULATION.contentExcludeTags || '';
   if (ui.byId('sim-track-prefix')) ui.byId('sim-track-prefix').value = ui.engine.config.SIMULATION.trackPrefix;
   if (ui.byId('sim-min-tracks')) ui.byId('sim-min-tracks').value = ui.engine.config.SIMULATION.minTracks;
   if (ui.byId('sim-max-tracks')) ui.byId('sim-max-tracks').value = ui.engine.config.SIMULATION.maxTracks;
