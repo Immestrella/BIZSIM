@@ -9,15 +9,14 @@
 <style>
 /* === NARRATIVE OS 监控矩阵 - 终极电影动效版 === */
 :root {
-    /* 默认深色模式 (Night Vision) */
     --c-bg: 5, 8, 12;
     --c-card: 16, 20, 26;
     --c-border: 45, 55, 70;
     --c-text: 210, 220, 230;
-    --c-prim: 0, 230, 255;    /* 战术蓝 */
-    --c-sec: 255, 60, 100;    /* 警示红 */
-    --c-warn: 255, 180, 0;    /* 焦糖黄 */
-    --c-pass: 0, 220, 120;    /* 夜视绿 */
+    --c-prim: 0, 230, 255;    
+    --c-sec: 255, 60, 100;    
+    --c-warn: 255, 180, 0;    
+    --c-pass: 0, 220, 120;    
     --font-main: "Courier New", Courier, "PingFang SC", sans-serif;
     --font-code: "JetBrains Mono", "Consolas", monospace;
     --tr: 0.4s cubic-bezier(0.2, 0, 0.2, 1);
@@ -26,7 +25,6 @@
 }
 
 [data-theme="light"] {
-    /* 白天模式 (Tactical White) */
     --c-bg: 235, 240, 245;
     --c-card: 255, 255, 255;
     --c-border: 180, 190, 205;
@@ -43,7 +41,6 @@
 
 body { background: transparent; font-family: var(--font-main); color: rgb(var(--c-text)); }
 
-/* 主容器：附加暗角和扫描线效果 */
 .nos-container {
     max-width: 850px; width: 100%; margin: 10px auto;
     background-color: rgba(var(--c-bg), 0.95);
@@ -59,7 +56,6 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     box-shadow: 0 0 25px rgba(var(--c-prim), 0.2), 0 0 0 1px rgba(var(--c-prim), 0.3) inset;
 }
 
-/* 顶部状态栏 */
 .nos-header {
     background: linear-gradient(90deg, rgba(var(--c-prim), 0.1) 0%, transparent 100%);
     border-bottom: 1px solid rgba(var(--c-border), 0.8);
@@ -71,7 +67,6 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 .nos-title { display: flex; align-items: center; gap: 10px; font-weight: 700; color: rgb(var(--c-prim)); transition: var(--tr); }
 .nos-title i { font-size: 1.2em; animation: pulse 2s infinite; }
 
-/* 独立的高清折叠微缩指示器 */
 .folded-summary {
     position: absolute; left: 50%; transform: translateX(-50%) translateY(10px) scale(0.9);
     opacity: 0; pointer-events: none; display: flex; align-items: center; gap: 20px;
@@ -87,32 +82,14 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 .fs-warn { color: rgb(var(--c-sec)); text-shadow: 0 0 10px rgba(var(--c-sec), 0.4); }
 
 .header-controls { display: flex; align-items: center; gap: 14px; }
-
-#nos-time {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-end;
-    min-width: 74px;
-    transition: var(--tr);
-}
-
-/* 折叠态将 TICK 固定到最左，不占用中间 folded-summary 位置 */
+#nos-time { display: inline-flex; align-items: center; justify-content: flex-end; min-width: 74px; transition: var(--tr); }
 .nos-container.folded #nos-time {
-    position: absolute;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 12;
-    min-width: 0;
-    font-size: 10px !important;
-    color: rgba(var(--c-text), 0.75) !important;
-    background: rgba(var(--c-bg), 0.55);
-    border: 1px solid rgba(var(--c-border), 0.45);
-    border-radius: 999px;
-    padding: 2px 8px;
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 12;
+    min-width: 0; font-size: 10px !important; color: rgba(var(--c-text), 0.75) !important;
+    background: rgba(var(--c-bg), 0.55); border: 1px solid rgba(var(--c-border), 0.45);
+    border-radius: 999px; padding: 2px 8px;
 }
 
-/* 头部按钮 (主题/收纳) */
 .ctrl-btn {
     cursor: pointer; color: rgba(var(--c-text), 0.6); transition: var(--tr);
     display: flex; align-items: center; justify-content: center;
@@ -122,34 +99,25 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 .nos-container.folded .fold-btn i { transform: rotate(180deg); }
 
 @media (max-width: 720px) {
-    .nos-header {
-        padding: 10px 12px;
-    }
-
-    .header-controls {
-        gap: 8px;
-    }
-
-    #runSimBtn {
-        padding: 0 8px !important;
-    }
-
-    #runSimText {
-        display: none;
-    }
-
-    .nos-container.folded #nos-time {
-        left: 6px;
-        padding: 2px 6px;
-    }
+    .nos-header { padding: 10px 12px; }
+    .header-controls { gap: 8px; }
+    #runSimBtn { padding: 0 8px !important; }
+    #runSimText { display: none; }
+    .nos-container.folded #nos-time { left: 6px; padding: 2px 6px; }
 }
 
-/* === 核心区域 === */
 .nos-body-wrap { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--tr); }
 .nos-container.folded .nos-body-wrap { grid-template-rows: 0fr; }
 .nos-body-inner { min-height: 0; overflow: hidden; }
 
-/* 轨道网格与扫描线 */
+/* 提示 Banner */
+.nos-banner {
+    padding: 10px 16px; margin: 16px 16px 0; border-radius: 6px; font-family: var(--font-code); font-size: 12px;
+    display: flex; align-items: center; gap: 10px; font-weight: bold; transition: var(--tr);
+}
+.nos-banner.warn { background: rgba(var(--c-warn), 0.1); border: 1px dashed rgba(var(--c-warn), 0.5); color: rgb(var(--c-warn)); }
+.nos-banner.ok { background: rgba(var(--c-pass), 0.1); border: 1px dashed rgba(var(--c-pass), 0.4); color: rgb(var(--c-pass)); }
+
 .nos-grid {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; padding: 16px;
     background-image: 
@@ -158,14 +126,12 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     background-size: 20px 20px;
 }
 
-/* 镜头卡片 */
 .track-card {
     position: relative; background: rgba(var(--c-card), 0.8);
     border: 1px solid rgba(var(--c-border), 0.5); padding: 16px;
     display: flex; flex-direction: column; gap: 12px; transition: var(--tr); overflow: hidden;
 }
 
-/* 镜头取景器十字角 (Reticles) */
 .track-card::before, .track-card::after {
     content: ''; position: absolute; width: 16px; height: 16px; pointer-events: none; transition: var(--tr);
     border: 2px solid rgba(var(--c-prim), 0.4);
@@ -184,23 +150,18 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 
 @keyframes cardSheen { 0% { transform: translateX(-120%) rotate(8deg) } 100% { transform: translateX(120%) rotate(8deg) } }
 
-/* 卡片头部 */
 .track-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 8px; }
 .track-identity { display: flex; flex-direction: column; gap: 4px; }
 .track-id { font-size: 11px; font-family: var(--font-code); color: rgba(var(--c-prim), 0.8); }
 
 .track-name { 
     font-size: 16px; font-weight: bold; color: rgb(var(--c-text)); letter-spacing: 1px; 
-    cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
-    transition: 0.2s;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s;
 }
 .track-name:hover { color: rgb(var(--c-prim)); text-shadow: 0 0 10px rgba(var(--c-prim), 0.4); }
 .track-name i { font-size: 0.8em; opacity: 0.5; }
 
-/* 状态 Badge */
-.status-badge {
-    display: flex; align-items: center; gap: 6px; font-size: 10px; padding: 2px 8px; font-family: var(--font-code); font-weight: bold;
-}
+.status-badge { display: flex; align-items: center; gap: 6px; font-size: 10px; padding: 2px 8px; font-family: var(--font-code); font-weight: bold; }
 .status-simulating { color: rgb(var(--c-sec)); }
 .status-simulating::before { content: '● REC'; animation: blinkSoft 1.5s ease-in-out infinite; }
 .status-merged { color: rgb(var(--c-prim)); }
@@ -209,12 +170,10 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 @keyframes blinkSoft { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; text-shadow: 0 0 8px rgb(var(--c-sec)); } }
 @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 
-/* 数据区 */
 .track-meta { display: grid; gap: 6px; font-size: 12px; color: rgba(var(--c-text), 0.7); border-top: 1px dashed rgba(var(--c-border), 0.6); padding-top: 10px; }
 .meta-row { display: flex; align-items: flex-start; gap: 8px; }
 .meta-icon { width: 16px; text-align: center; color: rgba(var(--c-text), 0.4); }
 
-/* 进度与迭代次数 (在一行) */
 .track-progress {
     font-size: 13px; color: rgb(var(--c-text)); background: rgba(0, 0, 0, 0.15); border: 1px solid rgba(var(--c-border), 0.4);
     padding: 8px 12px; border-radius: 4px; border-left: 3px solid rgb(var(--c-prim));
@@ -228,7 +187,6 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 .iter-badge i { animation: spin 4s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
-/* 概括区 */
 .track-summary-wrap { background: rgba(0, 0, 0, 0.1); border-radius: 6px; margin-top: auto; transition: var(--tr); }
 .summary-header {
     padding: 8px 10px; font-size: 11px; color: rgba(var(--c-text), 0.6);
@@ -245,7 +203,6 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 .track-summary-wrap.open .summary-content { display: block; animation: slideDown 0.3s ease; }
 @keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 
-/* 底部检查面板 */
 .nos-footer {
     background: rgba(var(--c-bg), 0.9); border-top: 1px solid rgba(var(--c-prim), 0.3);
     padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; font-family: var(--font-code);
@@ -257,7 +214,6 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 .check-fail .check-light { background: rgb(var(--c-sec)); box-shadow: 0 0 8px rgba(var(--c-sec), 0.8); }
 .check-fail .check-label { color: rgb(var(--c-sec)); }
 
-/* Toast */
 .nos-toast {
     position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-50px);
     background: rgba(var(--c-prim), 0.9); color: #fff; padding: 8px 20px; border-radius: 20px;
@@ -281,20 +237,14 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     transform: scale(0.95) translateY(10px); transition: all var(--tr);
 }
 .char-modal.show .char-modal-inner { transform: scale(1) translateY(0); }
-
-/* 自定义滚动条 */
 .char-modal-inner::-webkit-scrollbar { width: 4px; }
 .char-modal-inner::-webkit-scrollbar-track { background: transparent; }
 .char-modal-inner::-webkit-scrollbar-thumb { background: rgba(var(--c-prim), 0.4); border-radius: 2px; }
-
-/* 档案头部 */
 .dossier-header { padding: 24px 24px 16px; border-bottom: 1px dashed rgba(var(--c-prim), 0.4); position: relative; }
 .dossier-title-bar { display: flex; justify-content: space-between; align-items: flex-start; }
 .dossier-name { font-size: 24px; font-weight: 900; color: rgb(var(--c-text)); letter-spacing: 2px; margin-bottom: 8px;}
 .dossier-close { cursor: pointer; color: rgba(var(--c-text), 0.5); font-size: 20px; transition: 0.2s; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%;}
 .dossier-close:hover { color: rgb(var(--c-sec)); background: rgba(var(--c-sec), 0.1); transform: rotate(90deg); }
-
-/* 智能排版区域 */
 .dossier-body { padding: 20px 24px; }
 .dossier-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
 .d-tag { background: rgba(var(--c-prim), 0.1); border: 1px solid rgba(var(--c-prim), 0.3); color: rgb(var(--c-prim)); font-size: 12px; font-weight: bold; padding: 4px 10px; border-radius: 4px; }
@@ -307,9 +257,7 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 .d-block-k { font-size: 12px; font-weight: bold; color: rgb(var(--c-prim)); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
 .d-block-k i { opacity: 0.7; }
 .d-block-v { font-size: 13px; line-height: 1.6; color: rgba(var(--c-text), 0.9); }
-
 .modal-fallback { text-align: center; color: rgb(var(--c-prim)); padding: 40px 20px; font-size: 14px; }
-
 .mes_text > background { display: none !important; }
 </style>
 </head>
@@ -334,9 +282,10 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     
     <div class="nos-body-wrap">
         <div class="nos-body-inner">
+            <div id="nosBanner" class="nos-banner" style="display:none;"></div>
             <div class="nos-grid" id="trackGrid">
                 <div style="color: rgba(var(--c-text),0.5); text-align: center; padding: 30px; grid-column: 1/-1;">
-                    <i class="fa-solid fa-circle-notch fa-spin"></i> PARSING TRACK DATA...
+                    <i class="fa-solid fa-circle-notch fa-spin"></i> SYNCING WORLD STATE...
                 </div>
             </div>
             <div class="nos-footer" id="checkPanel"></div>
@@ -352,13 +301,12 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     </div>
 </div>
 
-<textarea id="time-capsule" style="display:none;">$1</textarea>
-
 <script>
 (function(){
-    const capsule = document.getElementById('time-capsule');
+    // DOM 元素引用
     const trackGrid = document.getElementById('trackGrid');
     const checkPanel = document.getElementById('checkPanel');
+    const nosBanner = document.getElementById('nosBanner');
     const toast = document.getElementById('nos-toast');
     const nosContainer = document.getElementById('nosContainer');
     const charModal = document.getElementById('charModal');
@@ -368,17 +316,17 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     const themeIcon = document.getElementById('themeIcon');
     const runSimBtn = document.getElementById('runSimBtn');
     const runSimText = document.getElementById('runSimText');
-    let blockMeta = null;
-    
+
+    // === UI 基础逻辑 ===
     function updateSystemTime() {
         const now = new Date();
         document.getElementById('nos-time').textContent = `TICK: ${now.toTimeString().split(' ')[0]}`;
     }
     setInterval(updateSystemTime, 1000); updateSystemTime();
 
-    function escapeHtml(str) {
-        if (!str) return '';
-        const div = document.createElement('div'); div.textContent = str; return div.innerHTML;
+    function escapeHtml(t) {
+        if (t == null) return '-';
+        const div = document.createElement('div'); div.textContent = String(t); return div.innerHTML;
     }
 
     function triggerResize() {
@@ -389,16 +337,15 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
         }, 450); 
     }
 
-    // 主题切换
+    // 主题与收纳切换
     window.toggleTheme = function() {
         const currentTheme = nosContainer.getAttribute('data-theme');
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         nosContainer.setAttribute('data-theme', newTheme);
-        document.documentElement.setAttribute('data-theme', newTheme); // 为了影响根变量
+        document.documentElement.setAttribute('data-theme', newTheme);
         themeIcon.className = newTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
     }
 
-    // 面板收纳
     window.toggleNosFold = function() {
         nosContainer.classList.toggle('folded');
         triggerResize();
@@ -406,6 +353,7 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 
     window.copySummary = function(btnElement, text) {
         navigator.clipboard.writeText(text).then(() => {
+            toast.innerHTML = '<i class="fa-solid fa-check"></i> 情报已复制';
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2000);
         }).catch(err => console.error('Copy failed', err));
@@ -423,7 +371,7 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
         charModal.classList.remove('show');
     }
 
-    // 数据库查询
+    // === 特殊逻辑：智能化档案模态框 (保留并兼容) ===
     async function queryCharacterDB(searchName) {
         try {
             const api = window.AutoCardUpdaterAPI || window.parent?.AutoCardUpdaterAPI;
@@ -453,7 +401,6 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
         return { found: false };
     }
 
-    // 智能排版档案生成
     window.openCharProfile = async function(name) {
         charModalContent.innerHTML = '<div style="text-align:center; padding: 60px; color:rgb(var(--c-prim));"><i class="fa-solid fa-satellite-dish fa-spin fa-2x"></i><br><br>CONNECTING TO DATABANK...</div>';
         charModal.classList.add('show');
@@ -502,7 +449,6 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
                 </div>
             `;
         } else {
-            // 优雅降级：当作为自由观测点/事件名时
             charModalContent.innerHTML = `
                 <div class="dossier-header">
                     <div class="dossier-title-bar">
@@ -521,143 +467,149 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
         }
     }
 
-    function parseData() {
-        const raw = capsule.value || '';
-        const bzWorldMatch = raw.match(/<bz_world_state>([\s\S]*?)<\/bz_world_state>/);
-        const worldBlock = bzWorldMatch ? bzWorldMatch[1] : '';
-        const parseMeta = (text) => {
-            const read = (key) => {
-                const m = text.match(new RegExp(`${key}:(.*?)(?=\\n|$)`));
-                return m ? m[1].trim() : '';
-            };
-            const sourceFloor = read('source_floor');
-            const currentFloor = read('current_floor');
-            const isLatestText = read('is_latest').toLowerCase();
-            const staleBy = read('stale_by');
-            const actionHint = read('action_hint') || '点击推演生成最新数据';
-            return {
-                sourceFloor,
-                currentFloor,
-                isLatest: isLatestText === 'true',
-                staleBy,
-                actionHint,
-            };
-        };
-        blockMeta = parseMeta(worldBlock || raw);
+    // === 核心数据引擎 (API Wrapper) ===
+    function getApiFunc(name) {
+        const contexts = [window, window.parent, window.top, window.TavernHelper, window.parent?.TavernHelper];
+        for (let ctx of contexts) {
+            if (ctx && typeof ctx[name] === 'function') return ctx[name];
+        }
+        return null;
+    }
 
-        const trackRegex = /<bg_track\s+key="([^"]+)">([\s\S]*?)<\/bg_track>/g;
-        let match;
+    function getMessageId() {
+        const getCurrentId = getApiFunc('getCurrentMessageId') || getApiFunc('getMessageId');
+        if (getCurrentId) return getCurrentId(window.name || '');
+        const getLastId = getApiFunc('getLastMessageId');
+        if (getLastId) return getLastId();
+        return 'latest';
+    }
+
+    function readFloorVariables() {
+        const getVars = getApiFunc('getVariables');
+        if (!getVars) return null;
+        try {
+            return getVars({ type: 'message', message_id: getMessageId() }) || {};
+        } catch (e) {
+            console.error('[NARRATIVE OS] Error fetching variables:', e);
+            return null;
+        }
+    }
+
+    // === 渲染引擎 ===
+    function render() {
+        const vars = readFloorVariables();
+        const statData = vars?.stat_data;
+
+        nosBanner.style.display = 'flex';
+
+        if (!statData || !statData.bizsim_world_state) {
+            nosBanner.className = 'nos-banner warn';
+            nosBanner.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>未检测到世界状态数据 (stat_data.bizsim_world_state)</span>`;
+            trackGrid.innerHTML = '';
+            checkPanel.innerHTML = '<div class="check-item" style="color:gray;">NO DATA AVALIABLE</div>';
+            return;
+        }
+
+        const worldState = statData.bizsim_world_state;
+        const tracks = Array.isArray(worldState.tracks) ? worldState.tracks : [];
+        const checks = worldState.checks || {};
+
+        nosBanner.className = 'nos-banner ok';
+        nosBanner.innerHTML = `<i class="fa-solid fa-link"></i> <span>推演数据通道连接正常，多重视角已同步</span>`;
+
+        // 1. 渲染视角轨道 (Tracks)
         let htmlTracks = '';
-        let isFirst = true;
-        let trackCount = 0;
-        
-        while ((match = trackRegex.exec(worldBlock || raw)) !== null) {
-            trackCount++;
-            const key = match[1].trim();
-            const content = match[2].trim();
-            
-            const headerMatch = content.match(/BG\.(\d+)\s*\[([^\]]+)\]\s*\[([^\]]+)\]/);
-            const bgId = headerMatch ? `BG.${headerMatch[1]}` : 'BG.?';
-            const name = headerMatch ? headerMatch[2] : key;
-            const status = headerMatch ? headerMatch[3] : '未知';
-            
-            const countMatch = content.match(/推演次数:\s*(\d+)/);
-            const iterCount = countMatch ? countMatch[1] : '1';
+        if (tracks.length > 0) {
+            tracks.forEach((track, index) => {
+                const bgId = track.id || 'BG.?';
+                const name = track.characterName || 'Unknown';
+                const status = track.status || '未知';
+                const iterCount = track.iteration || '1';
+                const timeStr = track.timeSync || 'N/A';
+                const locStr = track.location || 'N/A';
+                const progStr = track.progress || 'N/A';
+                const sumStr = track.summary || '无情报。';
 
-            const timeMatch = content.match(/时间同步:(.*?)(?=\n|$)/);
-            const locMatch = content.match(/地点:(.*?)(?=\n|$)/);
-            const progMatch = content.match(/视角进度:(.*?)(?=\n|$)/);
-            const sumMatch = content.match(/概括:([\s\S]*)$/);
-            
-            const timeStr = timeMatch ? timeMatch[1].trim() : 'N/A';
-            const locStr = locMatch ? locMatch[1].trim() : 'N/A';
-            const progStr = progMatch ? progMatch[1].trim() : 'N/A';
-            const sumStr = sumMatch ? sumMatch[1].trim() : '无情报。';
-            const safeSumStr = sumStr.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-            const safeName = name.replace(/'/g, "\\'");
+                const safeName = name.replace(/'/g, "\\'");
+                const safeSumStr = sumStr.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                let statusClass = status.includes('已汇入') || status.includes('SYNCED') ? 'status-merged' : 'status-simulating';
+                let openClass = index === 0 ? 'open' : '';
 
-            let statusClass = status.includes('已汇入') ? 'status-merged' : 'status-simulating';
-            let openClass = isFirst ? 'open' : '';
-            isFirst = false;
-
-            htmlTracks += `
-                <div class="track-card">
-                    <div class="card-sheen"></div>
-                    <div class="track-header">
-                        <div class="track-identity">
-                            <span class="track-id">${escapeHtml(bgId)}</span>
-                            <span class="track-name" onclick="openCharProfile('${safeName}')" title="查阅终端档案">
-                                ${escapeHtml(name)} <i class="fa-solid fa-expand"></i>
-                            </span>
+                htmlTracks += `
+                    <div class="track-card">
+                        <div class="card-sheen"></div>
+                        <div class="track-header">
+                            <div class="track-identity">
+                                <span class="track-id">${escapeHtml(bgId)}</span>
+                                <span class="track-name" onclick="openCharProfile('${safeName}')" title="查阅终端档案">
+                                    ${escapeHtml(name)} <i class="fa-solid fa-expand"></i>
+                                </span>
+                            </div>
+                            <div class="status-badge ${statusClass}"></div>
                         </div>
-                        <div class="status-badge ${statusClass}"></div>
-                    </div>
-                    
-                    <div class="track-meta">
-                        <div class="meta-row">
-                            <span class="meta-icon"><i class="fa-regular fa-clock"></i></span>
-                            <span class="meta-value">${escapeHtml(timeStr)}</span>
-                        </div>
-                        <div class="meta-row">
-                            <span class="meta-icon"><i class="fa-solid fa-location-crosshairs"></i></span>
-                            <span class="meta-value">${escapeHtml(locStr)}</span>
-                        </div>
-                    </div>
-                    
-                    <div class="track-progress">
-                        <div><i class="fa-solid fa-terminal" style="opacity:0.5; margin-right:6px;"></i><span class="prog-text">${escapeHtml(progStr)}</span></div>
-                        <div class="iter-badge"><i class="fa-solid fa-arrows-spin"></i> ITER_${escapeHtml(iterCount)}</div>
-                    </div>
-                    
-                    <div class="track-summary-wrap ${openClass}">
-                        <div class="summary-header" onclick="toggleSummary(this)">
-                            <span><i class="fa-solid fa-align-left"></i> 观测概括</span>
-                            <div>
-                                <i class="fa-regular fa-copy" style="margin-right:8px; opacity:0.8;" onclick="copySummary(this, '${safeSumStr}')" title="复制情报"></i>
-                                <i class="fa-solid fa-chevron-down chevron"></i>
+                        
+                        <div class="track-meta">
+                            <div class="meta-row">
+                                <span class="meta-icon"><i class="fa-regular fa-clock"></i></span>
+                                <span class="meta-value">${escapeHtml(timeStr)}</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="meta-icon"><i class="fa-solid fa-location-crosshairs"></i></span>
+                                <span class="meta-value">${escapeHtml(locStr)}</span>
                             </div>
                         </div>
-                        <div class="summary-content">${escapeHtml(sumStr).replace(/\n/g, '<br>')}</div>
+                        
+                        <div class="track-progress">
+                            <div><i class="fa-solid fa-terminal" style="opacity:0.5; margin-right:6px;"></i><span class="prog-text">${escapeHtml(progStr)}</span></div>
+                            <div class="iter-badge"><i class="fa-solid fa-arrows-spin"></i> ITER_${escapeHtml(iterCount)}</div>
+                        </div>
+                        
+                        <div class="track-summary-wrap ${openClass}">
+                            <div class="summary-header" onclick="toggleSummary(this)">
+                                <span><i class="fa-solid fa-align-left"></i> 观测概括</span>
+                                <div>
+                                    <i class="fa-regular fa-copy" style="margin-right:8px; opacity:0.8;" onclick="copySummary(this, '${safeSumStr}')" title="复制情报"></i>
+                                    <i class="fa-solid fa-chevron-down chevron"></i>
+                                </div>
+                            </div>
+                            <div class="summary-content">${escapeHtml(sumStr).replace(/\n/g, '<br>')}</div>
+                        </div>
                     </div>
-                </div>
-            `;
-        }
-        
-        if (htmlTracks) {
+                `;
+            });
             trackGrid.innerHTML = htmlTracks;
         } else {
-            trackGrid.innerHTML = '<div style="color:rgb(var(--c-sec)); text-align:center; padding: 20px; grid-column: 1/-1;"><i class="fa-solid fa-triangle-exclamation"></i> 无法解析数据轨道</div>';
+            trackGrid.innerHTML = '<div style="color:rgb(var(--c-sec)); text-align:center; padding: 20px; grid-column: 1/-1;"><i class="fa-solid fa-triangle-exclamation"></i> 无法获取数据轨道</div>';
         }
 
-        const checkBlockMatch = (worldBlock || raw).match(/<bg_check>([\s\S]*?)<\/bg_check>/);
+        // 2. 渲染底部检查面板 (Checks)
         let htmlChecks = '';
         let allChecksPass = true;
         
-        if (checkBlockMatch) {
-            const lines = checkBlockMatch[1].trim().split('\n');
-            lines.forEach(line => {
-                const parts = line.split(':');
-                if (parts.length >= 2) {
-                    const label = parts[0].trim();
-                    const result = parts[1].trim();
-                    const isPass = result.includes('通过') && !result.includes('未通过');
-                    if (!isPass) allChecksPass = false;
-                    const checkClass = isPass ? 'check-pass' : 'check-fail';
-                    
-                    htmlChecks += `
-                        <div class="check-item ${checkClass}">
-                            <div class="check-light"></div>
-                            <span class="check-label">${escapeHtml(label)}: ${escapeHtml(result)}</span>
-                        </div>
-                    `;
-                }
+        if (Object.keys(checks).length > 0) {
+            Object.entries(checks).forEach(([label, result]) => {
+                // 判断逻辑：支持布尔值或字符串 "通过"
+                const isPass = result === true || result === 'true' || String(result).includes('通过');
+                if (!isPass) allChecksPass = false;
+                
+                const checkClass = isPass ? 'check-pass' : 'check-fail';
+                const displayVal = result === true ? 'PASS' : (result === false ? 'FAIL' : result);
+                
+                htmlChecks += `
+                    <div class="check-item ${checkClass}">
+                        <div class="check-light"></div>
+                        <span class="check-label">${escapeHtml(label)}: ${escapeHtml(displayVal)}</span>
+                    </div>
+                `;
             });
+            checkPanel.innerHTML = htmlChecks;
+        } else {
+            checkPanel.innerHTML = '<div class="check-item" style="color:gray;">NO DIAGNOSTICS</div>';
         }
-        
-        checkPanel.innerHTML = htmlChecks || '<div class="check-item" style="color:gray;">NO DIAGNOSTICS</div>';
-        
-        fsTrackCount.textContent = `${trackCount} ORBITS`;
-        if (allChecksPass && trackCount > 0) {
+
+        // 3. 更新收纳状态微缩看板
+        fsTrackCount.textContent = `${tracks.length} ORBITS`;
+        if (allChecksPass && tracks.length > 0) {
             fsDiagStatus.className = 'fs-item fs-pass';
             fsDiagStatus.innerHTML = '<i class="fa-solid fa-shield-check"></i> SYS_STABLE';
         } else {
@@ -668,90 +620,60 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
         triggerResize();
     }
 
-    function setRunSimButtonState() {
-        const getBizSimApi = () => {
-            const candidates = [window, window.parent, window.top];
-            for (const host of candidates) {
-                try {
-                    if (host?.BizSim) return host.BizSim;
-                } catch {
-                }
-            }
-            return null;
-        };
-
-        let isRunning = false;
-        try {
-            const api = getBizSimApi();
-            isRunning = !!api?.isSimulating;
-        } catch {
+    // === 事件挂载与初始化 ===
+    async function initReactivity() {
+        const getWaitFunc = getApiFunc('waitGlobalInitialized');
+        if (getWaitFunc) {
+            await getWaitFunc('Mvu');
         }
+
+        const mvuEvents = getApiFunc('Mvu')?.events || window.Mvu?.events || window.parent?.Mvu?.events;
+        if (mvuEvents && typeof mvuEvents.addEventListener === 'function') {
+            mvuEvents.addEventListener('VARIABLE_UPDATE_ENDED', render);
+        }
+
+        const tEvents = window.tavern_events || window.parent?.tavern_events;
+        if (tEvents && typeof tEvents.addEventListener === 'function') {
+            tEvents.addEventListener('MESSAGE_RECEIVED', render);
+            tEvents.addEventListener('MESSAGE_SWIPED', render);
+        }
+
+        // 立即执行首次渲染
+        render();
+    }
+
+    // === BizSim 按钮模拟推演 ===
+    function setRunSimButtonState() {
+        const getBizSimApi = () => window.BizSim || window.parent?.BizSim || window.top?.BizSim;
+        let isRunning = !!getBizSimApi()?.isSimulating;
 
         if (isRunning) {
             runSimText.textContent = '推演中';
             runSimBtn.style.opacity = '0.75';
             runSimBtn.style.pointerEvents = 'none';
             runSimBtn.querySelector('i').className = 'fa-solid fa-circle-notch fa-spin';
-            return;
+        } else {
+            runSimText.textContent = '点击推演';
+            runSimBtn.style.opacity = '1';
+            runSimBtn.style.pointerEvents = 'auto';
+            runSimBtn.querySelector('i').className = 'fa-solid fa-play';
         }
-
-        runSimText.textContent = '点击推演';
-        runSimBtn.style.opacity = '1';
-        runSimBtn.style.pointerEvents = 'auto';
-        runSimBtn.querySelector('i').className = blockMeta?.isLatest ? 'fa-solid fa-rotate' : 'fa-solid fa-play';
-        runSimBtn.title = blockMeta?.isLatest
-            ? '当前数据已最新，可手动再推演'
-            : (blockMeta?.actionHint || '点击推演生成最新数据');
-    }
-
-    function subscribeSimulationState() {
-        const getBizSimApi = () => {
-            const candidates = [window, window.parent, window.top];
-            for (const host of candidates) {
-                try {
-                    if (host?.BizSim) return host.BizSim;
-                } catch {
-                }
-            }
-            return null;
-        };
-
-        const api = getBizSimApi();
-        if (api?.subscribeSimulationState) {
-            api.subscribeSimulationState(() => setRunSimButtonState());
-            return;
-        }
-
-        setInterval(() => {
-            try {
-                const sharedState = window.BizSimState || window.parent?.BizSimState || window.top?.BizSimState;
-                if (sharedState) setRunSimButtonState();
-            } catch {
-            }
-        }, 250);
     }
 
     async function triggerSimulation() {
-        const getBizSimApi = () => {
-            const candidates = [window, window.parent, window.top];
-            for (const host of candidates) {
-                try {
-                    if (host?.BizSim) return host.BizSim;
-                } catch {
-                }
-            }
-            return null;
-        };
-
+        const api = window.BizSim || window.parent?.BizSim || window.top?.BizSim;
         setRunSimButtonState();
         try {
-            const api = getBizSimApi();
             if (!api?.simulateFromHtml && !api?.simulate) throw new Error('BizSim API 不可用');
             const result = api.simulateFromHtml ? await api.simulateFromHtml() : await api.simulate();
             if (!result?.success) throw new Error(result?.error || '推演失败');
-            toast.innerHTML = '<i class="fa-solid fa-check"></i> 推演完成';
+            
+            toast.innerHTML = '<i class="fa-solid fa-check"></i> 世界推演完成';
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2000);
+            
+            // 手动触发一次渲染拉取最新变量
+            render();
         } catch (err) {
             const reason = err?.message ? `：${escapeHtml(err.message)}` : '';
             toast.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> 推演失败${reason}`;
@@ -764,11 +686,10 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
     }
 
     runSimBtn?.addEventListener('click', triggerSimulation);
-    subscribeSimulationState();
     setInterval(setRunSimButtonState, 1000);
 
-    parseData();
-    setRunSimButtonState();
+    // 启动引擎
+    initReactivity();
 })();
 </script>
 </body>
