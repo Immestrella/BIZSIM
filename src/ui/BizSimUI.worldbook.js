@@ -141,8 +141,6 @@ export function renderWorldbookEntries(ui, entries) {
       syncWorldbookSelectionsToConfig(ui, { persist: true });
     });
   });
-
-  syncWorldbookSelectionsToConfig(ui);
 }
 
 export function setWorldbookSelections(ui, checked) {

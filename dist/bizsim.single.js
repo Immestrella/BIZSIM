@@ -3661,8 +3661,6 @@ function renderWorldbookEntries(ui, entries) {
       syncWorldbookSelectionsToConfig(ui, { persist: true });
     });
   });
-
-  syncWorldbookSelectionsToConfig(ui);
 }
 
 function setWorldbookSelections(ui, checked) {
