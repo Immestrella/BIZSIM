@@ -141,9 +141,15 @@ export class BizSimEngine {
       if (messageId !== null && messageId !== undefined) {
         const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
         const semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromFloorData(this.data));
+        const floorVars = getMessageVariablesSafe(messageId);
+        const currentScoped = this.resolveFloorStatDataSource(floorVars);
+        const baseStatData = currentScoped && typeof currentScoped === 'object'
+          ? deepClone(currentScoped)
+          : {};
 
         const floorPayload = {
           stat_data: {
+            ...baseStatData,
             [assetsKey]: semanticAssets,
             [worldStateKey]: this.worldSimulation,
           },

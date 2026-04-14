@@ -744,12 +744,26 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     const startMessageId = Math.max(0, historyEndMessageId - windowSize + 1);
     const currentMessageId = getCurrentMessageIdSafe();
 
+    // 仅统计 AI 回复楼层，避免把用户楼层变量注入提示词历史块
+    const assistantMessageIdSet = new Set();
+    for (let messageId = startMessageId; messageId <= historyEndMessageId; messageId += 1) {
+      if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
+
+      const message = getChatMessageByIdSafe(messageId);
+      if (this.isAssistantMessage(message)) {
+        assistantMessageIdSet.add(messageId);
+      }
+    }
+
+    if (!assistantMessageIdSet.size) return '';
+
     // 第一轮：逆序遍历收集所有已汇入的视角ID
     // 这样可以从最新楼层向后扫描，确保一旦某个视角在任何楼层被标记为已汇入
     // 它的ID就会被记录，用于过滤所有更早楼层的历史数据
     const convergedTrackIds = new Set();
     for (let messageId = historyEndMessageId; messageId >= startMessageId; messageId -= 1) {
       if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
+      if (!assistantMessageIdSet.has(messageId)) continue;
 
       const variables = getMessageVariablesSafe(messageId);
       if (!variables) continue;
@@ -772,6 +786,7 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     const blocks = [];
     for (let messageId = startMessageId; messageId <= historyEndMessageId; messageId += 1) {
       if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
+      if (!assistantMessageIdSet.has(messageId)) continue;
 
       const variables = getMessageVariablesSafe(messageId);
       if (!variables) continue;
@@ -828,14 +843,19 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     return parsed;
   },
 
-  buildLatestFloorVariablesPayload(floorData, worldSimulation) {
+  buildLatestFloorVariablesPayload(floorData, worldSimulation, currentStatData = null) {
     const normalizedFloorData = this.normalizeFloorData(floorData);
     const normalizedWorldSimulation = this.normalizeWorldSimulation(worldSimulation);
     const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
     const semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromFloorData(normalizedFloorData));
 
+    const baseStatData = currentStatData && typeof currentStatData === 'object'
+      ? deepClone(currentStatData)
+      : {};
+
     return {
       stat_data: {
+        ...baseStatData,
         [assetsKey]: semanticAssets,
         [worldStateKey]: normalizedWorldSimulation,
       },
@@ -874,7 +894,7 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
       }
 
       const normalizedEmpireFromSemantic = this.buildFloorDataFromSemanticAssets(semanticAssets);
-      const payload = this.buildLatestFloorVariablesPayload(normalizedFloorData, normalizedWorldSimulation);
+      const payload = this.buildLatestFloorVariablesPayload(normalizedFloorData, normalizedWorldSimulation, currentScoped);
       // 根据官方文档, insertOrAssignVariables 是同步操作，直接调用，不需要 await
       insertOrAssignVariablesSafe(payload, { type: 'message', message_id: messageId });
       return {

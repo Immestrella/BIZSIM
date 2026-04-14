@@ -491,7 +491,7 @@ const DEFAULT_CORE_PROMPT_MODULES = {
       "【汇入判断】哪些视角的剧情已自然汇入主线？（与主角相遇/合并）已汇入的正常更新该视角剧情，但状态标记为'已汇入'，未汇入的保持'推演中'——任其独立发展，禁止硬往主线上靠",
       "【离场检测】是否有核心角色离开主角视线？如有，必须新增该角色的独立视角（编号=最大编号+1，命名用纯姓名无任何职位/称谓）",
       "【新增机会】是否有有趣的新视角可以设计？新视角命名规则：BG.n[视角名称][推演中][1]，n为当前最大编号+1",
-      "【数量校验】确保推演中视角数量>=3，不满足则补足"
+      "【数量校验】确保推演中视角数量>=3，不满足则按世界背景&剧情进度补足"
     ],
     "empire_audit": [
       "\${盘点本轮资金与势力变更，按通用事业框架(公司/宗门/领地等)校验语义映射与跨表审计锁}",
@@ -598,7 +598,7 @@ const DEFAULT_CORE_PROMPT_MODULES = {
           "iteration": \${推演次数，1开始，每推演一次+1},
           "timeSync": "\${开始时间 → 结束时间，根据主线推进的精确时间}",
           "location": "\${地点，视角有移动需标注}",
-          "progress": "\${一句话概括视角当前进度}",
+          "progress": "\${一句话概括视角当前进度，最多10字}",
           "summary": "\${事件简述、新增长期存在物品及物品简述、**人物性格变化**，50字左右，仅叙事不评价}"
         }
       ],
@@ -1406,12 +1406,26 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
     const startMessageId = Math.max(0, historyEndMessageId - windowSize + 1);
     const currentMessageId = getCurrentMessageIdSafe();
 
+    // 仅统计 AI 回复楼层，避免把用户楼层变量注入提示词历史块
+    const assistantMessageIdSet = new Set();
+    for (let messageId = startMessageId; messageId <= historyEndMessageId; messageId += 1) {
+      if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
+
+      const message = getChatMessageByIdSafe(messageId);
+      if (this.isAssistantMessage(message)) {
+        assistantMessageIdSet.add(messageId);
+      }
+    }
+
+    if (!assistantMessageIdSet.size) return '';
+
     // 第一轮：逆序遍历收集所有已汇入的视角ID
     // 这样可以从最新楼层向后扫描，确保一旦某个视角在任何楼层被标记为已汇入
     // 它的ID就会被记录，用于过滤所有更早楼层的历史数据
     const convergedTrackIds = new Set();
     for (let messageId = historyEndMessageId; messageId >= startMessageId; messageId -= 1) {
       if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
+      if (!assistantMessageIdSet.has(messageId)) continue;
 
       const variables = getMessageVariablesSafe(messageId);
       if (!variables) continue;
@@ -1434,6 +1448,7 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
     const blocks = [];
     for (let messageId = startMessageId; messageId <= historyEndMessageId; messageId += 1) {
       if (currentMessageId !== null && currentMessageId !== undefined && messageId === currentMessageId) continue;
+      if (!assistantMessageIdSet.has(messageId)) continue;
 
       const variables = getMessageVariablesSafe(messageId);
       if (!variables) continue;
@@ -1490,14 +1505,19 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
     return parsed;
   },
 
-  buildLatestFloorVariablesPayload(floorData, worldSimulation) {
+  buildLatestFloorVariablesPayload(floorData, worldSimulation, currentStatData = null) {
     const normalizedFloorData = this.normalizeFloorData(floorData);
     const normalizedWorldSimulation = this.normalizeWorldSimulation(worldSimulation);
     const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
     const semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromFloorData(normalizedFloorData));
 
+    const baseStatData = currentStatData && typeof currentStatData === 'object'
+      ? deepClone(currentStatData)
+      : {};
+
     return {
       stat_data: {
+        ...baseStatData,
         [assetsKey]: semanticAssets,
         [worldStateKey]: normalizedWorldSimulation,
       },
@@ -1536,7 +1556,7 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
       }
 
       const normalizedEmpireFromSemantic = this.buildFloorDataFromSemanticAssets(semanticAssets);
-      const payload = this.buildLatestFloorVariablesPayload(normalizedFloorData, normalizedWorldSimulation);
+      const payload = this.buildLatestFloorVariablesPayload(normalizedFloorData, normalizedWorldSimulation, currentScoped);
       // 根据官方文档, insertOrAssignVariables 是同步操作，直接调用，不需要 await
       insertOrAssignVariablesSafe(payload, { type: 'message', message_id: messageId });
       return {
@@ -2797,9 +2817,15 @@ class BizSimEngine {
       if (messageId !== null && messageId !== undefined) {
         const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
         const semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromFloorData(this.data));
+        const floorVars = getMessageVariablesSafe(messageId);
+        const currentScoped = this.resolveFloorStatDataSource(floorVars);
+        const baseStatData = currentScoped && typeof currentScoped === 'object'
+          ? deepClone(currentScoped)
+          : {};
 
         const floorPayload = {
           stat_data: {
+            ...baseStatData,
             [assetsKey]: semanticAssets,
             [worldStateKey]: this.worldSimulation,
           },
