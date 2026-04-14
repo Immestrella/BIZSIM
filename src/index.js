@@ -101,26 +101,55 @@ function shouldRunAutoSimulation(cfg, message) {
 }
 
 async function maybeAutoSimulate(messageId) {
-  if (autoSimInFlight) return false;
+  if (autoSimInFlight) {
+    console.debug('[BizSim][AutoSim] skip: autoSimInFlight=true');
+    return false;
+  }
 
   const ctx = await initBizSim();
   const cfg = ctx.engine?.config?.SIMULATION || {};
-  const message = getMessageFromEvent(messageId);
+  let message = getMessageFromEvent(messageId);
+  if (!message) {
+    // MESSAGE_RECEIVED 可能早于楼层对象可读，短暂重试一次。
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    message = getMessageFromEvent(messageId);
+  }
 
-  if (hasBizSimInjectionBlock(message)) return false;
+  if (!message) {
+    console.debug(`[BizSim][AutoSim] skip: message-not-found, messageId=${messageId}`);
+    return false;
+  }
+
+  if (hasBizSimInjectionBlock(message)) {
+    console.debug(`[BizSim][AutoSim] skip: message-has-bizsim-block, messageId=${messageId}`);
+    return false;
+  }
 
   const assistantOnly = cfg.autoRunOnlyAssistant !== false;
   const assistantInterval = Math.max(1, Number(cfg.autoRunAssistantFloorInterval) || 1);
   const isAssistant = isAssistantMessage(message);
+  const textLength = getMessageText(message).length;
 
-  if (assistantOnly && !isAssistant) return false;
+  if (assistantOnly && !isAssistant) {
+    console.debug(`[BizSim][AutoSim] skip: not-assistant, messageId=${messageId}`);
+    return false;
+  }
 
   if (isAssistant) {
     assistantMessageCount += 1;
-    if (assistantMessageCount % assistantInterval !== 0) return false;
+    if (assistantMessageCount % assistantInterval !== 0) {
+      console.debug(`[BizSim][AutoSim] skip: assistant-interval, count=${assistantMessageCount}, interval=${assistantInterval}`);
+      return false;
+    }
   }
 
-  if (!shouldRunAutoSimulation(cfg, message)) return false;
+  if (!shouldRunAutoSimulation(cfg, message)) {
+    const minChars = Math.max(0, Number(cfg.autoRunMinChars) || 0);
+    const cooldownMs = Math.max(0, Number(cfg.autoRunCooldownSec) || 0) * 1000;
+    const cooldownRemain = Math.max(0, cooldownMs - (Date.now() - lastAutoSimAt));
+    console.debug(`[BizSim][AutoSim] skip: gate-failed enabled=${!!cfg.autoRunEnabled} textLength=${textLength} minChars=${minChars} cooldownRemainMs=${cooldownRemain}`);
+    return false;
+  }
 
   autoSimInFlight = true;
   lastAutoSimAt = Date.now();

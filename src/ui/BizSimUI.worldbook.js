@@ -1,6 +1,16 @@
 import { escapeHtml } from '../utils/object.js';
 import { getWorldbookSafe } from '../utils/stCompat.js';
 
+let worldbookPersistTimer = null;
+
+function queuePersistWorldbookSelection(ui) {
+  if (worldbookPersistTimer) clearTimeout(worldbookPersistTimer);
+  worldbookPersistTimer = setTimeout(() => {
+    worldbookPersistTimer = null;
+    void ui.engine.saveSettingsOnly();
+  }, 200);
+}
+
 export function initWorldbookPanel(ui) {
   const select = ui.byId('sim-worldbook-name');
   if (!select) return;
@@ -128,7 +138,7 @@ export function renderWorldbookEntries(ui, entries) {
 
   ui.$$('.bizsim-worldbook-entry-checkbox').forEach((checkbox) => {
     checkbox.addEventListener('change', () => {
-      syncWorldbookSelectionsToConfig(ui);
+      syncWorldbookSelectionsToConfig(ui, { persist: true });
     });
   });
 
@@ -139,20 +149,38 @@ export function setWorldbookSelections(ui, checked) {
   ui.$$('.bizsim-worldbook-entry-checkbox').forEach((checkbox) => {
     checkbox.checked = checked;
   });
-  syncWorldbookSelectionsToConfig(ui);
+  syncWorldbookSelectionsToConfig(ui, { persist: true });
 }
 
-export function syncWorldbookSelectionsToConfig(ui) {
+export function syncWorldbookSelectionsToConfig(ui, options = {}) {
+  const persist = options?.persist === true;
   const checkboxes = ui.$$('.bizsim-worldbook-entry-checkbox');
   if (!checkboxes.length && !ui.currentWorldbookEntries.length) {
     return;
   }
 
-  const selectedUids = checkboxes
-    .filter((checkbox) => checkbox.checked)
-    .map((checkbox) => checkbox.dataset.uid)
+  const rawSelection = String(ui.engine.config.SIMULATION?.worldbookSelectedUids || '').trim();
+  const explicitNone = rawSelection === '__NONE__';
+  const explicitSet = new Set(ui.engine.parseSelectedEntryUids());
+  const allEntryUids = (ui.currentWorldbookEntries || [])
+    .map((entry) => String(entry?.uid ?? ''))
     .filter(Boolean);
+
+  const baselineSet = explicitNone
+    ? new Set()
+    : (explicitSet.size > 0 ? new Set(explicitSet) : new Set(allEntryUids));
+
+  for (const checkbox of checkboxes) {
+    const uid = String(checkbox?.dataset?.uid || '').trim();
+    if (!uid) continue;
+    if (checkbox.checked) baselineSet.add(uid);
+    else baselineSet.delete(uid);
+  }
+
+  const selectedUids = allEntryUids.filter((uid) => baselineSet.has(uid));
 
   ui.engine.config.SIMULATION.worldbookName = ui.byId('sim-worldbook-name')?.value?.trim() || '';
   ui.engine.config.SIMULATION.worldbookSelectedUids = selectedUids.length ? selectedUids.join(',') : '__NONE__';
+
+  if (persist) queuePersistWorldbookSelection(ui);
 }
