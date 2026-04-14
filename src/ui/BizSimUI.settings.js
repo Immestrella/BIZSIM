@@ -127,6 +127,7 @@ export function saveSimulationSettings(ui, silent = false) {
   const worldHistoryFloors = Number.parseInt(ui.byId('sim-world-history-floors')?.value, 10);
   const includeFloorData = !!ui.byId('sim-include-floor-data')?.checked;
   const includeWorldState = !!ui.byId('sim-include-world-state')?.checked;
+  const bodyInjectionEnabled = !!ui.byId('sim-body-injection-enabled')?.checked;
   const retryCount = Number.parseInt(ui.byId('sim-retry-count')?.value, 10);
   const repairOnParseError = !!ui.byId('sim-repair-on-parse')?.checked;
   const autoRunEnabled = !!ui.byId('sim-auto-run-enabled')?.checked;
@@ -159,6 +160,7 @@ export function saveSimulationSettings(ui, silent = false) {
   ui.engine.config.SIMULATION.autoSave = autoSave;
   ui.engine.config.SIMULATION.includeFloorData = includeFloorData;
   ui.engine.config.SIMULATION.includeWorldState = includeWorldState;
+  ui.engine.config.SIMULATION.bodyInjectionEnabled = bodyInjectionEnabled;
   ui.engine.config.SIMULATION.repairOnParseError = repairOnParseError;
   ui.engine.config.SIMULATION.autoRunEnabled = autoRunEnabled;
   ui.engine.config.SIMULATION.autoRunOnlyAssistant = autoRunOnlyAssistant;
@@ -209,6 +211,7 @@ export function resetSimulationSettings(ui) {
   if (ui.byId('sim-world-history-floors')) ui.byId('sim-world-history-floors').value = ui.engine.config.SIMULATION.worldHistoryFloors;
   if (ui.byId('sim-include-floor-data')) ui.byId('sim-include-floor-data').checked = ui.engine.config.SIMULATION.includeFloorData !== false;
   if (ui.byId('sim-include-world-state')) ui.byId('sim-include-world-state').checked = ui.engine.config.SIMULATION.includeWorldState;
+  if (ui.byId('sim-body-injection-enabled')) ui.byId('sim-body-injection-enabled').checked = ui.engine.config.SIMULATION.bodyInjectionEnabled === true;
   if (ui.byId('sim-worldbook-name')) ui.byId('sim-worldbook-name').value = ui.engine.config.SIMULATION.worldbookName || '';
   if (ui.byId('sim-retry-count')) ui.byId('sim-retry-count').value = ui.engine.config.SIMULATION.retryCount;
   if (ui.byId('sim-repair-on-parse')) ui.byId('sim-repair-on-parse').checked = ui.engine.config.SIMULATION.repairOnParseError;

@@ -394,6 +394,9 @@ export function createMainPanelHtml(engine) {
               <label><input type="checkbox" id="sim-include-world-state" ${engine.config.SIMULATION.includeWorldState ? 'checked' : ''}> 注入世界推演状态</label>
             </div>
             <div class="bizsim-form-group">
+              <label><input type="checkbox" id="sim-body-injection-enabled" ${engine.config.SIMULATION.bodyInjectionEnabled ? 'checked' : ''}> 正文注入</label>
+            </div>
+            <div class="bizsim-form-group">
               <label><input type="checkbox" id="sim-auto-save" ${engine.config.SIMULATION.autoSave ? 'checked' : ''}> 自动保存推演结果到角色卡变量</label>
             </div>
             <div class="bizsim-form-group">

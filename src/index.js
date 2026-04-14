@@ -148,10 +148,12 @@ async function maybeAutoSimulate(messageId) {
 }
 
 async function injectForAssistantMessage(messageId) {
+  const ctx = await initBizSim();
+  if (ctx.engine?.config?.SIMULATION?.bodyInjectionEnabled !== true) return;
+
   const targetMessageId = Number(messageId);
   if (injectedAssistantMessageIds.has(targetMessageId)) return;
 
-  const ctx = await initBizSim();
   const latestAssistantMessageId = ctx.engine?.getLatestAssistantMessageIdSafe?.();
   if (latestAssistantMessageId === null || latestAssistantMessageId === undefined) return;
   if (Number(messageId) !== Number(latestAssistantMessageId)) return;
@@ -215,7 +217,7 @@ export async function quickSimulate() {
   try {
     setSimulationState(true, '手动推演');
     const result = await ctx.engine.runSimulation(true);
-    if (result?.success) {
+    if (result?.success && ctx.engine.config.SIMULATION?.bodyInjectionEnabled === true) {
       const injectedMessageId = Number(result?.data?.floorSync?.messageId);
       if (Number.isInteger(injectedMessageId)) injectedAssistantMessageIds.add(injectedMessageId);
     }

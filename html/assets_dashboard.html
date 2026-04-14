@@ -1,246 +1,1130 @@
-```html
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>资产统计面板</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+<title>🎥 资产推演 · NARRATIVE OS</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
 :root {
-	--bg: #0c1220;
-	--card: #121a2d;
-	--line: #24314f;
-	--text: #dbe6ff;
-	--sub: #93a9d8;
-	--accent: #5dd3ff;
-	--ok: #1fd48a;
-	--warn: #ffb120;
+    --c-bg: 5, 8, 12;
+    --c-card: 16, 20, 26;
+    --c-border: 45, 55, 70;
+    --c-text: 210, 220, 230;
+    --c-prim: 0, 230, 255;
+    --c-sec: 255, 60, 100;
+    --c-warn: 255, 180, 0;
+    --c-pass: 0, 220, 120;
+    --font-main: "Courier New", Courier, "PingFang SC", sans-serif;
+    --font-code: "JetBrains Mono", "Consolas", monospace;
+    --tr: 0.4s cubic-bezier(0.2, 0, 0.2, 1);
+    --scanline: rgba(255, 255, 255, 0.03);
+    --vignette: radial-gradient(circle at 50% 50%, transparent 50%, rgba(0,0,0,0.5) 120%);
 }
-* { box-sizing: border-box; }
-body { margin: 0; background: transparent; color: var(--text); font: 13px/1.5 "PingFang SC", "Segoe UI", sans-serif; }
-.wrap { max-width: 900px; margin: 10px auto; background: rgba(12,18,32,.92); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.top { padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.title { color: var(--accent); font-weight: 700; letter-spacing: .5px; }
-.meta { color: var(--sub); font-size: 12px; }
-.btn { border: 1px solid var(--line); background: #1a2743; color: var(--text); padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-.btn[disabled] { opacity: .7; cursor: not-allowed; }
-.hint { padding: 8px 14px; border-bottom: 1px solid var(--line); color: var(--sub); background: rgba(93,211,255,.06); }
-.grid { display: grid; gap: 12px; padding: 12px; }
-.card { border: 1px solid var(--line); background: var(--card); border-radius: 8px; overflow: hidden; }
-.card-h { padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--accent); font-weight: 700; }
-.table { width: 100%; border-collapse: collapse; }
-.table th,.table td { border-bottom: 1px solid #1d2840; padding: 6px 8px; text-align: left; vertical-align: top; }
-.table th { width: 210px; color: var(--sub); font-weight: 600; }
-.check { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; gap: 16px; flex-wrap: wrap; }
-.ok { color: var(--ok); }
-.warn { color: var(--warn); }
+
+[data-theme="light"] {
+    --c-bg: 235, 240, 245;
+    --c-card: 255, 255, 255;
+    --c-border: 180, 190, 205;
+    --c-text: 30, 40, 50;
+    --c-prim: 0, 120, 220;
+    --c-sec: 220, 40, 60;
+    --c-warn: 200, 120, 0;
+    --c-pass: 10, 160, 80;
+    --scanline: rgba(0, 0, 0, 0.04);
+    --vignette: radial-gradient(circle at 50% 50%, transparent 70%, rgba(0,0,0,0.05) 120%);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { background: transparent; font-family: var(--font-main); color: rgb(var(--c-text)); }
+
+.nos-container {
+    max-width: 850px;
+    width: 100%;
+    margin: 10px auto;
+    background-color: rgba(var(--c-bg), 0.95);
+    background-image: var(--vignette);
+    border: 1px solid rgba(var(--c-prim), 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(var(--c-prim), 0.1) inset;
+    backdrop-filter: blur(10px);
+    transition: var(--tr);
+    position: relative;
+}
+.nos-container.folded {
+    border-color: rgba(var(--c-prim), 0.6);
+    box-shadow: 0 0 25px rgba(var(--c-prim), 0.2), 0 0 0 1px rgba(var(--c-prim), 0.3) inset;
+}
+
+.nos-header {
+    background: linear-gradient(90deg, rgba(var(--c-prim), 0.1) 0%, transparent 100%);
+    border-bottom: 1px solid rgba(var(--c-border), 0.8);
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    letter-spacing: 1px;
+    position: relative;
+    z-index: 10;
+    transition: var(--tr);
+}
+.nos-container.folded .nos-header { border-bottom-color: transparent; }
+
+.nos-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    color: rgb(var(--c-prim));
+    transition: var(--tr);
+}
+.nos-title i { font-size: 1.2em; animation: pulse 2s infinite; }
+
+.folded-summary {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px) scale(0.9);
+    opacity: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-family: var(--font-code);
+    font-size: 12px;
+    font-weight: bold;
+    transition: var(--tr);
+    background: rgba(var(--c-card), 0.98);
+    border: 1px solid rgba(var(--c-prim), 0.5);
+    padding: 6px 24px;
+    border-radius: 30px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+.nos-container.folded .folded-summary {
+    transform: translateX(-50%) translateY(0) scale(1);
+    opacity: 1;
+    pointer-events: auto;
+}
+.nos-container.folded .nos-title { opacity: 0; }
+.fs-item { display: flex; align-items: center; gap: 8px; }
+.fs-pass { color: rgb(var(--c-pass)); text-shadow: 0 0 10px rgba(var(--c-pass), 0.4); }
+.fs-warn { color: rgb(var(--c-sec)); text-shadow: 0 0 10px rgba(var(--c-sec), 0.4); }
+
+.header-controls { display: flex; align-items: center; gap: 14px; }
+
+#nos-time {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 74px;
+    transition: var(--tr);
+}
+
+.nos-container.folded #nos-time {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 12;
+    min-width: 0;
+    font-size: 10px !important;
+    color: rgba(var(--c-text), 0.75) !important;
+    background: rgba(var(--c-bg), 0.55);
+    border: 1px solid rgba(var(--c-border), 0.45);
+    border-radius: 999px;
+    padding: 2px 8px;
+}
+
+.ctrl-btn {
+    cursor: pointer;
+    color: rgba(var(--c-text), 0.6);
+    transition: var(--tr);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    background: rgba(var(--c-text), 0.05);
+}
+.ctrl-btn:hover { background: rgba(var(--c-prim), 0.2); color: rgb(var(--c-prim)); }
+.nos-container.folded .fold-btn i { transform: rotate(180deg); }
+
+@media (max-width: 720px) {
+    .nos-header { padding: 10px 12px; }
+    .header-controls { gap: 8px; }
+    #runSimBtn { padding: 0 8px !important; }
+    #runSimText { display: none; }
+    .nos-container.folded #nos-time { left: 6px; padding: 2px 6px; }
+}
+
+.nos-body-wrap { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--tr); }
+.nos-container.folded .nos-body-wrap { grid-template-rows: 0fr; }
+.nos-body-inner { min-height: 0; overflow: hidden; }
+
+.nos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    padding: 16px;
+    background-image:
+        linear-gradient(var(--scanline) 1px, transparent 1px),
+        linear-gradient(90deg, var(--scanline) 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+
+.track-card {
+    position: relative;
+    background: rgba(var(--c-card), 0.8);
+    border: 1px solid rgba(var(--c-border), 0.5);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: var(--tr);
+    overflow: hidden;
+}
+
+.track-card::before, .track-card::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    transition: var(--tr);
+    border: 2px solid rgba(var(--c-prim), 0.4);
+}
+.track-card::before { top: 8px; left: 8px; border-right: none; border-bottom: none; }
+.track-card::after { bottom: 8px; right: 8px; border-left: none; border-top: none; }
+
+.track-card > .card-sheen {
+    position: absolute;
+    inset: -120% -40%;
+    background: linear-gradient(120deg, transparent 35%, rgba(255, 255, 255, 0.04) 50%, transparent 65%);
+    transform: translateX(-30%) rotate(8deg);
+    opacity: 0;
+    pointer-events: none;
+}
+.track-card:hover {
+    border-color: rgba(var(--c-prim), 0.5);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+    background: rgba(var(--c-card), 0.95);
+}
+.track-card:hover > .card-sheen { animation: cardSheen 1.1s ease; opacity: 1; }
+.track-card:hover::before, .track-card:hover::after { border-color: rgb(var(--c-prim)); width: 20px; height: 20px; }
+
+@keyframes cardSheen { 0% { transform: translateX(-120%) rotate(8deg); } 100% { transform: translateX(120%) rotate(8deg); } }
+
+.track-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 8px; }
+.track-identity { display: flex; flex-direction: column; gap: 4px; }
+.track-id { font-size: 11px; font-family: var(--font-code); color: rgba(var(--c-prim), 0.8); }
+
+.track-name {
+    font-size: 16px;
+    font-weight: bold;
+    color: rgb(var(--c-text));
+    letter-spacing: 1px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: 0.2s;
+}
+.track-name:hover { color: rgb(var(--c-prim)); text-shadow: 0 0 10px rgba(var(--c-prim), 0.4); }
+.track-name i { font-size: 0.8em; opacity: 0.5; }
+
+.status-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    padding: 2px 8px;
+    font-family: var(--font-code);
+    font-weight: bold;
+}
+.status-simulating { color: rgb(var(--c-sec)); }
+.status-simulating::before { content: '● REC'; animation: blinkSoft 1.5s ease-in-out infinite; }
+.status-merged { color: rgb(var(--c-prim)); }
+.status-merged::before { content: '■ SYNCED'; }
+
+@keyframes blinkSoft { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; text-shadow: 0 0 8px rgb(var(--c-sec)); } }
+@keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+.track-meta {
+    display: grid;
+    gap: 6px;
+    font-size: 12px;
+    color: rgba(var(--c-text), 0.7);
+    border-top: 1px dashed rgba(var(--c-border), 0.6);
+    padding-top: 10px;
+}
+.meta-row { display: flex; align-items: flex-start; gap: 8px; }
+.meta-icon { width: 16px; text-align: center; color: rgba(var(--c-text), 0.4); }
+
+.track-progress {
+    font-size: 13px;
+    color: rgb(var(--c-text));
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(var(--c-border), 0.4);
+    padding: 8px 12px;
+    border-radius: 4px;
+    border-left: 3px solid rgb(var(--c-prim));
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.prog-text { font-weight: bold; }
+.iter-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(var(--c-warn), 0.15);
+    color: rgb(var(--c-warn));
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    font-family: var(--font-code);
+}
+.iter-badge i { animation: spin 4s linear infinite; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
+.track-summary-wrap {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    margin-top: auto;
+    transition: var(--tr);
+}
+.summary-header {
+    padding: 8px 10px;
+    font-size: 11px;
+    color: rgba(var(--c-text), 0.6);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+.summary-header:hover { color: rgb(var(--c-prim)); }
+.summary-header i.chevron { transition: transform 0.3s; }
+.track-summary-wrap.open .summary-header i.chevron { transform: rotate(180deg); }
+.summary-content {
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 0 10px 10px;
+    color: rgba(var(--c-text), 0.9);
+    display: none;
+    border-top: 1px dashed rgba(var(--c-border), 0.3);
+    margin-top: 4px;
+    padding-top: 8px;
+}
+.track-summary-wrap.open .summary-content { display: block; animation: slideDown 0.3s ease; }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
+.table-wrap { background: rgba(0, 0, 0, 0.1); border-radius: 6px; margin-top: 2px; }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table th, .table td {
+    border-bottom: 1px solid rgba(var(--c-border), 0.5);
+    padding: 7px 8px;
+    text-align: left;
+    vertical-align: top;
+}
+.table th {
+    width: 38%;
+    color: rgba(var(--c-text), 0.75);
+    font-weight: 600;
+}
+.table td {
+    color: rgba(var(--c-text), 0.95);
+    font-family: var(--font-main);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.nos-footer {
+    background: rgba(var(--c-bg), 0.9);
+    border-top: 1px solid rgba(var(--c-prim), 0.3);
+    padding: 12px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: center;
+    font-family: var(--font-code);
+}
+.check-item { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: bold; }
+.check-light { width: 8px; height: 8px; border-radius: 50%; background: #333; }
+.check-pass .check-light { background: rgb(var(--c-pass)); box-shadow: 0 0 8px rgba(var(--c-pass), 0.8); }
+.check-pass .check-label { color: rgb(var(--c-pass)); }
+.check-fail .check-light { background: rgb(var(--c-sec)); box-shadow: 0 0 8px rgba(var(--c-sec), 0.8); }
+.check-fail .check-label { color: rgb(var(--c-sec)); }
+
+.nos-toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-50px);
+    background: rgba(var(--c-prim), 0.9);
+    color: #fff;
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 12px;
+    opacity: 0;
+    pointer-events: none;
+    transition: var(--tr);
+    z-index: 9999;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+.nos-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+.char-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--tr);
+}
+.char-modal.show { opacity: 1; pointer-events: auto; }
+.char-modal-inner {
+    background: linear-gradient(180deg, rgba(var(--c-card), 0.98) 0%, rgba(var(--c-bg), 0.98) 100%);
+    border: 1px solid rgba(var(--c-prim), 0.5);
+    border-radius: 4px;
+    width: 90%;
+    max-width: 650px;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 0;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(var(--c-prim), 0.2) inset;
+    transform: scale(0.95) translateY(10px);
+    transition: all var(--tr);
+}
+.char-modal.show .char-modal-inner { transform: scale(1) translateY(0); }
+.char-modal-inner::-webkit-scrollbar { width: 4px; }
+.char-modal-inner::-webkit-scrollbar-track { background: transparent; }
+.char-modal-inner::-webkit-scrollbar-thumb { background: rgba(var(--c-prim), 0.4); border-radius: 2px; }
+
+.dossier-header { padding: 24px 24px 16px; border-bottom: 1px dashed rgba(var(--c-prim), 0.4); position: relative; }
+.dossier-title-bar { display: flex; justify-content: space-between; align-items: flex-start; }
+.dossier-name { font-size: 24px; font-weight: 900; color: rgb(var(--c-text)); letter-spacing: 2px; margin-bottom: 8px; }
+.dossier-close {
+    cursor: pointer;
+    color: rgba(var(--c-text), 0.5);
+    font-size: 20px;
+    transition: 0.2s;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+.dossier-close:hover { color: rgb(var(--c-sec)); background: rgba(var(--c-sec), 0.1); transform: rotate(90deg); }
+.dossier-body { padding: 20px 24px; }
+.dossier-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.d-tag { background: rgba(var(--c-prim), 0.1); border: 1px solid rgba(var(--c-prim), 0.3); color: rgb(var(--c-prim)); font-size: 12px; font-weight: bold; padding: 4px 10px; border-radius: 4px; }
+.dossier-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.d-grid-item { background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(var(--c-border), 0.4); border-radius: 4px; padding: 10px 12px; border-left: 2px solid rgba(var(--c-prim), 0.5); }
+.d-grid-k { font-size: 11px; color: rgba(var(--c-text), 0.5); margin-bottom: 4px; font-family: var(--font-code); }
+.d-grid-v { font-size: 13px; font-weight: bold; color: rgb(var(--c-text)); word-break: break-word; }
+.dossier-blocks { display: flex; flex-direction: column; gap: 16px; }
+.d-block { background: rgba(0, 0, 0, 0.15); border-top: 1px solid rgba(var(--c-border), 0.3); padding: 12px 16px; }
+.d-block-k { font-size: 12px; font-weight: bold; color: rgb(var(--c-prim)); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.d-block-k i { opacity: 0.7; }
+.d-block-v { font-size: 13px; line-height: 1.6; color: rgba(var(--c-text), 0.9); }
+.modal-fallback { text-align: center; color: rgb(var(--c-prim)); padding: 40px 20px; font-size: 14px; }
 </style>
 </head>
 <body>
-<div class="wrap">
-	<div class="top">
-		<div>
-			<div class="title">BizSim 资产统计</div>
-			<div class="meta" id="metaLine">正在解析数据...</div>
-		</div>
-		<button id="simBtn" class="btn">点击推演</button>
-	</div>
-	<div id="hint" class="hint">等待资产数据...</div>
-	<div id="grid" class="grid"></div>
-	<div id="check" class="check"></div>
+
+<div class="nos-container folded" id="nosContainer" data-theme="dark">
+    <div class="nos-header">
+        <span class="nos-title"><i class="fa-solid fa-building-shield"></i> ASSET_MATRIX</span>
+
+        <div class="folded-summary" id="foldedSummary">
+            <div class="fs-item fs-pass"><i class="fa-solid fa-table-columns fa-beat-fade"></i> <span id="fsTableCount">0 TABLES</span></div>
+            <div class="fs-item" id="fsDiagStatus">SYS_IDLE</div>
+        </div>
+
+        <div class="header-controls">
+            <span id="nos-time" style="font-family: var(--font-code); color: rgba(var(--c-text),0.5); font-size: 11px;">TICK: 00:00</span>
+            <div class="ctrl-btn" id="runSimBtn" title="触发 BizSim 推演" style="width:auto;padding:0 10px;font-size:11px;gap:6px;"><i class="fa-solid fa-play"></i><span id="runSimText">点击推演</span></div>
+            <div class="ctrl-btn" onclick="toggleTheme()" title="切换昼夜镜片"><i class="fa-solid fa-moon" id="themeIcon"></i></div>
+            <div class="ctrl-btn fold-btn" onclick="toggleNosFold()" title="收起/展开面板"><i class="fa-solid fa-compress"></i></div>
+        </div>
+    </div>
+
+    <div class="nos-body-wrap">
+        <div class="nos-body-inner">
+            <div class="nos-grid" id="assetGrid">
+                <div style="color: rgba(var(--c-text),0.5); text-align: center; padding: 30px; grid-column: 1/-1;">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i> PARSING ASSET TABLES...
+                </div>
+            </div>
+            <div class="nos-footer" id="checkPanel"></div>
+        </div>
+    </div>
 </div>
 
-<textarea id="capsule" style="display:none;">$1</textarea>
+<div class="char-modal" id="charModal" onclick="closeAssetModal(event)">
+    <div class="char-modal-inner" onclick="event.stopPropagation()">
+        <div id="charModalContent"></div>
+    </div>
+</div>
+
+<div class="nos-toast" id="nos-toast"><i class="fa-solid fa-check"></i> 推演完成</div>
+
+<textarea id="time-capsule" style="display:none;"></textarea>
 
 <script>
-(function(){
-	const raw = document.getElementById('capsule').value || '';
-	const grid = document.getElementById('grid');
-	const check = document.getElementById('check');
-	const metaLine = document.getElementById('metaLine');
-	const hint = document.getElementById('hint');
-	const simBtn = document.getElementById('simBtn');
-	let blockMeta = null;
+(function () {
+    const capsule = document.getElementById('time-capsule');
+    const assetGrid = document.getElementById('assetGrid');
+    const checkPanel = document.getElementById('checkPanel');
+    const toast = document.getElementById('nos-toast');
+    const nosContainer = document.getElementById('nosContainer');
+    const charModal = document.getElementById('charModal');
+    const charModalContent = document.getElementById('charModalContent');
+    const fsTableCount = document.getElementById('fsTableCount');
+    const fsDiagStatus = document.getElementById('fsDiagStatus');
+    const themeIcon = document.getElementById('themeIcon');
+    const runSimBtn = document.getElementById('runSimBtn');
+    const runSimText = document.getElementById('runSimText');
 
-	function esc(t) {
-		const div = document.createElement('div');
-		div.textContent = String(t ?? '');
-		return div.innerHTML;
-	}
+    let blockMeta = null;
+    let currentTables = [];
+    let currentTracks = [];
 
-	function parseMeta(text) {
-		const pick = (k) => {
-			const m = text.match(new RegExp(`${k}:(.*?)(?=\\n|$)`));
-			return m ? m[1].trim() : '';
-		};
-		return {
-			sourceFloor: pick('source_floor'),
-			currentFloor: pick('current_floor'),
-			isLatest: pick('is_latest').toLowerCase() === 'true',
-			staleBy: pick('stale_by'),
-			actionHint: pick('action_hint') || '点击推演生成最新数据',
-		};
-	}
+    function updateSystemTime() {
+        const now = new Date();
+        document.getElementById('nos-time').textContent = `TICK: ${now.toTimeString().split(' ')[0]}`;
+    }
+    setInterval(updateSystemTime, 1000);
+    updateSystemTime();
 
-	function parseAssetTables(text) {
-		const out = [];
-		const regex = /<asset_table\s+key="([^"]+)"\s*>([\s\S]*?)<\/asset_table>/gi;
-		let m;
-		while ((m = regex.exec(text)) !== null) {
-			const key = m[1];
-			const body = m[2].trim();
-			const lines = body.split('\n').map((line) => line.trim()).filter(Boolean);
-			const rows = [];
-			let current = [];
-			lines.forEach((line) => {
-				if (line === 'empty:true') return;
-				if (line.startsWith('row:')) {
-					if (current.length) rows.push(current);
-					current = [];
-					return;
-				}
-				const idx = line.indexOf(':');
-				if (idx > -1) current.push([line.slice(0, idx), line.slice(idx + 1)]);
-			});
-			if (current.length) rows.push(current);
-			if (!rows.length) rows.push(lines.filter((line) => line.includes(':')).map((line) => {
-				const i = line.indexOf(':');
-				return [line.slice(0, i), line.slice(i + 1)];
-			}));
-			out.push({ key, rows });
-		}
-		return out;
-	}
+    function esc(str) {
+        if (str === null || str === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = String(str);
+        return div.innerHTML;
+    }
 
-	function render() {
-		const blockMatch = raw.match(/<bz_asset_sheet\b[^>]*>([\s\S]*?)<\/bz_asset_sheet>/i);
-		const text = blockMatch ? blockMatch[1] : raw;
-		blockMeta = parseMeta(text);
-		const tables = parseAssetTables(text);
+    function safeJsString(str) {
+        return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ');
+    }
 
-		if (!tables.length) {
-			hint.textContent = blockMatch
-				? '已检测到 <bz_asset_sheet>，但未解析到 <asset_table> 数据'
-				: '未检测到 <bz_asset_sheet>，且未解析到 <asset_table> 数据';
-			grid.innerHTML = '';
-			check.innerHTML = '<span class="warn">无可渲染资产数据</span>';
-			return;
-		}
+    function normalizeSheetText(text) {
+        return String(text || '')
+            .replace(/^\uFEFF/, '')
+            .replace(/\r\n?/g, '\n')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .trim();
+    }
 
-		metaLine.textContent = `来源楼层 ${blockMeta.sourceFloor || '-'} / 当前楼层 ${blockMeta.currentFloor || '-'}`;
-		hint.innerHTML = blockMeta.isLatest
-			? '<span class="ok">当前展示已是最新资产数据</span>'
-			: `<span class="warn">当前展示非最新（落后 ${esc(blockMeta.staleBy || '?')} 层）</span> · ${esc(blockMeta.actionHint)}`;
+    function toCellText(value) {
+        if (value === null || value === undefined) return '';
+        if (Array.isArray(value)) return value.map((item) => toCellText(item)).filter(Boolean).join(' | ');
+        if (typeof value === 'object') return JSON.stringify(value);
+        return String(value);
+    }
 
-		grid.innerHTML = tables.map((table) => {
-			const body = `
-				<table class="table">
-					${table.rows
-						.map((pairs) => pairs.map((pair) => `<tr><th>${esc(pair[0])}</th><td>${esc(pair[1])}</td></tr>`).join(''))
-						.join('')}
-				</table>
-			`;
-			return `<div class="card"><div class="card-h">${esc(table.key)}</div>${body}</div>`;
-		}).join('');
+    function getCurrentFloorMessageId() {
+        try {
+            if (typeof getCurrentMessageId === 'function') {
+                const currentId = getCurrentMessageId();
+                if (Number.isInteger(currentId)) return currentId;
+            }
+        } catch {
+        }
 
-		const checkMatch = text.match(/<asset_check\b[^>]*>([\s\S]*?)<\/asset_check>/i);
-		if (checkMatch) {
-			const rows = checkMatch[1].split('\n').map((line) => line.trim()).filter(Boolean);
-			check.innerHTML = rows.map((row) => {
-				const pass = row.includes('通过') && !row.includes('未通过');
-				return `<span class="${pass ? 'ok' : 'warn'}">${esc(row)}</span>`;
-			}).join('');
-		}
-	}
+        try {
+            if (typeof getLastMessageId === 'function') {
+                const lastId = getLastMessageId();
+                if (Number.isInteger(lastId)) return lastId;
+            }
+        } catch {
+        }
 
-	function setButtonState() {
-		const getBizSimApi = () => {
-			const candidates = [window, window.parent, window.top];
-			for (const host of candidates) {
-				try {
-					if (host?.BizSim) return host.BizSim;
-				} catch {
-				}
-			}
-			return null;
-		};
+        return 'latest';
+    }
 
-		let running = false;
-		try {
-			const api = getBizSimApi();
-			running = !!api?.isSimulating;
-		} catch {
-		}
-		if (running) {
-			simBtn.disabled = true;
-			simBtn.textContent = '推演中';
-			return;
-		}
-		simBtn.disabled = false;
-		simBtn.textContent = '点击推演';
-		simBtn.title = blockMeta?.isLatest ? '当前已是最新，可手动再推演' : (blockMeta?.actionHint || '点击推演生成最新数据');
-	}
+    function readFloorVariables() {
+        const messageId = getCurrentFloorMessageId();
+        const directReaders = [
+            () => (typeof getVariables === 'function' ? getVariables({ type: 'message', message_id: messageId }) : null),
+            () => (window.TavernHelper && typeof window.TavernHelper.getVariables === 'function' ? window.TavernHelper.getVariables({ type: 'message', message_id: messageId }) : null),
+            () => (typeof getAllVariables === 'function' ? getAllVariables() : null),
+        ];
 
-	function subscribeSimulationState() {
-		const getBizSimApi = () => {
-			const candidates = [window, window.parent, window.top];
-			for (const host of candidates) {
-				try {
-					if (host?.BizSim) return host.BizSim;
-				} catch {
-				}
-			}
-			return null;
-		};
+        for (const read of directReaders) {
+            try {
+                const value = read();
+                if (value && typeof value === 'object') {
+                    return { messageId, value };
+                }
+            } catch {
+            }
+        }
 
-		const api = getBizSimApi();
-		if (api?.subscribeSimulationState) {
-			api.subscribeSimulationState(() => setButtonState());
-			return;
-		}
+        return { messageId, value: null };
+    }
 
-		setInterval(() => {
-			try {
-				const sharedState = window.BizSimState || window.parent?.BizSimState || window.top?.BizSimState;
-				if (sharedState) setButtonState();
-			} catch {
-			}
-		}, 250);
-	}
+    function normalizeAssetTablesFromStatData(bizsimAssets) {
+        const out = [];
+        if (!bizsimAssets || typeof bizsimAssets !== 'object') return out;
 
-	async function trigger() {
-		const getBizSimApi = () => {
-			const candidates = [window, window.parent, window.top];
-			for (const host of candidates) {
-				try {
-					if (host?.BizSim) return host.BizSim;
-				} catch {
-				}
-			}
-			return null;
-		};
+        for (const [key, value] of Object.entries(bizsimAssets)) {
+            if (Array.isArray(value)) {
+                const rows = value.map((row) => {
+                    if (row && typeof row === 'object' && !Array.isArray(row)) {
+                        return Object.entries(row).map(([field, cellValue]) => [field, toCellText(cellValue)]);
+                    }
+                    return [['值', toCellText(row)]];
+                });
+                out.push({ key, rows });
+                continue;
+            }
 
-		setButtonState();
-		try {
-			const api = getBizSimApi();
-			if (!api?.simulateFromHtml && !api?.simulate) throw new Error('BizSim API 不可用');
-			const result = api.simulateFromHtml ? await api.simulateFromHtml() : await api.simulate();
-			if (!result?.success) throw new Error(result?.error || '推演失败');
-		} catch (err) {
-			console.error('[assets_dashboard] simulate failed', err);
-			simBtn.title = err?.message || '推演失败';
-		} finally {
-			setButtonState();
-		}
-	}
+            if (value && typeof value === 'object') {
+                out.push({ key, rows: [Object.entries(value).map(([field, cellValue]) => [field, toCellText(cellValue)])] });
+                continue;
+            }
 
-	simBtn.addEventListener('click', trigger);
-	subscribeSimulationState();
-	setInterval(setButtonState, 1000);
-	render();
-	setButtonState();
+            out.push({ key, rows: [[['值', toCellText(value)]]] });
+        }
+
+        return out;
+    }
+
+    function normalizeWorldTracksFromStatData(bizsimWorldState) {
+        const worldState = bizsimWorldState && typeof bizsimWorldState === 'object' ? bizsimWorldState : {};
+        const tracks = Array.isArray(worldState.tracks)
+            ? worldState.tracks.map((track, index) => ({
+                key: track?.id || track?.characterName || `TRACK_${index + 1}`,
+                id: track?.id || `BG.${index + 1}`,
+                name: track?.characterName || track?.id || `视角${index + 1}`,
+                status: track?.status || '未知',
+                iterCount: Number.isFinite(Number(track?.iteration)) ? Number(track.iteration) : 1,
+                timeStr: track?.timeSync || 'N/A',
+                locStr: track?.location || 'N/A',
+                progStr: track?.progress || 'N/A',
+                sumStr: track?.summary || '无情报。',
+            }))
+            : [];
+
+        return {
+            tracks,
+            checks: worldState.checks && typeof worldState.checks === 'object' ? worldState.checks : {},
+        };
+    }
+
+    function renderStructuredChecks(statData, worldStateInfo, assetTables) {
+        const checks = [];
+        let allChecksPass = true;
+
+        const hasAssets = Array.isArray(assetTables) && assetTables.length > 0;
+        const hasTracks = Array.isArray(worldStateInfo?.tracks) && worldStateInfo.tracks.length > 0;
+        const worldChecks = worldStateInfo?.checks || {};
+
+        const pushCheck = (label, passed, valueText) => {
+            const isPass = !!passed;
+            if (!isPass) allChecksPass = false;
+            checks.push(`
+                <div class="check-item ${isPass ? 'check-pass' : 'check-fail'}">
+                    <div class="check-light"></div>
+                    <span class="check-label">${esc(label)}: ${esc(valueText)}</span>
+                </div>
+            `);
+        };
+
+        pushCheck('资产数据', hasAssets, hasAssets ? '通过' : '未通过');
+        pushCheck('世界轨道', hasTracks, hasTracks ? '通过' : '未通过');
+
+        if (Object.prototype.hasOwnProperty.call(worldChecks, 'allTracksAdvanced')) {
+            pushCheck('推进检查', !!worldChecks.allTracksAdvanced, worldChecks.allTracksAdvanced ? '通过' : '未通过');
+        }
+        if (Object.prototype.hasOwnProperty.call(worldChecks, 'convergenceChecked')) {
+            pushCheck('收敛检查', !!worldChecks.convergenceChecked, worldChecks.convergenceChecked ? '通过' : '未通过');
+        }
+        if (Object.prototype.hasOwnProperty.call(worldChecks, 'newTracksAdded')) {
+            pushCheck('新增视角', !!worldChecks.newTracksAdded, worldChecks.newTracksAdded ? '通过' : '未通过');
+        }
+
+        if (!checks.length) {
+            checkPanel.innerHTML = '<div class="check-item" style="color:gray;">NO DIAGNOSTICS</div>';
+            return false;
+        }
+
+        checkPanel.innerHTML = checks.join('');
+        return allChecksPass;
+    }
+
+    function triggerResize() {
+        setTimeout(() => {
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'resizeIframe', height: document.body.scrollHeight }, '*');
+            }
+        }, 300);
+    }
+
+    window.toggleTheme = function () {
+        const currentTheme = nosContainer.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        nosContainer.setAttribute('data-theme', newTheme);
+        document.documentElement.setAttribute('data-theme', newTheme);
+        themeIcon.className = newTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+    };
+
+    window.toggleNosFold = function () {
+        nosContainer.classList.toggle('folded');
+        triggerResize();
+    };
+
+    window.copySummary = function (btnElement, text, event) {
+        navigator.clipboard.writeText(text).then(() => {
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }).catch((err) => console.error('Copy failed', err));
+        if (event) event.stopPropagation();
+    };
+
+    window.toggleSummary = function (headerElement, event) {
+        const wrap = headerElement.closest('.track-summary-wrap');
+        if (!wrap) return;
+        wrap.classList.toggle('open');
+        if (event) event.stopPropagation();
+        triggerResize();
+    };
+
+    window.closeAssetModal = function (event) {
+        if (event) event.stopPropagation();
+        charModal.classList.remove('show');
+    };
+
+    window.openAssetProfile = function (key) {
+        const table = currentTables.find((item) => item.key === key);
+        const track = currentTracks.find((item) => item.key === key);
+        if (!table && !track) return;
+
+        if (track && !table) {
+            charModalContent.innerHTML = `
+                <div class="dossier-header">
+                    <div class="dossier-title-bar">
+                        <div>
+                            <div class="dossier-name">${esc(track.name)}</div>
+                            <div style="font-family:var(--font-code); font-size:11px; color:rgba(var(--c-text),0.5);"><i class="fa-solid fa-fingerprint"></i> TRACK_ID: ${esc(track.id)}</div>
+                        </div>
+                        <div class="dossier-close" onclick="closeAssetModal(event)"><i class="fa-solid fa-xmark"></i></div>
+                    </div>
+                </div>
+                <div class="dossier-body">
+                    <div class="dossier-tags">
+                        <div class="d-tag">STATUS: ${esc(track.status)}</div>
+                        <div class="d-tag">ITER: ${esc(track.iterCount)}</div>
+                        <div class="d-tag">TIME: ${esc(track.timeStr || '-')}</div>
+                        <div class="d-tag">LOCATION: ${esc(track.locStr || '-')}</div>
+                    </div>
+                    <div class="dossier-blocks">
+                        <div class="d-block">
+                            <div class="d-block-k"><i class="fa-solid fa-align-left"></i> 观测概括</div>
+                            <div class="d-block-v">${esc(track.sumStr || '无情报。').replace(/\n/g, '<br>')}</div>
+                        </div>
+                        <div class="d-block">
+                            <div class="d-block-k"><i class="fa-solid fa-terminal"></i> 视角进度</div>
+                            <div class="d-block-v">${esc(track.progStr || 'N/A')}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            charModal.classList.add('show');
+            return;
+        }
+
+        const firstPairs = table.rows.flat().filter((pair) => pair && pair.length >= 2).slice(0, 8);
+        const tagsHtml = [
+            `<div class="d-tag">TABLE: ${esc(table.key)}</div>`,
+            `<div class="d-tag">ROWS: ${esc(table.rows.length)}</div>`,
+            `<div class="d-tag">SOURCE: ${esc(blockMeta?.sourceFloor || '-')}</div>`,
+            `<div class="d-tag">CURRENT: ${esc(blockMeta?.currentFloor || '-')}</div>`,
+            `<div class="d-tag">STATE: ${blockMeta?.isLatest ? 'LATEST' : 'STALE'}</div>`,
+        ].join('');
+
+        const gridHtml = firstPairs.map((pair) => `
+            <div class="d-grid-item">
+                <div class="d-grid-k">${esc(pair[0])}</div>
+                <div class="d-grid-v">${esc(pair[1])}</div>
+            </div>
+        `).join('');
+
+        const blocksHtml = table.rows.map((pairs, index) => {
+            const items = pairs.map((pair) => `
+                <div class="d-block">
+                    <div class="d-block-k"><i class="fa-solid fa-table-columns"></i> ${esc(pair[0])}</div>
+                    <div class="d-block-v">${esc(pair[1])}</div>
+                </div>
+            `).join('');
+
+            return `
+                <div class="d-block">
+                    <div class="d-block-k"><i class="fa-solid fa-layer-group"></i> ROW_${index + 1}</div>
+                    <div class="d-block-v">${items || 'NO DATA'}</div>
+                </div>
+            `;
+        }).join('');
+
+        charModalContent.innerHTML = `
+            <div class="dossier-header">
+                <div class="dossier-title-bar">
+                    <div>
+                        <div class="dossier-name">${esc(table.key)}</div>
+                        <div style="font-family:var(--font-code); font-size:11px; color:rgba(var(--c-text),0.5);"><i class="fa-solid fa-fingerprint"></i> ASSET_ID: ${Math.floor(Math.random()*8999+1000)}-${Date.now().toString().slice(-4)}</div>
+                    </div>
+                    <div class="dossier-close" onclick="closeAssetModal(event)"><i class="fa-solid fa-xmark"></i></div>
+                </div>
+            </div>
+            <div class="dossier-body">
+                <div class="dossier-tags">${tagsHtml}</div>
+                ${gridHtml ? `<div class="dossier-grid">${gridHtml}</div>` : ''}
+                ${blocksHtml ? `<div class="dossier-blocks">${blocksHtml}</div>` : ''}
+            </div>
+        `;
+        charModal.classList.add('show');
+    };
+
+    function parseData() {
+        const floorResult = readFloorVariables();
+        const allVariables = floorResult.value || {};
+        const statData = allVariables?.stat_data && typeof allVariables.stat_data === 'object'
+            ? allVariables.stat_data
+            : (allVariables?.data?.stat_data && typeof allVariables.data.stat_data === 'object' ? allVariables.data.stat_data : null);
+
+        if (capsule) {
+            try {
+                capsule.value = JSON.stringify(allVariables || {}, null, 2);
+            } catch {
+                capsule.value = '';
+            }
+        }
+
+        if (!statData) {
+            assetGrid.innerHTML = `<div style="color:rgb(var(--c-sec)); text-align:center; padding: 20px; grid-column: 1/-1;"><i class="fa-solid fa-triangle-exclamation"></i> 未检测到楼层变量中的 stat_data</div>`;
+            checkPanel.innerHTML = '<div class="check-item" style="color:gray;">NO DIAGNOSTICS</div>';
+            fsTableCount.textContent = '0 TABLES';
+            fsDiagStatus.className = 'fs-item fs-warn';
+            fsDiagStatus.innerHTML = '<i class="fa-solid fa-triangle-exclamation fa-fade"></i> SYS_WARN';
+            blockMeta = { messageId: floorResult.messageId, sourceFloor: floorResult.messageId, currentFloor: floorResult.messageId, actionHint: '等待楼层变量写入' };
+            triggerResize();
+            return;
+        }
+
+        const assetsRoot = statData.bizsim_assets && typeof statData.bizsim_assets === 'object' ? statData.bizsim_assets : {};
+        const worldStateInfo = normalizeWorldTracksFromStatData(statData.bizsim_world_state);
+        const tables = normalizeAssetTablesFromStatData(assetsRoot);
+
+        blockMeta = {
+            messageId: floorResult.messageId,
+            sourceFloor: floorResult.messageId,
+            currentFloor: floorResult.messageId,
+            isLatest: true,
+            actionHint: '直接读取楼层变量',
+        };
+
+        if (!tables.length && !worldStateInfo.tracks.length) {
+            assetGrid.innerHTML = `<div style="color:rgb(var(--c-sec)); text-align:center; padding: 20px; grid-column: 1/-1;"><i class="fa-solid fa-triangle-exclamation"></i> 楼层变量存在，但未解析到资产或轨道数据</div>`;
+            checkPanel.innerHTML = '<div class="check-item" style="color:gray;">NO DIAGNOSTICS</div>';
+            fsTableCount.textContent = '0 TABLES';
+            fsDiagStatus.className = 'fs-item fs-warn';
+            fsDiagStatus.innerHTML = '<i class="fa-solid fa-triangle-exclamation fa-fade"></i> SYS_WARN';
+            triggerResize();
+            return;
+        }
+
+        if (tables.length) {
+            renderAssetCards(tables);
+            fsTableCount.textContent = `${tables.length} TABLES`;
+        } else {
+            renderWorldTrackCards(worldStateInfo.tracks);
+            fsTableCount.textContent = `${worldStateInfo.tracks.length} TRACKS`;
+        }
+
+        const allChecksPass = renderStructuredChecks(statData, worldStateInfo, tables);
+        if (allChecksPass) {
+            fsDiagStatus.className = 'fs-item fs-pass';
+            fsDiagStatus.innerHTML = '<i class="fa-solid fa-shield-check"></i> SYS_STABLE';
+        } else {
+            fsDiagStatus.className = 'fs-item fs-warn';
+            fsDiagStatus.innerHTML = '<i class="fa-solid fa-triangle-exclamation fa-fade"></i> SYS_WARN';
+        }
+
+        triggerResize();
+    }
+
+    function renderAssetCards(tables) {
+        currentTables = tables;
+        currentTracks = [];
+        let isFirst = true;
+        assetGrid.innerHTML = tables
+            .map((table) => {
+                const rowCount = table.rows.length;
+                const rowsHtml = table.rows
+                    .map((pairs) => pairs.map((pair) => `<tr><th>${esc(pair[0])}</th><td>${esc(pair[1])}</td></tr>`).join(''))
+                    .join('');
+
+                const statusClass = rowCount > 0 ? 'status-merged' : 'status-simulating';
+                const openClass = isFirst ? 'open' : '';
+                isFirst = false;
+
+                const copyText = table.rows
+                    .map((pairs) => pairs.map((pair) => `${pair[0]}: ${pair[1]}`).join(' | '))
+                    .join('\n\n');
+                const safeKey = safeJsString(table.key);
+
+                return `
+                    <div class="track-card">
+                        <div class="card-sheen"></div>
+                        <div class="track-header">
+                            <div class="track-identity">
+                                <span class="track-id">ASSET.${String(rowCount).padStart(2, '0')}</span>
+                                <span class="track-name" onclick="openAssetProfile('${safeKey}')" title="查看资产详情">
+                                    ${esc(table.key)} <i class="fa-solid fa-expand"></i>
+                                </span>
+                            </div>
+                            <div class="status-badge ${statusClass}"></div>
+                        </div>
+
+                        <div class="track-meta">
+                            <div class="meta-row">
+                                <span class="meta-icon"><i class="fa-regular fa-clock"></i></span>
+                                <span class="meta-value">来源楼层: ${esc(blockMeta?.sourceFloor || '-')}</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="meta-icon"><i class="fa-solid fa-location-crosshairs"></i></span>
+                                <span class="meta-value">当前楼层: ${esc(blockMeta?.currentFloor || '-')}</span>
+                            </div>
+                        </div>
+
+                        <div class="track-progress">
+                            <div><i class="fa-solid fa-terminal" style="opacity:0.5; margin-right:6px;"></i><span class="prog-text">${esc(table.key)}</span></div>
+                            <div class="iter-badge"><i class="fa-solid fa-arrows-spin"></i> ROW_${esc(rowCount)}</div>
+                        </div>
+
+                        <div class="track-summary-wrap ${openClass}">
+                            <div class="summary-header" onclick="toggleSummary(this, event)">
+                                <span><i class="fa-solid fa-align-left"></i> 表格明细</span>
+                                <div>
+                                    <i class="fa-regular fa-copy" style="margin-right:8px; opacity:0.8;" onclick="copySummary(this, decodeURIComponent(this.dataset.copy), event)" data-copy="${encodeURIComponent(copyText)}" title="复制情报"></i>
+                                    <i class="fa-solid fa-chevron-down chevron"></i>
+                                </div>
+                            </div>
+                            <div class="summary-content">
+                                <div class="table-wrap">
+                                    <table class="table">${rowsHtml}</table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            })
+            .join('');
+    }
+
+    function renderWorldTrackCards(tracks) {
+        currentTracks = tracks;
+        currentTables = [];
+        let isFirst = true;
+        assetGrid.innerHTML = tracks
+            .map((track) => {
+                const openClass = isFirst ? 'open' : '';
+                isFirst = false;
+                const safeKey = safeJsString(track.key);
+                const statusClass = String(track.status || '').includes('已汇入') ? 'status-merged' : 'status-simulating';
+
+                return `
+                    <div class="track-card">
+                        <div class="card-sheen"></div>
+                        <div class="track-header">
+                            <div class="track-identity">
+                                <span class="track-id">${esc(track.id)}</span>
+                                <span class="track-name" onclick="openAssetProfile('${safeKey}')" title="查阅终端档案">
+                                    ${esc(track.name)} <i class="fa-solid fa-expand"></i>
+                                </span>
+                            </div>
+                            <div class="status-badge ${statusClass}"></div>
+                        </div>
+
+                        <div class="track-meta">
+                            <div class="meta-row">
+                                <span class="meta-icon"><i class="fa-regular fa-clock"></i></span>
+                                <span class="meta-value">${esc(track.timeStr || 'N/A')}</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="meta-icon"><i class="fa-solid fa-location-crosshairs"></i></span>
+                                <span class="meta-value">${esc(track.locStr || 'N/A')}</span>
+                            </div>
+                        </div>
+
+                        <div class="track-progress">
+                            <div><i class="fa-solid fa-terminal" style="opacity:0.5; margin-right:6px;"></i><span class="prog-text">${esc(track.progStr || 'N/A')}</span></div>
+                            <div class="iter-badge"><i class="fa-solid fa-arrows-spin"></i> ITER_${esc(track.iterCount || '1')}</div>
+                        </div>
+
+                        <div class="track-summary-wrap ${openClass}">
+                            <div class="summary-header" onclick="toggleSummary(this, event)">
+                                <span><i class="fa-solid fa-align-left"></i> 观测概括</span>
+                                <div>
+                                    <i class="fa-regular fa-copy" style="margin-right:8px; opacity:0.8;" onclick="copySummary(this, decodeURIComponent(this.dataset.copy), event)" data-copy="${encodeURIComponent(track.sumStr || '无情报。')}" title="复制情报"></i>
+                                    <i class="fa-solid fa-chevron-down chevron"></i>
+                                </div>
+                            </div>
+                            <div class="summary-content">${esc(track.sumStr || '无情报。').replace(/\n/g, '<br>')}</div>
+                        </div>
+                    </div>
+                `;
+            })
+            .join('');
+    }
+
+    function setRunSimButtonState() {
+        const getBizSimApi = () => {
+            const candidates = [window, window.parent, window.top];
+            for (const host of candidates) {
+                try {
+                    if (host && host.BizSim) return host.BizSim;
+                } catch {
+                }
+            }
+            return null;
+        };
+
+        let isRunning = false;
+        try {
+            const api = getBizSimApi();
+            isRunning = !!(api && api.isSimulating);
+        } catch {
+        }
+
+        if (isRunning) {
+            runSimText.textContent = '推演中';
+            runSimBtn.style.opacity = '0.75';
+            runSimBtn.style.pointerEvents = 'none';
+            runSimBtn.querySelector('i').className = 'fa-solid fa-circle-notch fa-spin';
+            return;
+        }
+
+        runSimText.textContent = '点击推演';
+        runSimBtn.style.opacity = '1';
+        runSimBtn.style.pointerEvents = 'auto';
+        runSimBtn.querySelector('i').className = blockMeta && blockMeta.isLatest ? 'fa-solid fa-rotate' : 'fa-solid fa-play';
+        runSimBtn.title = blockMeta && blockMeta.isLatest
+            ? '当前数据已最新，可手动再推演'
+            : (blockMeta && blockMeta.actionHint) || '点击推演生成最新数据';
+    }
+
+    function subscribeSimulationState() {
+        const getBizSimApi = () => {
+            const candidates = [window, window.parent, window.top];
+            for (const host of candidates) {
+                try {
+                    if (host && host.BizSim) return host.BizSim;
+                } catch {
+                }
+            }
+            return null;
+        };
+
+        const api = getBizSimApi();
+        if (api && api.subscribeSimulationState) {
+            api.subscribeSimulationState(() => setRunSimButtonState());
+            return;
+        }
+
+        setInterval(() => {
+            try {
+                const sharedState = window.BizSimState || (window.parent && window.parent.BizSimState) || (window.top && window.top.BizSimState);
+                if (sharedState) setRunSimButtonState();
+            } catch {
+            }
+        }, 250);
+    }
+
+    async function triggerSimulation() {
+        const getBizSimApi = () => {
+            const candidates = [window, window.parent, window.top];
+            for (const host of candidates) {
+                try {
+                    if (host && host.BizSim) return host.BizSim;
+                } catch {
+                }
+            }
+            return null;
+        };
+
+        setRunSimButtonState();
+        try {
+            const api = getBizSimApi();
+            if (!api || (!api.simulateFromHtml && !api.simulate)) throw new Error('BizSim API 不可用');
+            const result = api.simulateFromHtml ? await api.simulateFromHtml() : await api.simulate();
+            if (!result || !result.success) throw new Error((result && result.error) || '推演失败');
+            toast.innerHTML = '<i class="fa-solid fa-check"></i> 推演完成';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        } catch (err) {
+            const reason = err && err.message ? `：${esc(err.message)}` : '';
+            toast.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> 推演失败${reason}`;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+            console.error('[ASSET_MATRIX] trigger simulation failed', err);
+        } finally {
+            setRunSimButtonState();
+        }
+    }
+
+    async function init() {
+        try {
+            if (typeof waitGlobalInitialized === 'function') {
+                await waitGlobalInitialized('Mvu');
+            }
+        } catch {
+        }
+
+        parseData();
+        setRunSimButtonState();
+
+        const canBindEvents = typeof eventOn === 'function';
+        let hasEventBindings = false;
+
+        if (canBindEvents && typeof Mvu !== 'undefined' && Mvu?.events?.VARIABLE_UPDATE_ENDED) {
+            eventOn(Mvu.events.VARIABLE_UPDATE_ENDED, () => parseData());
+            hasEventBindings = true;
+        }
+
+        if (canBindEvents && typeof tavern_events !== 'undefined') {
+            eventOn(tavern_events.MESSAGE_RECEIVED, () => parseData());
+            eventOn(tavern_events.MESSAGE_SWIPED, () => parseData());
+            hasEventBindings = true;
+        }
+
+        if (!hasEventBindings) {
+            setInterval(() => parseData(), 1000);
+        }
+
+        runSimBtn.addEventListener('click', triggerSimulation);
+        subscribeSimulationState();
+        setInterval(setRunSimButtonState, 1000);
+    }
+
+    init();
 })();
 </script>
 </body>
 </html>
-```

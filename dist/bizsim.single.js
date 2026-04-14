@@ -251,6 +251,7 @@ const BIZSIM_CONFIG = {
     mode: 'balanced',
     includeFloorData: true,
     includeWorldState: true,
+    bodyInjectionEnabled: false,
     retryCount: 2,
     repairOnParseError: true,
     autoSave: true,
@@ -1624,6 +1625,10 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
   },
 
   async injectBizSimBlocksToMessage(messageId, maxLookback = 10) {
+    if (this.config.SIMULATION?.bodyInjectionEnabled !== true) {
+      return { success: false, updated: false, reason: 'body-injection-disabled' };
+    }
+
     const message = getChatMessageByIdSafe(messageId);
     if (!message || !this.isAssistantMessage(message)) return { success: false, reason: 'not-assistant' };
 
@@ -1978,7 +1983,9 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
       this.validateCrossSheetIntegrity();
       if (this.config.SIMULATION?.autoSave !== false) await this.saveData();
 
-      const injected = await this.injectBizSimBlocksToMessage(syncResult.messageId, 10);
+      const injected = this.config.SIMULATION?.bodyInjectionEnabled === true
+        ? await this.injectBizSimBlocksToMessage(syncResult.messageId, 10)
+        : { success: false, updated: false, reason: 'body-injection-disabled' };
 
       return {
         success: true,
@@ -3276,6 +3283,9 @@ function createMainPanelHtml(engine) {
               <label><input type="checkbox" id="sim-include-world-state" ${engine.config.SIMULATION.includeWorldState ? 'checked' : ''}> 注入世界推演状态</label>
             </div>
             <div class="bizsim-form-group">
+              <label><input type="checkbox" id="sim-body-injection-enabled" ${engine.config.SIMULATION.bodyInjectionEnabled ? 'checked' : ''}> 正文注入</label>
+            </div>
+            <div class="bizsim-form-group">
               <label><input type="checkbox" id="sim-auto-save" ${engine.config.SIMULATION.autoSave ? 'checked' : ''}> 自动保存推演结果到角色卡变量</label>
             </div>
             <div class="bizsim-form-group">
@@ -4034,6 +4044,7 @@ function saveSimulationSettings(ui, silent = false) {
   const worldHistoryFloors = Number.parseInt(ui.byId('sim-world-history-floors')?.value, 10);
   const includeFloorData = !!ui.byId('sim-include-floor-data')?.checked;
   const includeWorldState = !!ui.byId('sim-include-world-state')?.checked;
+  const bodyInjectionEnabled = !!ui.byId('sim-body-injection-enabled')?.checked;
   const retryCount = Number.parseInt(ui.byId('sim-retry-count')?.value, 10);
   const repairOnParseError = !!ui.byId('sim-repair-on-parse')?.checked;
   const autoRunEnabled = !!ui.byId('sim-auto-run-enabled')?.checked;
@@ -4066,6 +4077,7 @@ function saveSimulationSettings(ui, silent = false) {
   ui.engine.config.SIMULATION.autoSave = autoSave;
   ui.engine.config.SIMULATION.includeFloorData = includeFloorData;
   ui.engine.config.SIMULATION.includeWorldState = includeWorldState;
+  ui.engine.config.SIMULATION.bodyInjectionEnabled = bodyInjectionEnabled;
   ui.engine.config.SIMULATION.repairOnParseError = repairOnParseError;
   ui.engine.config.SIMULATION.autoRunEnabled = autoRunEnabled;
   ui.engine.config.SIMULATION.autoRunOnlyAssistant = autoRunOnlyAssistant;
@@ -4116,6 +4128,7 @@ function resetSimulationSettings(ui) {
   if (ui.byId('sim-world-history-floors')) ui.byId('sim-world-history-floors').value = ui.engine.config.SIMULATION.worldHistoryFloors;
   if (ui.byId('sim-include-floor-data')) ui.byId('sim-include-floor-data').checked = ui.engine.config.SIMULATION.includeFloorData !== false;
   if (ui.byId('sim-include-world-state')) ui.byId('sim-include-world-state').checked = ui.engine.config.SIMULATION.includeWorldState;
+  if (ui.byId('sim-body-injection-enabled')) ui.byId('sim-body-injection-enabled').checked = ui.engine.config.SIMULATION.bodyInjectionEnabled === true;
   if (ui.byId('sim-worldbook-name')) ui.byId('sim-worldbook-name').value = ui.engine.config.SIMULATION.worldbookName || '';
   if (ui.byId('sim-retry-count')) ui.byId('sim-retry-count').value = ui.engine.config.SIMULATION.retryCount;
   if (ui.byId('sim-repair-on-parse')) ui.byId('sim-repair-on-parse').checked = ui.engine.config.SIMULATION.repairOnParseError;
@@ -6057,10 +6070,12 @@ async function maybeAutoSimulate(messageId) {
 }
 
 async function injectForAssistantMessage(messageId) {
+  const ctx = await initBizSim();
+  if (ctx.engine?.config?.SIMULATION?.bodyInjectionEnabled !== true) return;
+
   const targetMessageId = Number(messageId);
   if (injectedAssistantMessageIds.has(targetMessageId)) return;
 
-  const ctx = await initBizSim();
   const latestAssistantMessageId = ctx.engine?.getLatestAssistantMessageIdSafe?.();
   if (latestAssistantMessageId === null || latestAssistantMessageId === undefined) return;
   if (Number(messageId) !== Number(latestAssistantMessageId)) return;
@@ -6124,7 +6139,7 @@ async function quickSimulate() {
   try {
     setSimulationState(true, '手动推演');
     const result = await ctx.engine.runSimulation(true);
-    if (result?.success) {
+    if (result?.success && ctx.engine.config.SIMULATION?.bodyInjectionEnabled === true) {
       const injectedMessageId = Number(result?.data?.floorSync?.messageId);
       if (Number.isInteger(injectedMessageId)) injectedAssistantMessageIds.add(injectedMessageId);
     }

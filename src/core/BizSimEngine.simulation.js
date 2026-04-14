@@ -35,6 +35,10 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
   },
 
   async injectBizSimBlocksToMessage(messageId, maxLookback = 10) {
+    if (this.config.SIMULATION?.bodyInjectionEnabled !== true) {
+      return { success: false, updated: false, reason: 'body-injection-disabled' };
+    }
+
     const message = getChatMessageByIdSafe(messageId);
     if (!message || !this.isAssistantMessage(message)) return { success: false, reason: 'not-assistant' };
 
@@ -389,7 +393,9 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
       this.validateCrossSheetIntegrity();
       if (this.config.SIMULATION?.autoSave !== false) await this.saveData();
 
-      const injected = await this.injectBizSimBlocksToMessage(syncResult.messageId, 10);
+      const injected = this.config.SIMULATION?.bodyInjectionEnabled === true
+        ? await this.injectBizSimBlocksToMessage(syncResult.messageId, 10)
+        : { success: false, updated: false, reason: 'body-injection-disabled' };
 
       return {
         success: true,
