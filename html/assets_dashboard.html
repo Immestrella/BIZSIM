@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -137,7 +136,7 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 .asset-card {
     position: relative; background: rgba(var(--c-card), 0.8);
     border: 1px solid rgba(var(--c-border), 0.5); padding: 16px;
-    display: flex; flex-direction: column; gap: 12px; transition: var(--tr); overflow: hidden;
+    display: flex; flex-direction: column; transition: var(--tr); overflow: hidden;
 }
 .asset-card::before, .asset-card::after {
     content: ''; position: absolute; width: 16px; height: 16px; pointer-events: none; transition: var(--tr);
@@ -158,28 +157,116 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 @keyframes cardSheen { 0% { transform: translateX(-120%) rotate(8deg) } 100% { transform: translateX(120%) rotate(8deg) } }
 @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 
-.asset-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px dashed rgba(var(--c-border), 0.6); }
-.asset-name { font-size: 15px; font-weight: bold; color: rgb(var(--c-prim)); letter-spacing: 1px; display: inline-flex; align-items: center; gap: 8px; }
+.asset-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px dashed rgba(var(--c-border), 0.6); }
+.asset-name { font-size: 15px; font-weight: bold; color: rgb(var(--c-prim)); letter-spacing: 1px; display: inline-flex; align-items: center; gap: 8px; text-shadow: 0 0 8px rgba(var(--c-prim), 0.3); }
 
-/* 响应式表格包裹器 */
-.table-wrap { width: 100%; overflow-x: auto; margin-top: 4px; }
-.table-wrap::-webkit-scrollbar { height: 4px; }
-.table-wrap::-webkit-scrollbar-track { background: rgba(var(--c-bg), 0.5); }
-.table-wrap::-webkit-scrollbar-thumb { background: rgba(var(--c-prim), 0.3); border-radius: 2px; }
+/* =========================================
+   重构：机能风内部表格数据展示 (CYBERPUNK UI)
+   ========================================= */
 
-/* 智能表格：双列模式 & 多列模式 */
-.asset-table { width: 100%; border-collapse: collapse; font-family: var(--font-code); font-size: 12px; white-space: nowrap; }
-.asset-table th, .asset-table td { padding: 8px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid rgba(var(--c-border), 0.3); }
+/* Object 数据格式：数据矩阵网格 */
+.kv-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 8px;
+    font-family: var(--font-code);
+}
+.kv-item {
+    background: rgba(var(--c-text), 0.02);
+    border-left: 2px solid rgba(var(--c-border), 0.5);
+    padding: 8px 12px;
+    transition: var(--tr);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.kv-item:hover {
+    background: rgba(var(--c-prim), 0.08);
+    border-left-color: rgb(var(--c-prim));
+    box-shadow: inset 20px 0 20px -20px rgba(var(--c-prim), 0.4);
+}
+.kv-label {
+    font-size: 10px;
+    color: rgba(var(--c-text), 0.5);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+}
+.kv-label::before {
+    content: '>';
+    color: rgb(var(--c-prim));
+    margin-right: 4px;
+    opacity: 0.8;
+    font-weight: bold;
+}
+.kv-val {
+    font-size: 13px;
+    color: rgb(var(--c-text));
+    font-weight: bold;
+    word-break: break-all;
+}
 
-/* Object: 双列表格样式 */
-.asset-table.two-col th { color: rgba(var(--c-text), 0.6); font-weight: normal; width: 35%; white-space: normal; }
-.asset-table.two-col td { color: rgb(var(--c-text)); font-weight: bold; white-space: normal; word-break: break-all; }
+/* Array 数据格式：响应式动效列表 */
+.array-wrap {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+.array-wrap::-webkit-scrollbar { height: 4px; }
+.array-wrap::-webkit-scrollbar-track { background: rgba(var(--c-bg), 0.5); }
+.array-wrap::-webkit-scrollbar-thumb { background: rgba(var(--c-prim), 0.3); border-radius: 2px; }
 
-/* Array: 多列表格样式 */
-.asset-table.multi-col thead th { background: rgba(var(--c-prim), 0.05); color: rgb(var(--c-prim)); font-weight: bold; border-bottom: 1px dashed rgba(var(--c-prim), 0.4); }
-.asset-table.multi-col tbody td { color: rgb(var(--c-text)); }
+.array-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 6px;
+    font-family: var(--font-code);
+    font-size: 12px;
+    white-space: nowrap;
+}
+.array-table th {
+    color: rgb(var(--c-prim));
+    font-weight: bold;
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px dashed rgba(var(--c-prim), 0.4);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    background: rgba(var(--c-prim), 0.05);
+}
+.array-table td {
+    padding: 10px 12px;
+    background: rgba(var(--c-text), 0.03);
+    color: rgb(var(--c-text));
+    border-top: 1px solid transparent;
+    border-bottom: 1px solid transparent;
+    transition: var(--tr);
+}
+.array-table tr td:first-child {
+    border-left: 2px solid rgba(var(--c-border), 0.5);
+    border-top-left-radius: 4px;
+    border-bottom-left-radius: 4px;
+}
+.array-table tr td:last-child {
+    border-right: 1px solid transparent;
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+}
+.array-table tbody tr:hover td {
+    background: rgba(var(--c-prim), 0.1);
+    border-top: 1px solid rgba(var(--c-prim), 0.2);
+    border-bottom: 1px solid rgba(var(--c-prim), 0.2);
+    color: #fff;
+    text-shadow: 0 0 4px rgba(255,255,255,0.3);
+}
+.array-table tbody tr:hover td:first-child {
+    border-left-color: rgb(var(--c-prim));
+    box-shadow: inset 15px 0 15px -15px rgba(var(--c-prim), 0.6);
+}
 
-.asset-table tr:last-child th, .asset-table tr:last-child td { border-bottom: none; }
 
 /* 底部检查面板 */
 .nos-footer { background: rgba(var(--c-bg), 0.9); border-top: 1px solid rgba(var(--c-prim), 0.3); padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; font-family: var(--font-code); }
@@ -193,6 +280,72 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 /* Toast */
 .nos-toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-50px); background: rgba(var(--c-prim), 0.9); color: #fff; padding: 8px 20px; border-radius: 20px; font-weight: bold; font-size: 12px; opacity: 0; pointer-events: none; transition: var(--tr); z-index: 9999; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
 .nos-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+/* =========================================
+   NARRATIVE OS - 核心组件层级化重构
+   ========================================= */
+
+/* T0: HUD 仪表盘 (资产总览) */
+.hud-panel {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    background: linear-gradient(135deg, rgba(var(--c-prim), 0.1), transparent);
+    border: 1px solid rgba(var(--c-prim), 0.4);
+    border-radius: 6px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+}
+.hud-panel::before {
+    content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 2px;
+    background: linear-gradient(90deg, transparent, rgb(var(--c-prim)));
+    animation: scan-x 3s linear infinite;
+}
+@keyframes scan-x { to { left: 200%; } }
+
+.hud-stat {
+    flex: 1; min-width: 200px;
+    display: flex; flex-direction: column; gap: 6px;
+    border-right: 1px dashed rgba(var(--c-border), 0.5);
+    padding-right: 16px;
+}
+.hud-stat:last-child { border-right: none; }
+.hud-stat .label { font-size: 11px; color: rgba(var(--c-text), 0.6); text-transform: uppercase; }
+.hud-stat .value { font-size: 24px; font-weight: bold; color: rgb(var(--c-text)); text-shadow: 0 0 10px rgba(var(--c-text), 0.2); }
+.hud-stat.highlight .value { color: rgb(var(--c-prim)); text-shadow: 0 0 15px rgba(var(--c-prim), 0.4); }
+.hud-stat.positive .value { color: rgb(var(--c-pass)); }
+.hud-stat.negative .value { color: rgb(var(--c-warn)); }
+
+.hud-tags { margin-top: 4px; display: flex; gap: 8px; font-size: 10px; }
+.status-tag { padding: 2px 6px; border-radius: 2px; background: rgba(var(--c-text), 0.1); border: 1px solid rgba(var(--c-text), 0.3); }
+.status-tag.ok { color: rgb(var(--c-pass)); border-color: rgba(var(--c-pass), 0.5); background: rgba(var(--c-pass), 0.1); }
+.status-tag.warn { color: rgb(var(--c-sec)); border-color: rgba(var(--c-sec), 0.5); background: rgba(var(--c-sec), 0.1); }
+
+/* T1: 集团母节点卡片 */
+.nexus-card {
+    grid-column: 1 / -1;
+    background: rgba(10, 15, 20, 0.8);
+    border: 1px solid rgba(var(--c-prim), 0.6);
+    box-shadow: inset 0 0 30px rgba(var(--c-prim), 0.05);
+}
+.nexus-header {
+    padding: 12px 16px; border-bottom: 1px solid rgba(var(--c-prim), 0.3);
+    background: rgba(var(--c-prim), 0.05);
+    display: flex; justify-content: space-between; align-items: center;
+}
+.nexus-title { font-size: 18px; font-weight: bold; color: rgb(var(--c-prim)); text-transform: uppercase; }
+.nexus-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 16px; }
+
+/* T1: 业务子模块聚合区 */
+.segments-wrapper {
+    grid-column: 1 / -1;
+    display: flex; flex-direction: column; gap: 12px;
+    padding-left: 20px; border-left: 2px solid rgba(var(--c-prim), 0.3);
+    margin-top: -10px; margin-bottom: 10px;
+}
+.segments-title { font-size: 12px; color: rgba(var(--c-text), 0.5); letter-spacing: 2px; margin-bottom: -4px; }
 </style>
 </head>
 <body>
@@ -332,36 +485,143 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
         const worldState = statData.bizsim_world_state || {};
         const assetKeys = Object.keys(assets);
 
-        // Banner: 由于纯变量驱动，这里可以默认视为最新同步态，或根据世界状态决定
         nosBanner.className = 'nos-banner ok';
         nosBanner.innerHTML = `<i class="fa-solid fa-link"></i> <span>资产数据阵列已同步读取成功</span>`;
 
-        // 渲染 Grid
         let htmlGrid = '';
+
+        // 提取特殊表进行路由渲染
+        const overview = assets['资产总览表'];
+        const nexus = assets['集团架构表'];
+        const segments = assets['业务板块表'];
+
+        // --- 1. 渲染 T0 层级：全息总览屏 ---
+        if (overview) {
+            // 解析净资产声望
+            let netWorthStr = overview['净资产'] || '';
+            let val = netWorthStr.split('|')[0] || netWorthStr;
+            let rep = netWorthStr.split('|')[1] || '';
+
+            // 解析现金状态
+            let cashStr = overview['个人现金账户'] || '';
+            let cashVal = cashStr.replace(/\[.*?\]/g, ''); // 剔除括号内容
+            let isCashOk = cashStr.includes('健康');
+
+            // 解析月收入状态
+            let incomeStr = overview['个人月净收入'] || '';
+            let incomeClass = incomeStr.includes('+') ? 'positive' : (incomeStr.includes('-') ? 'negative' : '');
+
+            htmlGrid += `
+                <div class="hud-panel">
+                    <div class="hud-stat highlight">
+                        <span class="label"><i class="fa-solid fa-globe"></i> GLOBAL_NET_WORTH</span>
+                        <span class="value">${escapeHtml(val.trim())}</span>
+                        ${rep ? `<div class="hud-tags"><span class="status-tag">${escapeHtml(rep.trim())}</span></div>` : ''}
+                    </div>
+                    <div class="hud-stat">
+                        <span class="label"><i class="fa-solid fa-wallet"></i> LIQUID_FUNDS</span>
+                        <span class="value">${escapeHtml(cashVal.trim())}</span>
+                        <div class="hud-tags">
+                            <span class="status-tag ${isCashOk ? 'ok' : 'warn'}">${isCashOk ? 'HEALTHY' : 'WARNING'}</span>
+                        </div>
+                    </div>
+                    <div class="hud-stat ${incomeClass}">
+                        <span class="label"><i class="fa-solid fa-chart-line"></i> MONTHLY_YIELD</span>
+                        <span class="value">${escapeHtml(incomeStr)}</span>
+                    </div>
+                    <div style="width: 100%; border-top: 1px solid rgba(var(--c-border),0.4); padding-top: 8px; font-size: 11px; color: rgba(var(--c-text), 0.6);">
+                        <span style="color:rgb(var(--c-prim));">>> SYS_LOG:</span> ${escapeHtml(overview['本轮变动摘要'])}
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- 2. 渲染 T1 层级：集团中枢 ---
+        if (nexus) {
+            const nexusItems = Object.entries(nexus).map(([k, v]) => {
+                if (k === '实体名称') return ''; // 头部已显示
+                // 将中括号内的内容渲染为副标签
+                const mainVal = escapeHtml(v.replace(/\[.*?\]/g, ''));
+                const tags = (v.match(/\[(.*?)\]/g) || []).map(t => `<span class="status-tag" style="font-size:9px;">${escapeHtml(t.replace(/\[|\]/g, ''))}</span>`).join('');
+                
+                return `
+                <div class="kv-item" style="background:transparent; border-left-color:rgba(var(--c-prim),0.5);">
+                    <span class="kv-label">${escapeHtml(k)}</span>
+                    <span class="kv-val">${mainVal} <div style="display:inline-flex; gap:4px; margin-left:4px;">${tags}</div></span>
+                </div>`;
+            }).join('');
+
+            htmlGrid += `
+                <div class="asset-card nexus-card">
+                    <div class="nexus-header">
+                        <div class="nexus-title"><i class="fa-brands fa-hubspot"></i> CORE_NEXUS: ${escapeHtml(nexus['实体名称'] || 'UNKNOWN')}</div>
+                        <div class="status-tag ok">OPERATIONAL</div>
+                    </div>
+                    <div class="nexus-grid">${nexusItems}</div>
+                </div>
+            `;
+        }
+
+        // --- 3. 渲染 T1.5 层级：业务子模块 ---
+        if (segments && Array.isArray(segments) && segments.length > 0) {
+            const headers = Object.keys(segments[0]);
+            const thead = `<tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr>`;
+            const tbody = segments.map(row => 
+                `<tr>${headers.map(h => {
+                    let cellVal = escapeHtml(row[h]);
+                    // 对经营状态/月净利做高亮处理
+                    if (h === '经营状态' && cellVal === '稳定') cellVal = `<span style="color:rgb(var(--c-pass))">${cellVal}</span>`;
+                    if (h === '月净利' && cellVal.includes('+')) cellVal = `<span style="color:rgb(var(--c-prim))">${cellVal}</span>`;
+                    return `<td>${cellVal}</td>`;
+                }).join('')}</tr>`
+            ).join('');
+
+            htmlGrid += `
+                <div class="segments-wrapper">
+                    <div class="segments-title">>> SUB_SEGMENTS / 挂载业务矩阵</div>
+                    <div class="array-wrap" style="background: rgba(var(--c-card), 0.4); border: 1px solid rgba(var(--c-border), 0.3); border-radius: 4px; padding: 8px;">
+                        <table class="array-table">
+                            <thead>${thead}</thead>
+                            <tbody>${tbody}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- 4. 渲染 T2 层级：剩余常规表 ---
         assetKeys.forEach(tableName => {
+            // 跳过已处理的特殊表
+            if (['资产总览表', '集团架构表', '业务板块表'].includes(tableName)) return;
+
             const data = assets[tableName];
-            let tableBody = '';
-            let tableClass = 'two-col';
+            let contentHtml = '';
 
             if (Array.isArray(data)) {
-                // 多列表格 (Array of Objects)
                 if (data.length === 0) return;
-                tableClass = 'multi-col';
                 const headers = Object.keys(data[0]);
                 const thead = `<tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr>`;
                 const tbody = data.map(row => 
                     `<tr>${headers.map(h => `<td>${escapeHtml(row[h])}</td>`).join('')}</tr>`
                 ).join('');
-                tableBody = `<thead>${thead}</thead><tbody>${tbody}</tbody>`;
+                
+                contentHtml = `
+                    <div class="array-wrap">
+                        <table class="array-table">
+                            <thead>${thead}</thead>
+                            <tbody>${tbody}</tbody>
+                        </table>
+                    </div>
+                `;
             } else if (typeof data === 'object' && data !== null) {
-                // 双列表格 (Key-Value Object)
-                tableClass = 'two-col';
-                tableBody = `<tbody>` + Object.entries(data).map(([k, v]) => 
-                    `<tr><th>${escapeHtml(k)}</th><td>${escapeHtml(v)}</td></tr>`
-                ).join('') + `</tbody>`;
-            } else {
-                return; // 跳过非格式化数据
-            }
+                const kvItems = Object.entries(data).map(([k, v]) => 
+                    `<div class="kv-item">
+                        <span class="kv-label">${escapeHtml(k)}</span>
+                        <span class="kv-val">${escapeHtml(v)}</span>
+                    </div>`
+                ).join('');
+                contentHtml = `<div class="kv-grid">${kvItems}</div>`;
+            } else { return; }
 
             htmlGrid += `
                 <div class="asset-card">
@@ -369,16 +629,14 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
                     <div class="asset-header">
                         <div class="asset-name"><i class="fa-solid fa-cube"></i> ${escapeHtml(tableName)}</div>
                     </div>
-                    <div class="table-wrap">
-                        <table class="asset-table ${tableClass}">${tableBody}</table>
-                    </div>
+                    ${contentHtml}
                 </div>
             `;
         });
         
         grid.innerHTML = htmlGrid || '<div style="color:gray;text-align:center;width:100%;padding:20px;">资产库为空</div>';
 
-        // 渲染 Check Panel (兼容 worldState.checks 或其它逻辑结构)
+        // ... 保留原有的 Check Panel 渲染逻辑 ...
         let allChecksPass = true;
         let checksHtml = '';
         const checks = worldState.checks || {};
@@ -396,12 +654,10 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
                 `;
             }).join('');
         } else {
-            // 如果变量里没有 checks 字段，提供默认静默状态
             checksHtml = '<div class="check-item check-pass"><div class="check-light"></div><span class="check-label">资产结构校验正常</span></div>';
         }
         checkPanel.innerHTML = checksHtml;
 
-        // 更新收纳状态的微缩看板
         fsTrackCount.textContent = `${assetKeys.length} BLOCKS`;
         if (allChecksPass) {
             fsDiagStatus.className = 'fs-item fs-pass';
@@ -421,20 +677,17 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
             await getWaitFunc('Mvu');
         }
 
-        // 订阅 Mvu 全局变量更新事件
         const mvuEvents = getApiFunc('Mvu')?.events || window.Mvu?.events || window.parent?.Mvu?.events;
         if (mvuEvents && typeof mvuEvents.addEventListener === 'function') {
             mvuEvents.addEventListener('VARIABLE_UPDATE_ENDED', render);
         }
 
-        // 订阅酒馆消息事件
         const tEvents = window.tavern_events || window.parent?.tavern_events;
         if (tEvents && typeof tEvents.addEventListener === 'function') {
             tEvents.addEventListener('MESSAGE_RECEIVED', render);
             tEvents.addEventListener('MESSAGE_SWIPED', render);
         }
 
-        // 立即执行首次渲染
         render();
     }
 
@@ -468,7 +721,6 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2000);
             
-            // 手动触发一次渲染拉取最新变量
             render();
         } catch (err) {
             toast.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> 推演失败`;
@@ -490,4 +742,3 @@ body { background: transparent; font-family: var(--font-main); color: rgb(var(--
 </script>
 </body>
 </html>
-```
