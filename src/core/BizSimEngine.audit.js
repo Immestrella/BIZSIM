@@ -127,6 +127,14 @@ export const BIZSIM_ENGINE_AUDIT_METHODS = {
 
     this.worldSimulation.tracks.push(newTrack);
     this.worldSimulation.checks.newTracksAdded = true;
+    this.emit?.('data-changed', {
+      source: 'addWorldTrack',
+      timestamp: Date.now(),
+      data: {
+        floorData: this.data,
+        worldSimulation: this.worldSimulation,
+      },
+    });
     this.saveFloorDataOnly();
     return newTrack.id;
   },

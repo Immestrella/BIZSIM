@@ -26,6 +26,87 @@ export class BizSimEngine {
     };
     this.initialized = false;
     this.presetManager = null;
+    this._pendingData = null;
+    this._pendingWorldSimulation = null;
+    this._pendingMeta = null;
+    this._listeners = new Map();
+    this._isSimulating = false;
+    this._tagRegexCache = new Map();
+  }
+
+  on(eventName, handler) {
+    if (!eventName || typeof handler !== 'function') return () => {};
+    const key = String(eventName);
+    if (!this._listeners.has(key)) {
+      this._listeners.set(key, new Set());
+    }
+    this._listeners.get(key).add(handler);
+    return () => {
+      const listeners = this._listeners.get(key);
+      if (!listeners) return;
+      listeners.delete(handler);
+      if (!listeners.size) this._listeners.delete(key);
+    };
+  }
+
+  emit(eventName, payload = {}) {
+    const key = String(eventName || '');
+    if (!key) return;
+    const listeners = this._listeners.get(key);
+    if (!listeners || !listeners.size) return;
+
+    for (const listener of listeners) {
+      try {
+        listener(payload);
+      } catch (error) {
+        console.warn(`[BizSim] 事件监听器执行失败: ${key}`, error);
+      }
+    }
+  }
+
+  _setSimulationRunning(running, source = 'simulation') {
+    this._isSimulating = !!running;
+    this.emit('simulation-state-changed', {
+      isSimulating: this._isSimulating,
+      source: String(source || 'simulation'),
+      timestamp: Date.now(),
+    });
+  }
+
+  _stagePendingState(floorData, worldSimulation, meta = {}) {
+    this._pendingData = floorData ? deepClone(floorData) : null;
+    this._pendingWorldSimulation = worldSimulation ? deepClone(worldSimulation) : null;
+    this._pendingMeta = {
+      source: String(meta.source || 'unknown'),
+      traceId: String(meta.traceId || Date.now()),
+      stagedAt: new Date().toISOString(),
+    };
+  }
+
+  _clearPendingState() {
+    this._pendingData = null;
+    this._pendingWorldSimulation = null;
+    this._pendingMeta = null;
+  }
+
+  _commitState(meta = {}) {
+    if (!this._pendingData || !this._pendingWorldSimulation) return false;
+
+    this.data = deepClone(this._pendingData);
+    this.worldSimulation = deepClone(this._pendingWorldSimulation);
+
+    this.emit('data-changed', {
+      source: String(meta.source || this._pendingMeta?.source || 'unknown'),
+      traceId: String(meta.traceId || this._pendingMeta?.traceId || ''),
+      timestamp: Date.now(),
+      data: {
+        floorData: this.data,
+        worldSimulation: this.worldSimulation,
+      },
+    });
+
+    this._clearPendingState();
+    return true;
   }
 
   async initialize() {
@@ -134,9 +215,20 @@ export class BizSimEngine {
       };
 
       insertOrAssignVariablesSafe(settingsPayload);
+      this.emit('save-completed', {
+        type: 'settings',
+        success: true,
+        timestamp: Date.now(),
+      });
       return true;
     } catch (error) {
       console.error('[BizSim] 保存设置失败:', error);
+      this.emit('save-completed', {
+        type: 'settings',
+        success: false,
+        error: error?.message || 'unknown-error',
+        timestamp: Date.now(),
+      });
       return false;
     }
   }
@@ -166,9 +258,30 @@ export class BizSimEngine {
       };
 
       insertOrAssignVariablesSafe(floorPayload, { type: 'message', message_id: messageId });
+      this.emit('data-changed', {
+        source: 'saveFloorDataOnly',
+        messageId,
+        timestamp: Date.now(),
+        data: {
+          floorData: this.data,
+          worldSimulation: this.worldSimulation,
+        },
+      });
+      this.emit('save-completed', {
+        type: 'floor',
+        success: true,
+        messageId,
+        timestamp: Date.now(),
+      });
       return true;
     } catch (error) {
       console.error('[BizSim] 保存楼层数据失败:', error);
+      this.emit('save-completed', {
+        type: 'floor',
+        success: false,
+        error: error?.message || 'unknown-error',
+        timestamp: Date.now(),
+      });
       return false;
     }
   }

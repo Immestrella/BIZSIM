@@ -34,6 +34,7 @@ export const BIZSIM_CONFIG = {
     mode: 'balanced',
     includeFloorData: true,
     includeWorldState: true,
+    promptTokenBudget: 500000,
     bodyInjectionEnabled: false,
     retryCount: 2,
     repairOnParseError: true,

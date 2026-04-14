@@ -254,6 +254,7 @@ const BIZSIM_CONFIG = {
     mode: 'balanced',
     includeFloorData: true,
     includeWorldState: true,
+    promptTokenBudget: 500000,
     bodyInjectionEnabled: false,
     retryCount: 2,
     repairOnParseError: true,
@@ -1629,27 +1630,50 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
     return !(message.is_user === true || message.from_user === true || message.isUser === true || role === 'user');
   },
 
-  replaceTaggedBlock(text, tagName, newBlock) {
-    const escaped = escapeRegExp(tagName);
-    const completeBlockPattern = new RegExp(`<${escaped}\\b[^>]*>[\\s\\S]*?<\\/${escaped}>`, 'gi');
-    const danglingOpenPattern = new RegExp(`<${escaped}\\b[^>]*>[\\s\\S]*$`, 'i');
-    const danglingClosePattern = new RegExp(`<\\/${escaped}>`, 'gi');
+  getTagRegexPack(tagName) {
+    const normalizedTag = String(tagName || '').trim().toLowerCase();
+    if (!normalizedTag) return null;
+
+    if (!this._tagRegexCache) {
+      this._tagRegexCache = new Map();
+    }
+
+    if (!this._tagRegexCache.has(normalizedTag)) {
+      const escaped = escapeRegExp(normalizedTag);
+      this._tagRegexCache.set(normalizedTag, {
+        completeBlockPattern: new RegExp(`<${escaped}\\b[^>]*>[\\s\\S]*?<\\/${escaped}>`, 'gi'),
+        danglingOpenPattern: new RegExp(`<${escaped}\\b[^>]*>[\\s\\S]*$`, 'i'),
+        danglingClosePattern: new RegExp(`<\\/${escaped}>`, 'gi'),
+      });
+    }
+
+    return this._tagRegexCache.get(normalizedTag);
+  },
+
+  replaceTaggedBlock(text, tagName, newBlock, options = {}) {
+    const pack = this.getTagRegexPack(tagName);
+    if (!pack) return String(text || '');
+    const { completeBlockPattern, danglingOpenPattern, danglingClosePattern } = pack;
 
     const cleaned = String(text || '')
-      // 先移除所有完整标签块
       .replace(completeBlockPattern, '')
-      // 再移除末尾残缺开标签（例如: <tag> ... <tag> ... </tag> 这类异常拼接后残留）
       .replace(danglingOpenPattern, '')
-      // 最后清理孤立闭标签
       .replace(danglingClosePattern, '')
       .replace(/\n{3,}/g, '\n\n')
       .trimEnd();
 
     const trimmed = cleaned;
-    return trimmed ? `${trimmed}\n\n${newBlock}` : newBlock;
+    const blockText = String(newBlock || '').trim();
+    if (!blockText) return trimmed;
+
+    const mode = String(options?.position || 'append').toLowerCase();
+    if (mode === 'prepend') {
+      return trimmed ? `${blockText}\n\n${trimmed}` : blockText;
+    }
+    return trimmed ? `${trimmed}\n\n${blockText}` : blockText;
   },
 
-  async injectBizSimBlocksToMessage(messageId, maxLookback = 10) {
+  async injectBizSimBlocksToMessage(messageId, maxLookback = 10, injectionMode = 'append') {
     if (this.config.SIMULATION?.bodyInjectionEnabled !== true) {
       return { success: false, updated: false, reason: 'body-injection-disabled' };
     }
@@ -1663,8 +1687,8 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
 
     const originalText = String(message.message || message.mes || message.content || '');
     let updatedText = originalText;
-    if (worldBlock) updatedText = this.replaceTaggedBlock(updatedText, 'bz_world_state', worldBlock);
-    if (assetBlock) updatedText = this.replaceTaggedBlock(updatedText, 'bz_asset_sheet', assetBlock);
+    if (worldBlock) updatedText = this.replaceTaggedBlock(updatedText, 'bz_world_state', worldBlock, { position: injectionMode });
+    if (assetBlock) updatedText = this.replaceTaggedBlock(updatedText, 'bz_asset_sheet', assetBlock, { position: injectionMode });
     if (updatedText === originalText) return { success: true, updated: false };
 
     const ok = await setChatMessageTextSafe(messageId, updatedText, 'none');
@@ -1944,6 +1968,9 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
 
   async runSimulation(useHistory = true) {
     if (!this.initialized) await this.initialize();
+    const traceId = `sim_${Date.now()}`;
+    let completionPayload = null;
+    this._setSimulationRunning?.(true, 'runSimulation');
 
     try {
       const historyLimit = Number(this.config.SIMULATION?.historyLimit) || 10;
@@ -1973,7 +2000,17 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
         lastError = `第 ${attempt + 1} 次返回无法解析为 JSON`;
       }
 
-      if (!parsed) return { success: false, error: lastError || '无法解析推演结果', raw: lastRawResult };
+      if (!parsed) {
+        const failResult = { success: false, error: lastError || '无法解析推演结果', raw: lastRawResult };
+        completionPayload = {
+          success: false,
+          traceId,
+          source: 'runSimulation',
+          error: failResult.error,
+          timestamp: Date.now(),
+        };
+        return failResult;
+      }
 
       const previousData = this.data;
       const previousWorldSimulation = this.worldSimulation;
@@ -1985,14 +2022,17 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
       const blockingIssues = Array.isArray(validationResult?.blockingIssues) ? validationResult.blockingIssues : [];
       const warningIssues = Array.isArray(validationResult?.warningIssues) ? validationResult.warningIssues : [];
 
-      if (normalized.floorData) this.data = normalized.floorData;
-      if (normalized.worldSimulation) this.worldSimulation = normalized.worldSimulation;
+      this._stagePendingState?.(normalized.floorData, normalized.worldSimulation, {
+        source: 'simulation:parsed',
+        traceId,
+      });
 
-      const syncResult = await this.syncLatestFloorVariables(normalized.floorData, normalized.worldSimulation);
+      const syncResult = await this.syncLatestFloorVariables(this._pendingData, this._pendingWorldSimulation);
       if (!syncResult?.success) {
         this.data = previousData;
         this.worldSimulation = previousWorldSimulation;
-        return {
+        this._clearPendingState?.();
+        const failResult = {
           success: false,
           error: '本地约束校验未通过，已阻止写回。',
           constraintErrors: Array.isArray(syncResult?.errors) ? syncResult.errors : ['未知约束错误'],
@@ -2000,10 +2040,26 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
           localValidationBlockingIssues: blockingIssues,
           localValidationWarningIssues: warningIssues,
         };
+        completionPayload = {
+          success: false,
+          traceId,
+          source: 'syncLatestFloorVariables',
+          error: failResult.error,
+          constraintErrors: failResult.constraintErrors,
+          timestamp: Date.now(),
+        };
+        return failResult;
       }
 
-      if (syncResult.normalizedFloorData) this.data = syncResult.normalizedFloorData;
-      if (syncResult.normalizedWorldSimulation) this.worldSimulation = syncResult.normalizedWorldSimulation;
+      this._stagePendingState?.(
+        syncResult.normalizedFloorData || this._pendingData,
+        syncResult.normalizedWorldSimulation || this._pendingWorldSimulation,
+        {
+          source: 'simulation:post-sync',
+          traceId,
+        },
+      );
+      this._commitState?.({ source: 'runSimulation', traceId });
 
       this.validateCrossSheetIntegrity();
       if (this.config.SIMULATION?.autoSave !== false) await this.saveSettingsOnly();
@@ -2012,7 +2068,7 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
         ? await this.injectBizSimBlocksToMessage(syncResult.messageId, 10)
         : { success: false, updated: false, reason: 'body-injection-disabled' };
 
-      return {
+      const successResult = {
         success: true,
         data: {
           ...normalized,
@@ -2036,8 +2092,30 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
         },
         chainOfThought: normalized._chainOfThought,
       };
+      completionPayload = {
+        success: true,
+        traceId,
+        source: 'runSimulation',
+        timestamp: Date.now(),
+        data: successResult.data,
+      };
+      return successResult;
     } catch (error) {
+      this._clearPendingState?.();
+      completionPayload = {
+        success: false,
+        traceId,
+        source: 'runSimulation:exception',
+        error: error?.message || 'unknown-error',
+        timestamp: Date.now(),
+      };
       return { success: false, error: error.message };
+    } finally {
+      this._clearPendingState?.();
+      this._setSimulationRunning?.(false, 'runSimulation');
+      if (completionPayload) {
+        this.emit?.('simulation-completed', completionPayload);
+      }
     }
   },
 };
@@ -2172,6 +2250,14 @@ const BIZSIM_ENGINE_AUDIT_METHODS = {
 
     this.worldSimulation.tracks.push(newTrack);
     this.worldSimulation.checks.newTracksAdded = true;
+    this.emit?.('data-changed', {
+      source: 'addWorldTrack',
+      timestamp: Date.now(),
+      data: {
+        floorData: this.data,
+        worldSimulation: this.worldSimulation,
+      },
+    });
     this.saveFloorDataOnly();
     return newTrack.id;
   },
@@ -2247,18 +2333,30 @@ const BIZSIM_ENGINE_PROMPT_METHODS = {
       throw new Error('提示词模板结构无效：缺少模块化 scaffold');
     }
 
-    const corePromptBlock = buildPromptFromScaffold(tpl, {
+    const placeholders = {
+      HISTORY_FLOOR_INFO_BLOCK: historyFloorInfoBlock,
+      WORLDBOOK_BLOCK: worldbookBlock,
+      HISTORICAL_ASSET_VARS_BLOCK: historicalAssetBlock,
+      HISTORICAL_WORLD_VARS_BLOCK: historicalWorldBlock,
+      CURRENT_ASSET_BLOCK: currentAssetBlock,
+      CURRENT_WORLD_BLOCK: currentWorldBlock,
+    };
+
+    const promptTokenBudget = Math.max(1, Number(this.config.SIMULATION?.promptTokenBudget) || 500000);
+    const runtimeTpl = compileTemplateWithUserPref(
+      this.config.SIMULATION?.tplRaw || tpl,
+      this.config.SIMULATION?.userPref,
+      {
+        tokenBudget: promptTokenBudget,
+        placeholders,
+      },
+    );
+
+    const corePromptBlock = buildPromptFromScaffold(runtimeTpl, {
       historyText: [modeSection, historyFloorInfoBlock].filter(Boolean).join('\n\n'),
       floorText: currentAssetBlock,
       worldText: currentWorldBlock,
-      placeholders: {
-        HISTORY_FLOOR_INFO_BLOCK: historyFloorInfoBlock,
-        WORLDBOOK_BLOCK: worldbookBlock,
-        HISTORICAL_ASSET_VARS_BLOCK: historicalAssetBlock,
-        HISTORICAL_WORLD_VARS_BLOCK: historicalWorldBlock,
-        CURRENT_ASSET_BLOCK: currentAssetBlock,
-        CURRENT_WORLD_BLOCK: currentWorldBlock,
-      },
+      placeholders,
     });
 
     const moduleMap = {
@@ -2707,6 +2805,87 @@ class BizSimEngine {
     };
     this.initialized = false;
     this.presetManager = null;
+    this._pendingData = null;
+    this._pendingWorldSimulation = null;
+    this._pendingMeta = null;
+    this._listeners = new Map();
+    this._isSimulating = false;
+    this._tagRegexCache = new Map();
+  }
+
+  on(eventName, handler) {
+    if (!eventName || typeof handler !== 'function') return () => {};
+    const key = String(eventName);
+    if (!this._listeners.has(key)) {
+      this._listeners.set(key, new Set());
+    }
+    this._listeners.get(key).add(handler);
+    return () => {
+      const listeners = this._listeners.get(key);
+      if (!listeners) return;
+      listeners.delete(handler);
+      if (!listeners.size) this._listeners.delete(key);
+    };
+  }
+
+  emit(eventName, payload = {}) {
+    const key = String(eventName || '');
+    if (!key) return;
+    const listeners = this._listeners.get(key);
+    if (!listeners || !listeners.size) return;
+
+    for (const listener of listeners) {
+      try {
+        listener(payload);
+      } catch (error) {
+        console.warn(`[BizSim] 事件监听器执行失败: ${key}`, error);
+      }
+    }
+  }
+
+  _setSimulationRunning(running, source = 'simulation') {
+    this._isSimulating = !!running;
+    this.emit('simulation-state-changed', {
+      isSimulating: this._isSimulating,
+      source: String(source || 'simulation'),
+      timestamp: Date.now(),
+    });
+  }
+
+  _stagePendingState(floorData, worldSimulation, meta = {}) {
+    this._pendingData = floorData ? deepClone(floorData) : null;
+    this._pendingWorldSimulation = worldSimulation ? deepClone(worldSimulation) : null;
+    this._pendingMeta = {
+      source: String(meta.source || 'unknown'),
+      traceId: String(meta.traceId || Date.now()),
+      stagedAt: new Date().toISOString(),
+    };
+  }
+
+  _clearPendingState() {
+    this._pendingData = null;
+    this._pendingWorldSimulation = null;
+    this._pendingMeta = null;
+  }
+
+  _commitState(meta = {}) {
+    if (!this._pendingData || !this._pendingWorldSimulation) return false;
+
+    this.data = deepClone(this._pendingData);
+    this.worldSimulation = deepClone(this._pendingWorldSimulation);
+
+    this.emit('data-changed', {
+      source: String(meta.source || this._pendingMeta?.source || 'unknown'),
+      traceId: String(meta.traceId || this._pendingMeta?.traceId || ''),
+      timestamp: Date.now(),
+      data: {
+        floorData: this.data,
+        worldSimulation: this.worldSimulation,
+      },
+    });
+
+    this._clearPendingState();
+    return true;
   }
 
   async initialize() {
@@ -2815,9 +2994,20 @@ class BizSimEngine {
       };
 
       insertOrAssignVariablesSafe(settingsPayload);
+      this.emit('save-completed', {
+        type: 'settings',
+        success: true,
+        timestamp: Date.now(),
+      });
       return true;
     } catch (error) {
       console.error('[BizSim] 保存设置失败:', error);
+      this.emit('save-completed', {
+        type: 'settings',
+        success: false,
+        error: error?.message || 'unknown-error',
+        timestamp: Date.now(),
+      });
       return false;
     }
   }
@@ -2847,9 +3037,30 @@ class BizSimEngine {
       };
 
       insertOrAssignVariablesSafe(floorPayload, { type: 'message', message_id: messageId });
+      this.emit('data-changed', {
+        source: 'saveFloorDataOnly',
+        messageId,
+        timestamp: Date.now(),
+        data: {
+          floorData: this.data,
+          worldSimulation: this.worldSimulation,
+        },
+      });
+      this.emit('save-completed', {
+        type: 'floor',
+        success: true,
+        messageId,
+        timestamp: Date.now(),
+      });
       return true;
     } catch (error) {
       console.error('[BizSim] 保存楼层数据失败:', error);
+      this.emit('save-completed', {
+        type: 'floor',
+        success: false,
+        error: error?.message || 'unknown-error',
+        timestamp: Date.now(),
+      });
       return false;
     }
   }
@@ -4289,8 +4500,6 @@ async function runSimulation(ui) {
     const result = await ui.engine.runSimulation(useHistory);
     ui.setPromptViewMode('lastSent');
     await ui.refreshPromptSnapshot();
-    ui.refreshDashboard();
-    ui.refreshTracks();
     resultDiv.style.display = 'block';
 
     if (result.success) {
@@ -4366,6 +4575,9 @@ const MODULE_META = {
     description: '首段强约束，锁定仅输出合法 JSON 且禁止额外文本',
     role: 'system',
     isBuiltIn: true,
+    priority: 0,
+    trimmable: false,
+    summarizable: false,
   },
   constraint_layer: {
     id: 'constraint_layer',
@@ -4373,6 +4585,9 @@ const MODULE_META = {
     description: '最高优先级约束，定义引擎身份和输出格式',
     role: 'system',
     isBuiltIn: true,
+    priority: 0,
+    trimmable: false,
+    summarizable: false,
   },
   rule_layer: {
     id: 'rule_layer',
@@ -4380,6 +4595,9 @@ const MODULE_META = {
     description: '世界推演、事业审计和表格生命周期的核心约束',
     role: 'system',
     isBuiltIn: true,
+    priority: 0,
+    trimmable: false,
+    summarizable: false,
   },
   execution_steps: {
     id: 'execution_steps',
@@ -4387,6 +4605,9 @@ const MODULE_META = {
     description: '确保以正确的顺序和逻辑完成推演',
     role: 'system',
     isBuiltIn: true,
+    priority: 1,
+    trimmable: false,
+    summarizable: false,
   },
   history_floor_info: {
     id: 'history_floor_info',
@@ -4394,6 +4615,9 @@ const MODULE_META = {
     description: '最近聊天正文，作为历史语境输入',
     role: 'system',
     isBuiltIn: true,
+    priority: 3,
+    trimmable: true,
+    summarizable: true,
   },
   worldbook_context: {
     id: 'worldbook_context',
@@ -4401,6 +4625,9 @@ const MODULE_META = {
     description: '当前选择的世界书与条目内容',
     role: 'system',
     isBuiltIn: true,
+    priority: 2,
+    trimmable: true,
+    summarizable: true,
   },
   historical_asset_vars: {
     id: 'historical_asset_vars',
@@ -4408,6 +4635,9 @@ const MODULE_META = {
     description: '历史楼层（不含最新楼层）中的资产变量快照',
     role: 'system',
     isBuiltIn: true,
+    priority: 3,
+    trimmable: true,
+    summarizable: true,
   },
   historical_world_vars: {
     id: 'historical_world_vars',
@@ -4415,6 +4645,9 @@ const MODULE_META = {
     description: '历史楼层（不含最新楼层）中的世界推演变量快照',
     role: 'system',
     isBuiltIn: true,
+    priority: 3,
+    trimmable: true,
+    summarizable: true,
   },
   current_asset_context: {
     id: 'current_asset_context',
@@ -4422,6 +4655,9 @@ const MODULE_META = {
     description: '当前楼层资产状态 JSON',
     role: 'system',
     isBuiltIn: true,
+    priority: 1,
+    trimmable: false,
+    summarizable: false,
   },
   current_world_context: {
     id: 'current_world_context',
@@ -4429,6 +4665,9 @@ const MODULE_META = {
     description: '当前楼层世界演化 JSON',
     role: 'system',
     isBuiltIn: true,
+    priority: 1,
+    trimmable: false,
+    summarizable: false,
   },
   output_template: {
     id: 'output_template',
@@ -4436,6 +4675,9 @@ const MODULE_META = {
     description: '定义推演结果的标准化格式',
     role: 'system',
     isBuiltIn: true,
+    priority: 0,
+    trimmable: false,
+    summarizable: false,
   },
   output_enforcer_user: {
     id: 'output_enforcer_user',
@@ -4443,6 +4685,9 @@ const MODULE_META = {
     description: '现在开始输出 Json，必须严格遵守以上所有约束和模板',
     role: 'user',
     isBuiltIn: true,
+    priority: 0,
+    trimmable: false,
+    summarizable: false,
   },
 };
 
@@ -4467,7 +4712,10 @@ function createDefaultTemplateStructure() {
       role: module.role,
       text: module.text,
       isBuiltIn: true,
-      order: index
+      order: index,
+      priority: Number.isInteger(module.priority) ? module.priority : 1,
+      trimmable: module.trimmable === true,
+      summarizable: module.summarizable === true,
     };
   });
 
@@ -4529,6 +4777,124 @@ function ensureCurrentTemplateStructure(tplRawLike) {
  * 核心函数：规范化、编译、验证
  */
 
+const DEFAULT_BLOCK_POLICY = {
+  break_prompt: { priority: 0, trimmable: false, summarizable: false },
+  constraint_layer: { priority: 0, trimmable: false, summarizable: false },
+  rule_layer: { priority: 0, trimmable: false, summarizable: false },
+  execution_steps: { priority: 1, trimmable: false, summarizable: false },
+  history_floor_info: { priority: 3, trimmable: true, summarizable: true },
+  worldbook_context: { priority: 2, trimmable: true, summarizable: true },
+  historical_asset_vars: { priority: 3, trimmable: true, summarizable: true },
+  historical_world_vars: { priority: 3, trimmable: true, summarizable: true },
+  current_asset_context: { priority: 1, trimmable: false, summarizable: false },
+  current_world_context: { priority: 1, trimmable: false, summarizable: false },
+  output_template: { priority: 0, trimmable: false, summarizable: false },
+  output_enforcer_user: { priority: 0, trimmable: false, summarizable: false },
+};
+
+const TOKEN_APPROX_CHARS = 3.5;
+
+function resolveBlockPolicy(block = {}) {
+  const fallback = DEFAULT_BLOCK_POLICY[block.id] || { priority: 1, trimmable: true, summarizable: true };
+  const rawPriority = Number.isInteger(block.priority) ? block.priority : Number.parseInt(block.priority, 10);
+  const priority = Number.isInteger(rawPriority) ? Math.min(3, Math.max(0, rawPriority)) : fallback.priority;
+
+  return {
+    priority,
+    trimmable: block.trimmable === undefined ? fallback.trimmable : block.trimmable === true,
+    summarizable: block.summarizable === undefined ? fallback.summarizable : block.summarizable === true,
+  };
+}
+
+function applyPlaceholders(text, placeholders = {}) {
+  return String(text || '').replace(/\{\{([A-Z0-9_]+)\}\}/g, (m, key) => {
+    const value = placeholders[key];
+    return value === undefined || value === null ? m : String(value);
+  });
+}
+
+function estimatePromptTokens(text = '') {
+  const chars = String(text || '').length;
+  if (!chars) return 0;
+  return Math.ceil(chars / TOKEN_APPROX_CHARS);
+}
+
+function summarizeRenderedBlock(renderedText, blockName = '模块') {
+  const clean = String(renderedText || '').trim();
+  if (!clean) return `【${blockName}】\n[已按 token 预算裁剪为空摘要]`;
+  const excerpt = clean.slice(0, 220);
+  const suffix = clean.length > 220 ? ' ...' : '';
+  return `【${blockName} 摘要】\n${excerpt}${suffix}\n[该模块已按 token 预算进行摘要压缩]`;
+}
+
+function getRenderedParts(tpl, placeholders = {}) {
+  if (!tpl || !Array.isArray(tpl.scaffold)) return [];
+  const scaffold = tpl.scaffold;
+  const hasSpecial = Number.isInteger(tpl.specialIndex);
+  const parts = [];
+  let scaffoldIdx = 0;
+
+  for (let logicalIdx = 0; logicalIdx < scaffold.length + (hasSpecial ? 1 : 0); logicalIdx += 1) {
+    if (hasSpecial && logicalIdx === tpl.specialIndex) continue;
+    if (scaffoldIdx >= scaffold.length) break;
+
+    const block = scaffold[scaffoldIdx];
+    const renderedText = applyPlaceholders(block?.text, placeholders).trim();
+    if (renderedText) {
+      parts.push({ blockIndex: scaffoldIdx, block, text: renderedText });
+    }
+    scaffoldIdx += 1;
+  }
+
+  return parts;
+}
+
+function buildPromptTextFromTemplate(tpl, placeholders = {}) {
+  return getRenderedParts(tpl, placeholders)
+    .map((item) => item.text)
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function trimTemplateByTokenBudget(tpl, placeholders = {}, maxPromptTokens = 0) {
+  const budget = Number(maxPromptTokens);
+  if (!Number.isFinite(budget) || budget <= 0) return tpl;
+
+  const nextTpl = {
+    ...tpl,
+    scaffold: Array.isArray(tpl?.scaffold)
+      ? tpl.scaffold.map((block) => ({ ...block }))
+      : [],
+  };
+
+  const currentPrompt = () => buildPromptTextFromTemplate(nextTpl, placeholders);
+  const currentTokenCount = () => estimatePromptTokens(currentPrompt());
+
+  if (currentTokenCount() <= budget) return nextTpl;
+
+  const buildCandidates = (filterFn) => nextTpl.scaffold
+    .map((block, index) => ({ block, index, ...resolveBlockPolicy(block) }))
+    .filter((item) => filterFn(item) && String(item.block?.text || '').trim())
+    .sort((a, b) => (b.priority - a.priority) || (a.index - b.index));
+
+  // 第 1 轮：摘要压缩（低优先块先降级）
+  for (const candidate of buildCandidates((item) => item.summarizable === true)) {
+    if (currentTokenCount() <= budget) break;
+    const rendered = applyPlaceholders(candidate.block.text, placeholders);
+    nextTpl.scaffold[candidate.index].text = summarizeRenderedBlock(rendered, candidate.block?.name || candidate.block?.id || '模块');
+  }
+
+  if (currentTokenCount() <= budget) return nextTpl;
+
+  // 第 2 轮：继续超限则移除低优先可裁剪块
+  for (const candidate of buildCandidates((item) => item.trimmable === true)) {
+    if (currentTokenCount() <= budget) break;
+    nextTpl.scaffold[candidate.index].text = '';
+  }
+
+  return nextTpl;
+}
+
 /**
  * 规范化模板结构，补齐默认值，验证字段
  * @param {Object} tplRawLike - 可能是完整结构、旧 CORE_PROMPT_BLOCK、或部分结构
@@ -4560,7 +4926,8 @@ function normalizeTemplateStructure(tplRawLike) {
       text: typeof block.text === 'string' ? block.text : '',
       isBuiltIn: block.isBuiltIn === true,
       isUserPref: block.isUserPref === true,
-      order: Number.isInteger(block.order) ? block.order : idx
+      order: Number.isInteger(block.order) ? block.order : idx,
+      ...resolveBlockPolicy(block),
     };
   }).filter(b => b !== null);
 
@@ -4644,16 +5011,21 @@ function validateTemplateIntegrity(tpl) {
  * @param {Object} userPref - 用户偏好对象
  * @returns {Object} 编译后的模板结构（融入了 userPref）
  */
-function compileTemplateWithUserPref(tplRaw, userPref) {
+function compileTemplateWithUserPref(tplRaw, userPref, options = {}) {
   // 规范化输入
   const tpl = normalizeTemplateStructure(tplRaw);
   if (!tpl) return null;
 
   const pref = normalizeUserPreference(userPref);
 
-  // 如果偏好禁用，直接返回原始模板
+  const tokenBudget = Number(options?.tokenBudget || 0);
+  const placeholders = options?.placeholders && typeof options.placeholders === 'object'
+    ? options.placeholders
+    : {};
+
+  // 如果偏好禁用，直接返回原始模板（但允许预算器剪裁）
   if (!pref || !pref.enabled) {
-    return tpl;
+    return trimTemplateByTokenBudget(tpl, placeholders, tokenBudget);
   }
 
   // 构建用户偏好块
@@ -4663,7 +5035,10 @@ function compileTemplateWithUserPref(tplRaw, userPref) {
     role: pref.role,
     text: `${pref.before || '<user_preference>'}${pref.text}${pref.after || '</user_preference>'}`,
     isBuiltIn: false,
-    isUserPref: true
+    isUserPref: true,
+    priority: 1,
+    trimmable: true,
+    summarizable: true,
   };
 
   // 计算插入位置（关键逻辑）
@@ -4699,11 +5074,13 @@ function compileTemplateWithUserPref(tplRaw, userPref) {
     newSpecialIndex = tpl.specialIndex + 1;
   }
 
-  return {
+  const compiled = {
     ...tpl,
     scaffold: newScaffold,
     specialIndex: newSpecialIndex
   };
+
+  return trimTemplateByTokenBudget(compiled, placeholders, tokenBudget);
 }
 
 /**
@@ -4734,40 +5111,12 @@ function normalizeUserPreference(prefLike) {
 function buildPromptFromScaffold(tpl, dynamicContent = {}) {
   if (!tpl || !Array.isArray(tpl.scaffold)) return '';
 
-  const scaffold = tpl.scaffold;
-  const hasSpecial = Number.isInteger(tpl.specialIndex);
   const { placeholders = {} } = dynamicContent;
+  return buildPromptTextFromTemplate(tpl, placeholders);
+}
 
-  const placeholderMap = { ...placeholders };
-
-  const placeholderPattern = /\{\{[A-Z0-9_]+\}\}/;
-  const hasPlaceholders = scaffold.some((block) => typeof block?.text === 'string' && placeholderPattern.test(block.text));
-
-  const parts = [];
-  let scaffoldIdx = 0;
-
-  for (let logicalIdx = 0; logicalIdx < scaffold.length + (hasSpecial ? 1 : 0); logicalIdx++) {
-    if (hasSpecial && logicalIdx === tpl.specialIndex) {
-      // specialIndex 仅作为插入锚点，不再承担上下文注入逻辑。
-      continue;
-    } else {
-      // 插入普通块
-      if (scaffoldIdx < scaffold.length) {
-        const block = scaffold[scaffoldIdx];
-        if (block && block.text) {
-          const blockText = String(block.text).replace(/\{\{([A-Z0-9_]+)\}\}/g, (m, key) => {
-            const value = placeholderMap[key];
-            return value === undefined || value === null ? m : String(value);
-          });
-          parts.push(blockText);
-        }
-        scaffoldIdx++;
-      }
-    }
-  }
-
-  // 拼接所有部分，使用双换行符分隔
-  return parts.filter(p => p && p.trim()).join('\n\n');
+function estimatePromptTokensFromTemplate(tpl, placeholders = {}) {
+  return estimatePromptTokens(buildPromptTextFromTemplate(tpl, placeholders));
 }
 
 // ---- src/ui/BizSimUI.scaffoldEditor.js ----
@@ -5593,6 +5942,59 @@ class BizSimUI {
     this.promptViewMode = 'preview';
     this.isSimulating = false;
     this.simulationSource = '';
+    this._engineUnsubscribers = [];
+    this._refreshTimer = null;
+  }
+
+  detachEngineEventListeners() {
+    for (const unsubscribe of this._engineUnsubscribers) {
+      try {
+        if (typeof unsubscribe === 'function') unsubscribe();
+      } catch {
+      }
+    }
+    this._engineUnsubscribers = [];
+    if (this._refreshTimer) {
+      clearTimeout(this._refreshTimer);
+      this._refreshTimer = null;
+    }
+  }
+
+  queueEngineDrivenRefresh() {
+    if (this._refreshTimer) return;
+    this._refreshTimer = setTimeout(() => {
+      this._refreshTimer = null;
+      if (!this.isOpen) return;
+      this.refreshDashboard();
+      this.refreshEmpire();
+      this.refreshTracks();
+    }, 80);
+  }
+
+  attachEngineEventListeners() {
+    this.detachEngineEventListeners();
+    if (!this.engine || typeof this.engine.on !== 'function') return;
+
+    this._engineUnsubscribers.push(
+      this.engine.on('data-changed', () => {
+        this.queueEngineDrivenRefresh();
+      }),
+    );
+
+    this._engineUnsubscribers.push(
+      this.engine.on('simulation-state-changed', (payload = {}) => {
+        const busy = payload?.isSimulating === true;
+        const source = String(payload?.source || '');
+        this.setSimulationBusy(busy, source, false);
+      }),
+    );
+
+    this._engineUnsubscribers.push(
+      this.engine.on('simulation-completed', () => {
+        if (!this.isOpen) return;
+        void this.refreshPromptSnapshot();
+      }),
+    );
   }
 
   initWorldbookPanel() {
@@ -5767,6 +6169,7 @@ class BizSimUI {
     }
 
     this.attachEventListeners();
+    this.attachEngineEventListeners();
     this.setPromptViewMode('preview');
     this.refreshDashboard();
     this.refreshEmpire();
@@ -5800,6 +6203,7 @@ class BizSimUI {
       wide: true,
       okButton: '关闭',
       onClose: () => {
+        this.detachEngineEventListeners();
         this.isOpen = false;
         this.panel = null;
       },
@@ -5836,6 +6240,7 @@ class BizSimUI {
   }
 
   closeFallback() {
+    this.detachEngineEventListeners();
     this.rootDoc.getElementById('bizsim-fallback-modal')?.remove();
     this.rootDoc.getElementById('bizsim-fallback-overlay')?.remove();
     this.isOpen = false;

@@ -47,6 +47,59 @@ export class BizSimUI {
     this.promptViewMode = 'preview';
     this.isSimulating = false;
     this.simulationSource = '';
+    this._engineUnsubscribers = [];
+    this._refreshTimer = null;
+  }
+
+  detachEngineEventListeners() {
+    for (const unsubscribe of this._engineUnsubscribers) {
+      try {
+        if (typeof unsubscribe === 'function') unsubscribe();
+      } catch {
+      }
+    }
+    this._engineUnsubscribers = [];
+    if (this._refreshTimer) {
+      clearTimeout(this._refreshTimer);
+      this._refreshTimer = null;
+    }
+  }
+
+  queueEngineDrivenRefresh() {
+    if (this._refreshTimer) return;
+    this._refreshTimer = setTimeout(() => {
+      this._refreshTimer = null;
+      if (!this.isOpen) return;
+      this.refreshDashboard();
+      this.refreshEmpire();
+      this.refreshTracks();
+    }, 80);
+  }
+
+  attachEngineEventListeners() {
+    this.detachEngineEventListeners();
+    if (!this.engine || typeof this.engine.on !== 'function') return;
+
+    this._engineUnsubscribers.push(
+      this.engine.on('data-changed', () => {
+        this.queueEngineDrivenRefresh();
+      }),
+    );
+
+    this._engineUnsubscribers.push(
+      this.engine.on('simulation-state-changed', (payload = {}) => {
+        const busy = payload?.isSimulating === true;
+        const source = String(payload?.source || '');
+        this.setSimulationBusy(busy, source, false);
+      }),
+    );
+
+    this._engineUnsubscribers.push(
+      this.engine.on('simulation-completed', () => {
+        if (!this.isOpen) return;
+        void this.refreshPromptSnapshot();
+      }),
+    );
   }
 
   initWorldbookPanel() {
@@ -221,6 +274,7 @@ export class BizSimUI {
     }
 
     this.attachEventListeners();
+    this.attachEngineEventListeners();
     this.setPromptViewMode('preview');
     this.refreshDashboard();
     this.refreshEmpire();
@@ -254,6 +308,7 @@ export class BizSimUI {
       wide: true,
       okButton: '关闭',
       onClose: () => {
+        this.detachEngineEventListeners();
         this.isOpen = false;
         this.panel = null;
       },
@@ -290,6 +345,7 @@ export class BizSimUI {
   }
 
   closeFallback() {
+    this.detachEngineEventListeners();
     this.rootDoc.getElementById('bizsim-fallback-modal')?.remove();
     this.rootDoc.getElementById('bizsim-fallback-overlay')?.remove();
     this.isOpen = false;

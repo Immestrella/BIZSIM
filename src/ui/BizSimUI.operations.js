@@ -15,8 +15,6 @@ export async function runSimulation(ui) {
     const result = await ui.engine.runSimulation(useHistory);
     ui.setPromptViewMode('lastSent');
     await ui.refreshPromptSnapshot();
-    ui.refreshDashboard();
-    ui.refreshTracks();
     resultDiv.style.display = 'block';
 
     if (result.success) {

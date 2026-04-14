@@ -14,27 +14,50 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
     return !(message.is_user === true || message.from_user === true || message.isUser === true || role === 'user');
   },
 
-  replaceTaggedBlock(text, tagName, newBlock) {
-    const escaped = escapeRegExp(tagName);
-    const completeBlockPattern = new RegExp(`<${escaped}\\b[^>]*>[\\s\\S]*?<\\/${escaped}>`, 'gi');
-    const danglingOpenPattern = new RegExp(`<${escaped}\\b[^>]*>[\\s\\S]*$`, 'i');
-    const danglingClosePattern = new RegExp(`<\\/${escaped}>`, 'gi');
+  getTagRegexPack(tagName) {
+    const normalizedTag = String(tagName || '').trim().toLowerCase();
+    if (!normalizedTag) return null;
+
+    if (!this._tagRegexCache) {
+      this._tagRegexCache = new Map();
+    }
+
+    if (!this._tagRegexCache.has(normalizedTag)) {
+      const escaped = escapeRegExp(normalizedTag);
+      this._tagRegexCache.set(normalizedTag, {
+        completeBlockPattern: new RegExp(`<${escaped}\\b[^>]*>[\\s\\S]*?<\\/${escaped}>`, 'gi'),
+        danglingOpenPattern: new RegExp(`<${escaped}\\b[^>]*>[\\s\\S]*$`, 'i'),
+        danglingClosePattern: new RegExp(`<\\/${escaped}>`, 'gi'),
+      });
+    }
+
+    return this._tagRegexCache.get(normalizedTag);
+  },
+
+  replaceTaggedBlock(text, tagName, newBlock, options = {}) {
+    const pack = this.getTagRegexPack(tagName);
+    if (!pack) return String(text || '');
+    const { completeBlockPattern, danglingOpenPattern, danglingClosePattern } = pack;
 
     const cleaned = String(text || '')
-      // 先移除所有完整标签块
       .replace(completeBlockPattern, '')
-      // 再移除末尾残缺开标签（例如: <tag> ... <tag> ... </tag> 这类异常拼接后残留）
       .replace(danglingOpenPattern, '')
-      // 最后清理孤立闭标签
       .replace(danglingClosePattern, '')
       .replace(/\n{3,}/g, '\n\n')
       .trimEnd();
 
     const trimmed = cleaned;
-    return trimmed ? `${trimmed}\n\n${newBlock}` : newBlock;
+    const blockText = String(newBlock || '').trim();
+    if (!blockText) return trimmed;
+
+    const mode = String(options?.position || 'append').toLowerCase();
+    if (mode === 'prepend') {
+      return trimmed ? `${blockText}\n\n${trimmed}` : blockText;
+    }
+    return trimmed ? `${trimmed}\n\n${blockText}` : blockText;
   },
 
-  async injectBizSimBlocksToMessage(messageId, maxLookback = 10) {
+  async injectBizSimBlocksToMessage(messageId, maxLookback = 10, injectionMode = 'append') {
     if (this.config.SIMULATION?.bodyInjectionEnabled !== true) {
       return { success: false, updated: false, reason: 'body-injection-disabled' };
     }
@@ -48,8 +71,8 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
 
     const originalText = String(message.message || message.mes || message.content || '');
     let updatedText = originalText;
-    if (worldBlock) updatedText = this.replaceTaggedBlock(updatedText, 'bz_world_state', worldBlock);
-    if (assetBlock) updatedText = this.replaceTaggedBlock(updatedText, 'bz_asset_sheet', assetBlock);
+    if (worldBlock) updatedText = this.replaceTaggedBlock(updatedText, 'bz_world_state', worldBlock, { position: injectionMode });
+    if (assetBlock) updatedText = this.replaceTaggedBlock(updatedText, 'bz_asset_sheet', assetBlock, { position: injectionMode });
     if (updatedText === originalText) return { success: true, updated: false };
 
     const ok = await setChatMessageTextSafe(messageId, updatedText, 'none');
@@ -329,6 +352,9 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
 
   async runSimulation(useHistory = true) {
     if (!this.initialized) await this.initialize();
+    const traceId = `sim_${Date.now()}`;
+    let completionPayload = null;
+    this._setSimulationRunning?.(true, 'runSimulation');
 
     try {
       const historyLimit = Number(this.config.SIMULATION?.historyLimit) || 10;
@@ -358,7 +384,17 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
         lastError = `第 ${attempt + 1} 次返回无法解析为 JSON`;
       }
 
-      if (!parsed) return { success: false, error: lastError || '无法解析推演结果', raw: lastRawResult };
+      if (!parsed) {
+        const failResult = { success: false, error: lastError || '无法解析推演结果', raw: lastRawResult };
+        completionPayload = {
+          success: false,
+          traceId,
+          source: 'runSimulation',
+          error: failResult.error,
+          timestamp: Date.now(),
+        };
+        return failResult;
+      }
 
       const previousData = this.data;
       const previousWorldSimulation = this.worldSimulation;
@@ -370,14 +406,17 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
       const blockingIssues = Array.isArray(validationResult?.blockingIssues) ? validationResult.blockingIssues : [];
       const warningIssues = Array.isArray(validationResult?.warningIssues) ? validationResult.warningIssues : [];
 
-      if (normalized.floorData) this.data = normalized.floorData;
-      if (normalized.worldSimulation) this.worldSimulation = normalized.worldSimulation;
+      this._stagePendingState?.(normalized.floorData, normalized.worldSimulation, {
+        source: 'simulation:parsed',
+        traceId,
+      });
 
-      const syncResult = await this.syncLatestFloorVariables(normalized.floorData, normalized.worldSimulation);
+      const syncResult = await this.syncLatestFloorVariables(this._pendingData, this._pendingWorldSimulation);
       if (!syncResult?.success) {
         this.data = previousData;
         this.worldSimulation = previousWorldSimulation;
-        return {
+        this._clearPendingState?.();
+        const failResult = {
           success: false,
           error: '本地约束校验未通过，已阻止写回。',
           constraintErrors: Array.isArray(syncResult?.errors) ? syncResult.errors : ['未知约束错误'],
@@ -385,10 +424,26 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
           localValidationBlockingIssues: blockingIssues,
           localValidationWarningIssues: warningIssues,
         };
+        completionPayload = {
+          success: false,
+          traceId,
+          source: 'syncLatestFloorVariables',
+          error: failResult.error,
+          constraintErrors: failResult.constraintErrors,
+          timestamp: Date.now(),
+        };
+        return failResult;
       }
 
-      if (syncResult.normalizedFloorData) this.data = syncResult.normalizedFloorData;
-      if (syncResult.normalizedWorldSimulation) this.worldSimulation = syncResult.normalizedWorldSimulation;
+      this._stagePendingState?.(
+        syncResult.normalizedFloorData || this._pendingData,
+        syncResult.normalizedWorldSimulation || this._pendingWorldSimulation,
+        {
+          source: 'simulation:post-sync',
+          traceId,
+        },
+      );
+      this._commitState?.({ source: 'runSimulation', traceId });
 
       this.validateCrossSheetIntegrity();
       if (this.config.SIMULATION?.autoSave !== false) await this.saveSettingsOnly();
@@ -397,7 +452,7 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
         ? await this.injectBizSimBlocksToMessage(syncResult.messageId, 10)
         : { success: false, updated: false, reason: 'body-injection-disabled' };
 
-      return {
+      const successResult = {
         success: true,
         data: {
           ...normalized,
@@ -421,8 +476,30 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
         },
         chainOfThought: normalized._chainOfThought,
       };
+      completionPayload = {
+        success: true,
+        traceId,
+        source: 'runSimulation',
+        timestamp: Date.now(),
+        data: successResult.data,
+      };
+      return successResult;
     } catch (error) {
+      this._clearPendingState?.();
+      completionPayload = {
+        success: false,
+        traceId,
+        source: 'runSimulation:exception',
+        error: error?.message || 'unknown-error',
+        timestamp: Date.now(),
+      };
       return { success: false, error: error.message };
+    } finally {
+      this._clearPendingState?.();
+      this._setSimulationRunning?.(false, 'runSimulation');
+      if (completionPayload) {
+        this.emit?.('simulation-completed', completionPayload);
+      }
     }
   },
 };

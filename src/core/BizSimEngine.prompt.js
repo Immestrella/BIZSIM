@@ -1,4 +1,4 @@
-import { buildPromptFromScaffold } from './BizSimEngine.scaffold.js';
+import { buildPromptFromScaffold, compileTemplateWithUserPref } from './BizSimEngine.scaffold.js';
 
 export const BIZSIM_ENGINE_PROMPT_METHODS = {
   buildContextBlock(title, body) {
@@ -56,18 +56,30 @@ export const BIZSIM_ENGINE_PROMPT_METHODS = {
       throw new Error('提示词模板结构无效：缺少模块化 scaffold');
     }
 
-    const corePromptBlock = buildPromptFromScaffold(tpl, {
+    const placeholders = {
+      HISTORY_FLOOR_INFO_BLOCK: historyFloorInfoBlock,
+      WORLDBOOK_BLOCK: worldbookBlock,
+      HISTORICAL_ASSET_VARS_BLOCK: historicalAssetBlock,
+      HISTORICAL_WORLD_VARS_BLOCK: historicalWorldBlock,
+      CURRENT_ASSET_BLOCK: currentAssetBlock,
+      CURRENT_WORLD_BLOCK: currentWorldBlock,
+    };
+
+    const promptTokenBudget = Math.max(1, Number(this.config.SIMULATION?.promptTokenBudget) || 500000);
+    const runtimeTpl = compileTemplateWithUserPref(
+      this.config.SIMULATION?.tplRaw || tpl,
+      this.config.SIMULATION?.userPref,
+      {
+        tokenBudget: promptTokenBudget,
+        placeholders,
+      },
+    );
+
+    const corePromptBlock = buildPromptFromScaffold(runtimeTpl, {
       historyText: [modeSection, historyFloorInfoBlock].filter(Boolean).join('\n\n'),
       floorText: currentAssetBlock,
       worldText: currentWorldBlock,
-      placeholders: {
-        HISTORY_FLOOR_INFO_BLOCK: historyFloorInfoBlock,
-        WORLDBOOK_BLOCK: worldbookBlock,
-        HISTORICAL_ASSET_VARS_BLOCK: historicalAssetBlock,
-        HISTORICAL_WORLD_VARS_BLOCK: historicalWorldBlock,
-        CURRENT_ASSET_BLOCK: currentAssetBlock,
-        CURRENT_WORLD_BLOCK: currentWorldBlock,
-      },
+      placeholders,
     });
 
     const moduleMap = {

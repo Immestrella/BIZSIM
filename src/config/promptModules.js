@@ -15,6 +15,9 @@ const MODULE_META = {
     description: '首段强约束，锁定仅输出合法 JSON 且禁止额外文本',
     role: 'system',
     isBuiltIn: true,
+    priority: 0,
+    trimmable: false,
+    summarizable: false,
   },
   constraint_layer: {
     id: 'constraint_layer',
@@ -22,6 +25,9 @@ const MODULE_META = {
     description: '最高优先级约束，定义引擎身份和输出格式',
     role: 'system',
     isBuiltIn: true,
+    priority: 0,
+    trimmable: false,
+    summarizable: false,
   },
   rule_layer: {
     id: 'rule_layer',
@@ -29,6 +35,9 @@ const MODULE_META = {
     description: '世界推演、事业审计和表格生命周期的核心约束',
     role: 'system',
     isBuiltIn: true,
+    priority: 0,
+    trimmable: false,
+    summarizable: false,
   },
   execution_steps: {
     id: 'execution_steps',
@@ -36,6 +45,9 @@ const MODULE_META = {
     description: '确保以正确的顺序和逻辑完成推演',
     role: 'system',
     isBuiltIn: true,
+    priority: 1,
+    trimmable: false,
+    summarizable: false,
   },
   history_floor_info: {
     id: 'history_floor_info',
@@ -43,6 +55,9 @@ const MODULE_META = {
     description: '最近聊天正文，作为历史语境输入',
     role: 'system',
     isBuiltIn: true,
+    priority: 3,
+    trimmable: true,
+    summarizable: true,
   },
   worldbook_context: {
     id: 'worldbook_context',
@@ -50,6 +65,9 @@ const MODULE_META = {
     description: '当前选择的世界书与条目内容',
     role: 'system',
     isBuiltIn: true,
+    priority: 2,
+    trimmable: true,
+    summarizable: true,
   },
   historical_asset_vars: {
     id: 'historical_asset_vars',
@@ -57,6 +75,9 @@ const MODULE_META = {
     description: '历史楼层（不含最新楼层）中的资产变量快照',
     role: 'system',
     isBuiltIn: true,
+    priority: 3,
+    trimmable: true,
+    summarizable: true,
   },
   historical_world_vars: {
     id: 'historical_world_vars',
@@ -64,6 +85,9 @@ const MODULE_META = {
     description: '历史楼层（不含最新楼层）中的世界推演变量快照',
     role: 'system',
     isBuiltIn: true,
+    priority: 3,
+    trimmable: true,
+    summarizable: true,
   },
   current_asset_context: {
     id: 'current_asset_context',
@@ -71,6 +95,9 @@ const MODULE_META = {
     description: '当前楼层资产状态 JSON',
     role: 'system',
     isBuiltIn: true,
+    priority: 1,
+    trimmable: false,
+    summarizable: false,
   },
   current_world_context: {
     id: 'current_world_context',
@@ -78,6 +105,9 @@ const MODULE_META = {
     description: '当前楼层世界演化 JSON',
     role: 'system',
     isBuiltIn: true,
+    priority: 1,
+    trimmable: false,
+    summarizable: false,
   },
   output_template: {
     id: 'output_template',
@@ -85,6 +115,9 @@ const MODULE_META = {
     description: '定义推演结果的标准化格式',
     role: 'system',
     isBuiltIn: true,
+    priority: 0,
+    trimmable: false,
+    summarizable: false,
   },
   output_enforcer_user: {
     id: 'output_enforcer_user',
@@ -92,6 +125,9 @@ const MODULE_META = {
     description: '现在开始输出 Json，必须严格遵守以上所有约束和模板',
     role: 'user',
     isBuiltIn: true,
+    priority: 0,
+    trimmable: false,
+    summarizable: false,
   },
 };
 
@@ -116,7 +152,10 @@ export function createDefaultTemplateStructure() {
       role: module.role,
       text: module.text,
       isBuiltIn: true,
-      order: index
+      order: index,
+      priority: Number.isInteger(module.priority) ? module.priority : 1,
+      trimmable: module.trimmable === true,
+      summarizable: module.summarizable === true,
     };
   });
 
