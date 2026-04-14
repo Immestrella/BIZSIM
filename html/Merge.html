@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+<title>🎥 NARRATIVE OS · 全息推演终端</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+/* === NARRATIVE OS 监控矩阵 - 融合动效版 === */
+:root {
+    --c-bg: 5, 8, 12;
+    --c-card: 16, 20, 26;
+    --c-border: 45, 55, 70;
+    --c-text: 210, 220, 230;
+    --c-prim: 0, 230, 255;    
+    --c-sec: 255, 60, 100;    
+    --c-warn: 255, 180, 0;    
+    --c-pass: 0, 220, 120;    
+    --font-main: "Courier New", Courier, "PingFang SC", sans-serif;
+    --font-code: "JetBrains Mono", "Consolas", monospace;
+    --tr: 0.4s cubic-bezier(0.2, 0, 0.2, 1);
+    --scanline: rgba(255, 255, 255, 0.03);
+    --vignette: radial-gradient(circle at 50% 50%, transparent 50%, rgba(0,0,0,0.5) 120%);
+}
+
+[data-theme="light"] {
+    --c-bg: 235, 240, 245;
+    --c-card: 255, 255, 255;
+    --c-border: 180, 190, 205;
+    --c-text: 30, 40, 50;
+    --c-prim: 0, 120, 220;
+    --c-sec: 220, 40, 60;
+    --c-warn: 200, 120, 0;
+    --c-pass: 10, 160, 80;
+    --scanline: rgba(0, 0, 0, 0.04);
+    --vignette: radial-gradient(circle at 50% 50%, transparent 70%, rgba(0,0,0,0.05) 120%);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { background: transparent; font-family: var(--font-main); color: rgb(var(--c-text)); }
+
+/* === 主容器与骨架 === */
+.nos-container {
+    max-width: 900px; width: 100%; margin: 10px auto;
+    background-color: rgba(var(--c-bg), 0.95); background-image: var(--vignette);
+    border: 1px solid rgba(var(--c-prim), 0.3); border-radius: 8px; overflow: hidden;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(var(--c-prim), 0.1) inset;
+    backdrop-filter: blur(10px); transition: var(--tr); position: relative;
+}
+.nos-container.folded {
+    border-color: rgba(var(--c-prim), 0.6);
+    box-shadow: 0 0 25px rgba(var(--c-prim), 0.2), 0 0 0 1px rgba(var(--c-prim), 0.3) inset;
+}
+
+/* Header */
+.nos-header {
+    background: linear-gradient(90deg, rgba(var(--c-prim), 0.1) 0%, transparent 100%);
+    border-bottom: 1px solid rgba(var(--c-border), 0.8);
+    padding: 12px 20px; display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; letter-spacing: 1px; position: relative; z-index: 10; transition: var(--tr);
+}
+.nos-container.folded .nos-header { border-bottom-color: transparent; }
+.nos-title { display: flex; align-items: center; gap: 10px; font-weight: 700; color: rgb(var(--c-prim)); transition: var(--tr); }
+.nos-title i { font-size: 1.2em; animation: pulse 2s infinite; }
+
+/* 收纳指示器 */
+.folded-summary {
+    position: absolute; left: 50%; transform: translateX(-50%) translateY(10px) scale(0.9);
+    opacity: 0; pointer-events: none; display: flex; align-items: center; gap: 16px;
+    font-family: var(--font-code); font-size: 11px; font-weight: bold; transition: var(--tr);
+    background: rgba(var(--c-card), 0.98); border: 1px solid rgba(var(--c-prim), 0.5);
+    padding: 6px 20px; border-radius: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); white-space: nowrap;
+}
+.nos-container.folded .folded-summary { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; pointer-events: auto; }
+.nos-container.folded .nos-title { opacity: 0; }
+.fs-item { display: flex; align-items: center; gap: 6px; }
+.fs-pass { color: rgb(var(--c-pass)); text-shadow: 0 0 10px rgba(var(--c-pass), 0.4); }
+.fs-warn { color: rgb(var(--c-sec)); text-shadow: 0 0 10px rgba(var(--c-sec), 0.4); }
+.fs-divider { width: 1px; height: 12px; background: rgba(var(--c-text), 0.3); }
+
+/* 控制区 */
+.header-controls { display: flex; align-items: center; gap: 14px; }
+#nos-time { display: inline-flex; align-items: center; justify-content: flex-end; min-width: 74px; transition: var(--tr); }
+.nos-container.folded #nos-time {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 12;
+    min-width: 0; font-size: 10px !important; color: rgba(var(--c-text), 0.75) !important;
+    background: rgba(var(--c-bg), 0.55); border: 1px solid rgba(var(--c-border), 0.45);
+    border-radius: 999px; padding: 2px 8px;
+}
+.ctrl-btn {
+    cursor: pointer; color: rgba(var(--c-text), 0.6); transition: var(--tr);
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 4px; background: rgba(var(--c-text), 0.05);
+}
+.ctrl-btn:hover { background: rgba(var(--c-prim), 0.2); color: rgb(var(--c-prim)); }
+.nos-container.folded .fold-btn i { transform: rotate(180deg); }
+
+/* === 导航 Tabs === */
+.nos-tabs {
+    display: flex; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(var(--c-border), 0.5);
+    transition: var(--tr); padding: 0 10px; overflow-x: auto;
+}
+.nos-tabs::-webkit-scrollbar { display: none; }
+.nos-container.folded .nos-tabs { display: none; }
+.tab-btn {
+    padding: 12px 20px; font-size: 12px; font-weight: bold; color: rgba(var(--c-text), 0.5);
+    cursor: pointer; transition: 0.3s; position: relative; display: flex; align-items: center; gap: 8px;
+    letter-spacing: 1px; border-bottom: 2px solid transparent; white-space: nowrap;
+}
+.tab-btn:hover { color: rgb(var(--c-text)); background: rgba(var(--c-text), 0.05); }
+.tab-btn.active { color: rgb(var(--c-prim)); border-bottom-color: rgb(var(--c-prim)); background: linear-gradient(0deg, rgba(var(--c-prim), 0.1) 0%, transparent 100%); text-shadow: 0 0 10px rgba(var(--c-prim), 0.3); }
+
+/* 内容区 */
+.nos-body-wrap { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--tr); }
+.nos-container.folded .nos-body-wrap { grid-template-rows: 0fr; }
+.nos-body-inner { min-height: 0; overflow: hidden; position: relative; }
+.tab-pane { display: none; padding-bottom: 10px; animation: fadeIn 0.3s ease; }
+.tab-pane.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* 全局 Banner */
+.nos-banner {
+    padding: 10px 16px; margin: 16px 16px 0; border-radius: 6px; font-family: var(--font-code); font-size: 12px;
+    display: flex; align-items: center; gap: 10px; font-weight: bold; transition: var(--tr);
+}
+.nos-banner.warn { background: rgba(var(--c-warn), 0.1); border: 1px dashed rgba(var(--c-warn), 0.5); color: rgb(var(--c-warn)); }
+.nos-banner.ok { background: rgba(var(--c-pass), 0.1); border: 1px dashed rgba(var(--c-pass), 0.4); color: rgb(var(--c-pass)); }
+
+/* Grid 布局 */
+.nos-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; padding: 16px;
+    background-image: linear-gradient(var(--scanline) 1px, transparent 1px), linear-gradient(90deg, var(--scanline) 1px, transparent 1px); background-size: 20px 20px;
+}
+
+/* === 卡片基础样式 (共用) === */
+.nos-card {
+    position: relative; background: rgba(var(--c-card), 0.8);
+    border: 1px solid rgba(var(--c-border), 0.5); padding: 16px;
+    display: flex; flex-direction: column; transition: var(--tr); overflow: hidden;
+}
+.nos-card::before, .nos-card::after {
+    content: ''; position: absolute; width: 16px; height: 16px; pointer-events: none; transition: var(--tr); border: 2px solid rgba(var(--c-prim), 0.4);
+}
+.nos-card::before { top: 8px; left: 8px; border-right: none; border-bottom: none; }
+.nos-card::after { bottom: 8px; right: 8px; border-left: none; border-top: none; }
+.nos-card > .card-sheen {
+    position: absolute; inset: -120% -40%; background: linear-gradient(120deg, transparent 35%, rgba(255, 255, 255, 0.04) 50%, transparent 65%);
+    transform: translateX(-30%) rotate(8deg); opacity: 0; pointer-events: none;
+}
+.nos-card:hover { border-color: rgba(var(--c-prim), 0.5); box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3); background: rgba(var(--c-card), 0.95); }
+.nos-card:hover > .card-sheen { animation: cardSheen 1.1s ease; opacity: 1; }
+.nos-card:hover::before, .nos-card:hover::after { border-color: rgb(var(--c-prim)); width: 20px; height: 20px; }
+@keyframes cardSheen { 0% { transform: translateX(-120%) rotate(8deg) } 100% { transform: translateX(120%) rotate(8deg) } }
+@keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+/* =========================================
+   Tab 1: ASSETS (资产矩阵专用样式)
+   ========================================= */
+.asset-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px dashed rgba(var(--c-border), 0.6); }
+.asset-name { font-size: 15px; font-weight: bold; color: rgb(var(--c-prim)); letter-spacing: 1px; display: inline-flex; align-items: center; gap: 8px; text-shadow: 0 0 8px rgba(var(--c-prim), 0.3); }
+.hud-panel {
+    grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 16px;
+    background: linear-gradient(135deg, rgba(var(--c-prim), 0.1), transparent);
+    border: 1px solid rgba(var(--c-prim), 0.4); border-radius: 6px; padding: 20px; position: relative; overflow: hidden;
+}
+.hud-panel::before { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 2px; background: linear-gradient(90deg, transparent, rgb(var(--c-prim))); animation: scan-x 3s linear infinite; }
+@keyframes scan-x { to { left: 200%; } }
+.hud-stat { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 6px; border-right: 1px dashed rgba(var(--c-border), 0.5); padding-right: 16px; }
+.hud-stat:last-child { border-right: none; }
+.hud-stat .label { font-size: 11px; color: rgba(var(--c-text), 0.6); text-transform: uppercase; }
+.hud-stat .value { font-size: 24px; font-weight: bold; color: rgb(var(--c-text)); text-shadow: 0 0 10px rgba(var(--c-text), 0.2); }
+.hud-stat.highlight .value { color: rgb(var(--c-prim)); text-shadow: 0 0 15px rgba(var(--c-prim), 0.4); }
+.hud-stat.positive .value { color: rgb(var(--c-pass)); }
+.hud-stat.negative .value { color: rgb(var(--c-warn)); }
+.hud-tags { margin-top: 4px; display: flex; gap: 8px; font-size: 10px; }
+.status-tag { padding: 2px 6px; border-radius: 2px; background: rgba(var(--c-text), 0.1); border: 1px solid rgba(var(--c-text), 0.3); white-space: nowrap; }
+.status-tag.ok { color: rgb(var(--c-pass)); border-color: rgba(var(--c-pass), 0.5); background: rgba(var(--c-pass), 0.1); }
+.status-tag.warn { color: rgb(var(--c-sec)); border-color: rgba(var(--c-sec), 0.5); background: rgba(var(--c-sec), 0.1); }
+.nexus-card { grid-column: 1 / -1; background: rgba(10, 15, 20, 0.8); border: 1px solid rgba(var(--c-prim), 0.6); box-shadow: inset 0 0 30px rgba(var(--c-prim), 0.05); }
+.nexus-header { padding: 12px 16px; border-bottom: 1px solid rgba(var(--c-prim), 0.3); background: rgba(var(--c-prim), 0.05); display: flex; justify-content: space-between; align-items: center; }
+.nexus-title { font-size: 18px; font-weight: bold; color: rgb(var(--c-prim)); text-transform: uppercase; }
+.nexus-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 16px; }
+.segments-wrapper { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 12px; padding-left: 20px; border-left: 2px solid rgba(var(--c-prim), 0.3); margin-top: -10px; margin-bottom: 10px; }
+.segments-title { font-size: 12px; color: rgba(var(--c-text), 0.5); letter-spacing: 2px; margin-bottom: -4px; }
+.kv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; font-family: var(--font-code); }
+.kv-item { background: rgba(var(--c-text), 0.02); border-left: 2px solid rgba(var(--c-border), 0.5); padding: 8px 12px; transition: var(--tr); display: flex; flex-direction: column; justify-content: center; }
+.kv-item:hover { background: rgba(var(--c-prim), 0.08); border-left-color: rgb(var(--c-prim)); box-shadow: inset 20px 0 20px -20px rgba(var(--c-prim), 0.4); }
+.kv-label { font-size: 10px; color: rgba(var(--c-text), 0.5); text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; display: flex; align-items: center; }
+.kv-label::before { content: '>'; color: rgb(var(--c-prim)); margin-right: 4px; opacity: 0.8; font-weight: bold; }
+.kv-val { font-size: 13px; color: rgb(var(--c-text)); font-weight: bold; word-break: break-all; }
+.array-wrap { width: 100%; overflow-x: auto; padding-bottom: 4px; }
+.array-wrap::-webkit-scrollbar { height: 4px; }
+.array-wrap::-webkit-scrollbar-track { background: rgba(var(--c-bg), 0.5); }
+.array-wrap::-webkit-scrollbar-thumb { background: rgba(var(--c-prim), 0.3); border-radius: 2px; }
+.array-table { width: 100%; border-collapse: separate; border-spacing: 0 6px; font-family: var(--font-code); font-size: 12px; white-space: nowrap; }
+.array-table th { color: rgb(var(--c-prim)); font-weight: bold; text-align: left; padding: 8px 12px; border-bottom: 1px dashed rgba(var(--c-prim), 0.4); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; background: rgba(var(--c-prim), 0.05); }
+.array-table td { padding: 10px 12px; background: rgba(var(--c-text), 0.03); color: rgb(var(--c-text)); border-top: 1px solid transparent; border-bottom: 1px solid transparent; transition: var(--tr); }
+.array-table tr td:first-child { border-left: 2px solid rgba(var(--c-border), 0.5); border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+.array-table tr td:last-child { border-right: 1px solid transparent; border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+.array-table tbody tr:hover td { background: rgba(var(--c-prim), 0.1); border-top: 1px solid rgba(var(--c-prim), 0.2); border-bottom: 1px solid rgba(var(--c-prim), 0.2); color: #fff; text-shadow: 0 0 4px rgba(255,255,255,0.3); }
+.array-table tbody tr:hover td:first-child { border-left-color: rgb(var(--c-prim)); box-shadow: inset 15px 0 15px -15px rgba(var(--c-prim), 0.6); }
+
+/* =========================================
+   Tab 2: TRACKS (视角轨道专用样式)
+   ========================================= */
+.track-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 8px; }
+.track-identity { display: flex; flex-direction: column; gap: 4px; }
+.track-id { font-size: 11px; font-family: var(--font-code); color: rgba(var(--c-prim), 0.8); }
+.track-name { font-size: 16px; font-weight: bold; color: rgb(var(--c-text)); letter-spacing: 1px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; }
+.track-name:hover { color: rgb(var(--c-prim)); text-shadow: 0 0 10px rgba(var(--c-prim), 0.4); }
+.status-badge { display: flex; align-items: center; gap: 6px; font-size: 10px; padding: 2px 8px; font-family: var(--font-code); font-weight: bold; }
+.status-simulating { color: rgb(var(--c-sec)); }
+.status-simulating::before { content: '● REC'; animation: blinkSoft 1.5s ease-in-out infinite; }
+.status-merged { color: rgb(var(--c-prim)); }
+.status-merged::before { content: '■ SYNCED'; }
+@keyframes blinkSoft { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; text-shadow: 0 0 8px rgb(var(--c-sec)); } }
+.track-meta { display: grid; gap: 6px; font-size: 12px; color: rgba(var(--c-text), 0.7); border-top: 1px dashed rgba(var(--c-border), 0.6); padding-top: 10px; }
+.meta-row { display: flex; align-items: flex-start; gap: 8px; }
+.meta-icon { width: 16px; text-align: center; color: rgba(var(--c-text), 0.4); }
+.track-progress { font-size: 13px; color: rgb(var(--c-text)); background: rgba(0, 0, 0, 0.15); border: 1px solid rgba(var(--c-border), 0.4); padding: 8px 12px; border-radius: 4px; border-left: 3px solid rgb(var(--c-prim)); display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+.prog-text { font-weight: bold; }
+.iter-badge { display: flex; align-items: center; gap: 4px; background: rgba(var(--c-warn), 0.15); color: rgb(var(--c-warn)); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; font-family: var(--font-code); white-space: nowrap; }
+.iter-badge i { animation: spin 4s linear infinite; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
+.track-summary-wrap { background: rgba(0, 0, 0, 0.1); border-radius: 6px; margin-top: 12px; transition: var(--tr); }
+.summary-header { padding: 8px 10px; font-size: 11px; color: rgba(var(--c-text), 0.6); display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+.summary-header:hover { color: rgb(var(--c-prim)); }
+.summary-header i.chevron { transition: transform 0.3s; }
+.track-summary-wrap.open .summary-header i.chevron { transform: rotate(180deg); }
+.summary-content { font-family: -apple-system, "PingFang SC", sans-serif; font-size: 13px; line-height: 1.6; padding: 0 10px 10px; color: rgba(var(--c-text), 0.9); display: none; border-top: 1px dashed rgba(var(--c-border), 0.3); margin-top: 4px; padding-top: 8px; }
+.track-summary-wrap.open .summary-content { display: block; animation: slideDown 0.3s ease; }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Footer & Utils */
+.nos-footer { background: rgba(var(--c-bg), 0.9); border-top: 1px solid rgba(var(--c-prim), 0.3); padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; font-family: var(--font-code); }
+.check-item { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: bold; }
+.check-light { width: 8px; height: 8px; border-radius: 50%; background: #333; }
+.check-pass .check-light { background: rgb(var(--c-pass)); box-shadow: 0 0 8px rgba(var(--c-pass), 0.8); }
+.check-pass .check-label { color: rgb(var(--c-pass)); }
+.check-fail .check-light { background: rgb(var(--c-sec)); box-shadow: 0 0 8px rgba(var(--c-sec), 0.8); }
+.check-fail .check-label { color: rgb(var(--c-sec)); }
+.nos-toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-50px); background: rgba(var(--c-prim), 0.9); color: #fff; padding: 8px 20px; border-radius: 20px; font-weight: bold; font-size: 12px; opacity: 0; pointer-events: none; transition: var(--tr); z-index: 9999; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+.nos-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+/* Modal */
+.char-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 10000; opacity: 0; pointer-events: none; transition: opacity var(--tr); }
+.char-modal.show { opacity: 1; pointer-events: auto; }
+.char-modal-inner { background: linear-gradient(180deg, rgba(var(--c-card), 0.98) 0%, rgba(var(--c-bg), 0.98) 100%); border: 1px solid rgba(var(--c-prim), 0.5); border-radius: 4px; width: 90%; max-width: 650px; max-height: 85vh; overflow-y: auto; padding: 0; box-shadow: 0 0 50px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(var(--c-prim), 0.2) inset; transform: scale(0.95) translateY(10px); transition: all var(--tr); }
+.char-modal.show .char-modal-inner { transform: scale(1) translateY(0); }
+.char-modal-inner::-webkit-scrollbar { width: 4px; }
+.char-modal-inner::-webkit-scrollbar-track { background: transparent; }
+.char-modal-inner::-webkit-scrollbar-thumb { background: rgba(var(--c-prim), 0.4); border-radius: 2px; }
+.dossier-header { padding: 24px 24px 16px; border-bottom: 1px dashed rgba(var(--c-prim), 0.4); position: relative; }
+.dossier-title-bar { display: flex; justify-content: space-between; align-items: flex-start; }
+.dossier-name { font-size: 24px; font-weight: 900; color: rgb(var(--c-text)); letter-spacing: 2px; margin-bottom: 8px;}
+.dossier-close { cursor: pointer; color: rgba(var(--c-text), 0.5); font-size: 20px; transition: 0.2s; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%;}
+.dossier-close:hover { color: rgb(var(--c-sec)); background: rgba(var(--c-sec), 0.1); transform: rotate(90deg); }
+.dossier-body { padding: 20px 24px; }
+.dossier-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.d-tag { background: rgba(var(--c-prim), 0.1); border: 1px solid rgba(var(--c-prim), 0.3); color: rgb(var(--c-prim)); font-size: 12px; font-weight: bold; padding: 4px 10px; border-radius: 4px; }
+.dossier-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.d-grid-item { background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(var(--c-border), 0.4); border-radius: 4px; padding: 10px 12px; border-left: 2px solid rgba(var(--c-prim), 0.5); }
+.d-grid-k { font-size: 11px; color: rgba(var(--c-text), 0.5); margin-bottom: 4px; font-family: var(--font-code); }
+.d-grid-v { font-size: 13px; font-weight: bold; color: rgb(var(--c-text)); word-break: break-word; }
+.dossier-blocks { display: flex; flex-direction: column; gap: 16px; }
+.d-block { background: rgba(0, 0, 0, 0.15); border-top: 1px solid rgba(var(--c-border), 0.3); padding: 12px 16px; }
+.d-block-k { font-size: 12px; font-weight: bold; color: rgb(var(--c-prim)); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.d-block-k i { opacity: 0.7; }
+.d-block-v { font-size: 13px; line-height: 1.6; color: rgba(var(--c-text), 0.9); }
+.modal-fallback { text-align: center; color: rgb(var(--c-prim)); padding: 40px 20px; font-size: 14px; }
+@media (max-width: 720px) { .nos-tabs { padding: 0; } .tab-btn { flex: 1; justify-content: center; padding: 12px 10px; } }
+</style>
+</head>
+<body>
+
+<div class="nos-container" id="nosContainer" data-theme="dark">
+    <div class="nos-header">
+        <span class="nos-title"><i class="fa-brands fa-space-awesome"></i> NARRATIVE_OS</span>
+        
+        <div class="folded-summary" id="foldedSummary">
+            <div class="fs-item fs-pass"><i class="fa-solid fa-database fa-beat-fade"></i> <span id="fsAssetCount">0</span> ASSETS</div>
+            <div class="fs-divider"></div>
+            <div class="fs-item fs-pass"><i class="fa-solid fa-satellite-dish fa-beat-fade"></i> <span id="fsTrackCount">0</span> ORBITS</div>
+            <div class="fs-divider"></div>
+            <div class="fs-item" id="fsDiagStatus">SYS_STABLE</div>
+        </div>
+
+        <div class="header-controls">
+            <span id="nos-time" style="font-family: var(--font-code); color: rgba(var(--c-text),0.5); font-size: 11px;">TICK: 00:00</span>
+            <div class="ctrl-btn" id="runSimBtn" title="触发 BizSim 推演" style="width:auto;padding:0 10px;font-size:11px;gap:6px;">
+                <i class="fa-solid fa-play"></i><span id="runSimText">全局推演</span>
+            </div>
+            <div class="ctrl-btn" onclick="toggleTheme()" title="切换昼夜镜片"><i class="fa-solid fa-moon" id="themeIcon"></i></div>
+            <div class="ctrl-btn fold-btn" onclick="toggleNosFold()" title="收起/展开面板"><i class="fa-solid fa-compress"></i></div>
+        </div>
+    </div>
+    
+    <div class="nos-tabs">
+        <div class="tab-btn active" id="btn-assets" onclick="switchTab('assets')">
+            <i class="fa-solid fa-chart-pie"></i> ASSETS_DB 资产矩阵
+        </div>
+        <div class="tab-btn" id="btn-tracks" onclick="switchTab('tracks')">
+            <i class="fa-solid fa-crosshairs"></i> WORLD_TRACKS 视角推演
+        </div>
+    </div>
+
+    <div class="nos-body-wrap">
+        <div class="nos-body-inner">
+            <div id="nosBanner" class="nos-banner" style="display:none; margin-bottom: 0;"></div>
+            
+            <div id="pane-assets" class="tab-pane active">
+                <div class="nos-grid" id="gridAssets">
+                    <div style="color: rgba(var(--c-text),0.5); text-align: center; padding: 30px; grid-column: 1/-1;">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> SYNCING ASSETS...
+                    </div>
+                </div>
+            </div>
+
+            <div id="pane-tracks" class="tab-pane">
+                <div class="nos-grid" id="gridTracks">
+                    <div style="color: rgba(var(--c-text),0.5); text-align: center; padding: 30px; grid-column: 1/-1;">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> SYNCING ORBITS...
+                    </div>
+                </div>
+            </div>
+            
+            <div class="nos-footer" id="checkPanel"></div>
+        </div>
+    </div>
+</div>
+
+<div class="nos-toast" id="nos-toast"><i class="fa-solid fa-check"></i> 操作完成</div>
+
+<div class="char-modal" id="charModal" onclick="closeCharModal(event)">
+    <div class="char-modal-inner" onclick="event.stopPropagation()">
+        <div id="charModalContent"></div>
+    </div>
+</div>
+
+<script>
+(function(){
+    // === DOM 元素引用 ===
+    const gridAssets = document.getElementById('gridAssets');
+    const gridTracks = document.getElementById('gridTracks');
+    const checkPanel = document.getElementById('checkPanel');
+    const nosBanner = document.getElementById('nosBanner');
+    const toast = document.getElementById('nos-toast');
+    const nosContainer = document.getElementById('nosContainer');
+    const charModal = document.getElementById('charModal');
+    const charModalContent = document.getElementById('charModalContent');
+    const fsAssetCount = document.getElementById('fsAssetCount');
+    const fsTrackCount = document.getElementById('fsTrackCount');
+    const fsDiagStatus = document.getElementById('fsDiagStatus');
+    const themeIcon = document.getElementById('themeIcon');
+    const runSimBtn = document.getElementById('runSimBtn');
+    const runSimText = document.getElementById('runSimText');
+
+    // === UI 基础逻辑 ===
+    function updateSystemTime() {
+        const now = new Date();
+        document.getElementById('nos-time').textContent = `TICK: ${now.toTimeString().split(' ')[0]}`;
+    }
+    setInterval(updateSystemTime, 1000); updateSystemTime();
+
+    function escapeHtml(t) {
+        if (t == null) return '-';
+        const div = document.createElement('div'); div.textContent = String(t); return div.innerHTML;
+    }
+
+    function triggerResize() {
+        setTimeout(() => {
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'resizeIframe', height: document.body.scrollHeight }, '*');
+            }
+        }, 300); 
+    }
+
+    // 主题与收纳切换
+    window.toggleTheme = function() {
+        const currentTheme = nosContainer.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        nosContainer.setAttribute('data-theme', newTheme);
+        document.documentElement.setAttribute('data-theme', newTheme);
+        themeIcon.className = newTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+    }
+
+    window.toggleNosFold = function() {
+        nosContainer.classList.toggle('folded');
+        triggerResize();
+    }
+
+    // Tab 切换逻辑
+    window.switchTab = function(tabId) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+        
+        document.getElementById(`btn-${tabId}`).classList.add('active');
+        document.getElementById(`pane-${tabId}`).classList.add('active');
+        triggerResize();
+    }
+
+    // Tracker UI 交互
+    window.copySummary = function(btnElement, text) {
+        navigator.clipboard.writeText(text).then(() => {
+            toast.innerHTML = '<i class="fa-solid fa-check"></i> 情报已复制';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }).catch(err => console.error('Copy failed', err));
+        event.stopPropagation();
+    }
+
+    window.toggleSummary = function(headerElement) {
+        const wrap = headerElement.closest('.track-summary-wrap');
+        wrap.classList.toggle('open');
+        triggerResize();
+    }
+
+    // 档案 Modal 逻辑
+    window.closeCharModal = function(e) {
+        if(e) e.stopPropagation();
+        charModal.classList.remove('show');
+    }
+
+    async function queryCharacterDB(searchName) {
+        try {
+            const api = window.AutoCardUpdaterAPI || window.parent?.AutoCardUpdaterAPI;
+            if (api?.exportTableAsJson) {
+                const db = api.exportTableAsJson();
+                let targetTable = null;
+                for (let key in db) {
+                    if (db[key].name === '重要人物表' || key.includes('重要人物')) {
+                        targetTable = db[key]; break;
+                    }
+                }
+                if (targetTable && targetTable.content && targetTable.content.length > 1) {
+                    const headers = targetTable.content[0];
+                    let nameIdx = headers.findIndex(h => /姓名|名字|名称|角色|人物/i.test(h));
+                    if (nameIdx === -1) nameIdx = 0; 
+                    for (let i = 1; i < targetTable.content.length; i++) {
+                        const row = targetTable.content[i];
+                        const rowName = String(row[nameIdx] || '').trim();
+                        if (!rowName) continue;
+                        if (rowName.includes(searchName) || searchName.includes(rowName)) {
+                            return { found: true, headers: headers, data: row, trueName: rowName };
+                        }
+                    }
+                }
+            }
+        } catch(e) { console.error("[NARRATIVE OS] 档案库查询失败", e); }
+        return { found: false };
+    }
+
+    window.openCharProfile = async function(name) {
+        charModalContent.innerHTML = '<div style="text-align:center; padding: 60px; color:rgb(var(--c-prim));"><i class="fa-solid fa-satellite-dish fa-spin fa-2x"></i><br><br>CONNECTING TO DATABANK...</div>';
+        charModal.classList.add('show');
+        const res = await queryCharacterDB(name);
+        
+        if (res.found) {
+            let tagsHtml = ''; let gridHtml = ''; let blocksHtml = '';
+            const tagKeywords = /性别|年龄|状态|职业|境界|地点|层级|阵营/i;
+
+            res.headers.forEach((header, index) => {
+                const rawVal = String(res.data[index] || '').trim();
+                if (!header || !rawVal || rawVal === '-' || rawVal === '无' || (index === 0 && res.data[index] === res.trueName)) return; 
+
+                const cleanHeader = escapeHtml(header);
+                const safeVal = escapeHtml(rawVal).replace(/\n/g, '<br>');
+
+                if (tagKeywords.test(header) && rawVal.length < 20) {
+                    tagsHtml += `<div class="d-tag">${cleanHeader}: ${safeVal}</div>`;
+                } else if (rawVal.length < 35 && !rawVal.includes('\n') && !rawVal.includes('1.')) {
+                    gridHtml += `<div class="d-grid-item"><div class="d-grid-k">${cleanHeader}</div><div class="d-grid-v">${safeVal}</div></div>`;
+                } else {
+                    let icon = 'fa-file-lines';
+                    if (/外貌|特征|衣着|DNA/.test(header)) icon = 'fa-user-astronaut';
+                    if (/故事|经历|背景/.test(header)) icon = 'fa-book-journal-whills';
+                    if (/技能|魔法|攻击/.test(header)) icon = 'fa-wand-magic-sparkles';
+                    if (/关系/.test(header)) icon = 'fa-people-arrows';
+                    blocksHtml += `<div class="d-block"><div class="d-block-k"><i class="fa-solid ${icon}"></i> ${cleanHeader}</div><div class="d-block-v">${safeVal}</div></div>`;
+                }
+            });
+
+            charModalContent.innerHTML = `
+                <div class="dossier-header">
+                    <div class="dossier-title-bar">
+                        <div>
+                            <div class="dossier-name">${escapeHtml(res.trueName)}</div>
+                            <div style="font-family:var(--font-code); font-size:11px; color:rgba(var(--c-text),0.5);"><i class="fa-solid fa-fingerprint"></i> SUBJECT_ID: ${Math.floor(Math.random()*8999+1000)}-${Date.now().toString().slice(-4)}</div>
+                        </div>
+                        <div class="dossier-close" onclick="closeCharModal(event)"><i class="fa-solid fa-xmark"></i></div>
+                    </div>
+                </div>
+                <div class="dossier-body">
+                    ${tagsHtml ? `<div class="dossier-tags">${tagsHtml}</div>` : ''}
+                    ${gridHtml ? `<div class="dossier-grid">${gridHtml}</div>` : ''}
+                    ${blocksHtml ? `<div class="dossier-blocks">${blocksHtml}</div>` : ''}
+                </div>
+            `;
+        } else {
+            charModalContent.innerHTML = `
+                <div class="dossier-header">
+                    <div class="dossier-title-bar">
+                        <div class="dossier-name" style="color:rgb(var(--c-text))"><i class="fa-solid fa-crosshairs"></i> ${escapeHtml(name)}</div>
+                        <div class="dossier-close" onclick="closeCharModal(event)"><i class="fa-solid fa-xmark"></i></div>
+                    </div>
+                </div>
+                <div class="modal-fallback">
+                    <i class="fa-solid fa-video-slash fa-3x" style="margin-bottom:16px; opacity:0.6;"></i><br>
+                    <div style="font-size: 16px; font-weight: bold; color: rgb(var(--c-text)); margin-bottom: 8px;">未检索到独立机密档案</div>
+                    <div style="opacity:0.7; font-size:12px; line-height: 1.6;">
+                        当前视角 <b>${escapeHtml(name)}</b> 可能为临时事件、群像节点或环境变量。<br>
+                        系统已将其自动录入为【自由观测轨道】进行追踪。
+                    </div>
+                </div>`;
+        }
+    }
+
+    // === 核心数据引擎 (API) ===
+    function getApiFunc(name) {
+        const contexts = [window, window.parent, window.top, window.TavernHelper, window.parent?.TavernHelper];
+        for (let ctx of contexts) {
+            if (ctx && typeof ctx[name] === 'function') return ctx[name];
+        }
+        return null;
+    }
+
+    function getMessageId() {
+        const getCurrentId = getApiFunc('getCurrentMessageId') || getApiFunc('getMessageId');
+        if (getCurrentId) return getCurrentId(window.name || '');
+        const getLastId = getApiFunc('getLastMessageId');
+        if (getLastId) return getLastId();
+        return 'latest';
+    }
+
+    function readFloorVariables() {
+        const getVars = getApiFunc('getVariables');
+        if (!getVars) return null;
+        try {
+            return getVars({ type: 'message', message_id: getMessageId() }) || {};
+        } catch (e) {
+            console.error('[NARRATIVE OS] Error fetching variables:', e);
+            return null;
+        }
+    }
+
+    // === 核心渲染引擎 ===
+    function render() {
+        const vars = readFloorVariables();
+        const statData = vars?.stat_data || {};
+
+        const assets = statData.bizsim_assets || {};
+        const worldState = statData.bizsim_world_state || {};
+        const tracks = Array.isArray(worldState.tracks) ? worldState.tracks : [];
+        const checks = worldState.checks || {};
+        const assetKeys = Object.keys(assets);
+
+        nosBanner.style.display = 'flex';
+        if (!statData.bizsim_assets && !statData.bizsim_world_state) {
+            nosBanner.className = 'nos-banner warn';
+            nosBanner.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>未检测到推演数据 (stat_data 为空)</span>`;
+        } else {
+            nosBanner.className = 'nos-banner ok';
+            nosBanner.innerHTML = `<i class="fa-solid fa-link"></i> <span>双轨神经元阵列已同步完成</span>`;
+        }
+
+        // ==========================================
+        // 渲染 Tab 1: Assets (资产矩阵)
+        // ==========================================
+        let htmlAssets = '';
+        if (assetKeys.length > 0) {
+            const overview = assets['资产总览表'];
+            const nexus = assets['集团架构表'];
+            const segments = assets['业务板块表'];
+
+            // HUD
+            if (overview) {
+                let netWorthStr = overview['净资产'] || '';
+                let val = netWorthStr.split('|')[0] || netWorthStr;
+                let rep = netWorthStr.split('|')[1] || '';
+                let cashStr = overview['个人现金账户'] || '';
+                let cashVal = cashStr.replace(/\[.*?\]/g, ''); 
+                let isCashOk = cashStr.includes('健康');
+                let incomeStr = overview['个人月净收入'] || '';
+                let incomeClass = incomeStr.includes('+') ? 'positive' : (incomeStr.includes('-') ? 'negative' : '');
+
+                htmlAssets += `
+                    <div class="hud-panel">
+                        <div class="hud-stat highlight">
+                            <span class="label"><i class="fa-solid fa-globe"></i> GLOBAL_NET_WORTH</span>
+                            <span class="value">${escapeHtml(val.trim())}</span>
+                            ${rep ? `<div class="hud-tags"><span class="status-tag">${escapeHtml(rep.trim())}</span></div>` : ''}
+                        </div>
+                        <div class="hud-stat">
+                            <span class="label"><i class="fa-solid fa-wallet"></i> LIQUID_FUNDS</span>
+                            <span class="value">${escapeHtml(cashVal.trim())}</span>
+                            <div class="hud-tags"><span class="status-tag ${isCashOk ? 'ok' : 'warn'}">${isCashOk ? 'HEALTHY' : 'WARNING'}</span></div>
+                        </div>
+                        <div class="hud-stat ${incomeClass}">
+                            <span class="label"><i class="fa-solid fa-chart-line"></i> MONTHLY_YIELD</span>
+                            <span class="value">${escapeHtml(incomeStr)}</span>
+                        </div>
+                        <div style="width: 100%; border-top: 1px solid rgba(var(--c-border),0.4); padding-top: 8px; font-size: 11px; color: rgba(var(--c-text), 0.6);">
+                            <span style="color:rgb(var(--c-prim));">>> SYS_LOG:</span> ${escapeHtml(overview['本轮变动摘要'])}
+                        </div>
+                    </div>`;
+            }
+
+            // Nexus (集团)
+            if (nexus) {
+                const nexusItems = Object.entries(nexus).map(([k, v]) => {
+                    if (k === '实体名称') return '';
+                    const mainVal = escapeHtml(v.replace(/\[.*?\]/g, ''));
+                    const tags = (v.match(/\[(.*?)\]/g) || []).map(t => `<span class="status-tag" style="font-size:9px;">${escapeHtml(t.replace(/\[|\]/g, ''))}</span>`).join('');
+                    return `
+                    <div class="kv-item" style="background:transparent; border-left-color:rgba(var(--c-prim),0.5);">
+                        <span class="kv-label">${escapeHtml(k)}</span>
+                        <span class="kv-val">${mainVal} <div style="display:inline-flex; gap:4px; margin-left:4px;">${tags}</div></span>
+                    </div>`;
+                }).join('');
+
+                htmlAssets += `
+                    <div class="nos-card nexus-card">
+                        <div class="nexus-header">
+                            <div class="nexus-title"><i class="fa-brands fa-hubspot"></i> CORE_NEXUS: ${escapeHtml(nexus['实体名称'] || 'UNKNOWN')}</div>
+                            <div class="status-tag ok">OPERATIONAL</div>
+                        </div>
+                        <div class="nexus-grid">${nexusItems}</div>
+                    </div>`;
+            }
+
+            // Segments (子业务)
+            if (segments && Array.isArray(segments) && segments.length > 0) {
+                const headers = Object.keys(segments[0]);
+                const thead = `<tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr>`;
+                const tbody = segments.map(row => 
+                    `<tr>${headers.map(h => {
+                        let cellVal = escapeHtml(row[h]);
+                        if (h === '经营状态' && cellVal === '稳定') cellVal = `<span style="color:rgb(var(--c-pass))">${cellVal}</span>`;
+                        if (h === '月净利' && cellVal.includes('+')) cellVal = `<span style="color:rgb(var(--c-prim))">${cellVal}</span>`;
+                        return `<td>${cellVal}</td>`;
+                    }).join('')}</tr>`
+                ).join('');
+
+                htmlAssets += `
+                    <div class="segments-wrapper">
+                        <div class="segments-title">>> SUB_SEGMENTS / 挂载业务矩阵</div>
+                        <div class="array-wrap" style="background: rgba(var(--c-card), 0.4); border: 1px solid rgba(var(--c-border), 0.3); border-radius: 4px; padding: 8px;">
+                            <table class="array-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+                        </div>
+                    </div>`;
+            }
+
+            // Other Tables
+            assetKeys.forEach(tableName => {
+                if (['资产总览表', '集团架构表', '业务板块表'].includes(tableName)) return;
+                const data = assets[tableName];
+                let contentHtml = '';
+
+                if (Array.isArray(data) && data.length > 0) {
+                    const headers = Object.keys(data[0]);
+                    const thead = `<tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr>`;
+                    const tbody = data.map(row => `<tr>${headers.map(h => `<td>${escapeHtml(row[h])}</td>`).join('')}</tr>`).join('');
+                    contentHtml = `<div class="array-wrap"><table class="array-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
+                } else if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+                    const kvItems = Object.entries(data).map(([k, v]) => `<div class="kv-item"><span class="kv-label">${escapeHtml(k)}</span><span class="kv-val">${escapeHtml(v)}</span></div>`).join('');
+                    contentHtml = `<div class="kv-grid">${kvItems}</div>`;
+                } else return;
+
+                htmlAssets += `
+                    <div class="nos-card">
+                        <div class="card-sheen"></div>
+                        <div class="asset-header"><div class="asset-name"><i class="fa-solid fa-cube"></i> ${escapeHtml(tableName)}</div></div>
+                        ${contentHtml}
+                    </div>`;
+            });
+            gridAssets.innerHTML = htmlAssets;
+        } else {
+            gridAssets.innerHTML = '<div style="color:rgb(var(--c-warn)); text-align:center; padding: 20px; grid-column: 1/-1;"><i class="fa-solid fa-triangle-exclamation"></i> 暂无资产数据</div>';
+        }
+
+        // ==========================================
+        // 渲染 Tab 2: Tracks (视角推演)
+        // ==========================================
+        let htmlTracks = '';
+        if (tracks.length > 0) {
+            tracks.forEach((track, index) => {
+                const bgId = track.id || 'BG.?'; const name = track.characterName || 'Unknown';
+                const status = track.status || '未知'; const iterCount = track.iteration || '1';
+                const timeStr = track.timeSync || 'N/A'; const locStr = track.location || 'N/A';
+                const progStr = track.progress || 'N/A'; const sumStr = track.summary || '无情报。';
+
+                const safeName = name.replace(/'/g, "\\'");
+                const safeSumStr = sumStr.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                let statusClass = status.includes('已汇入') || status.includes('SYNCED') ? 'status-merged' : 'status-simulating';
+                let openClass = index === 0 ? 'open' : '';
+
+                htmlTracks += `
+                    <div class="nos-card">
+                        <div class="card-sheen"></div>
+                        <div class="track-header">
+                            <div class="track-identity">
+                                <span class="track-id">${escapeHtml(bgId)}</span>
+                                <span class="track-name" onclick="openCharProfile('${safeName}')" title="查阅终端档案">
+                                    ${escapeHtml(name)} <i class="fa-solid fa-expand"></i>
+                                </span>
+                            </div>
+                            <div class="status-badge ${statusClass}"></div>
+                        </div>
+                        <div class="track-meta">
+                            <div class="meta-row"><span class="meta-icon"><i class="fa-regular fa-clock"></i></span><span class="meta-value">${escapeHtml(timeStr)}</span></div>
+                            <div class="meta-row"><span class="meta-icon"><i class="fa-solid fa-location-crosshairs"></i></span><span class="meta-value">${escapeHtml(locStr)}</span></div>
+                        </div>
+                        <div class="track-progress">
+                            <div><i class="fa-solid fa-terminal" style="opacity:0.5; margin-right:6px;"></i><span class="prog-text">${escapeHtml(progStr)}</span></div>
+                            <div class="iter-badge"><i class="fa-solid fa-arrows-spin"></i> ITER_${escapeHtml(iterCount)}</div>
+                        </div>
+                        <div class="track-summary-wrap ${openClass}">
+                            <div class="summary-header" onclick="toggleSummary(this)">
+                                <span><i class="fa-solid fa-align-left"></i> 观测概括</span>
+                                <div><i class="fa-regular fa-copy" style="margin-right:8px; opacity:0.8;" onclick="copySummary(this, '${safeSumStr}')" title="复制情报"></i><i class="fa-solid fa-chevron-down chevron"></i></div>
+                            </div>
+                            <div class="summary-content">${escapeHtml(sumStr).replace(/\n/g, '<br>')}</div>
+                        </div>
+                    </div>`;
+            });
+            gridTracks.innerHTML = htmlTracks;
+        } else {
+            gridTracks.innerHTML = '<div style="color:rgb(var(--c-warn)); text-align:center; padding: 20px; grid-column: 1/-1;"><i class="fa-solid fa-triangle-exclamation"></i> 暂无视角轨道数据</div>';
+        }
+
+        // ==========================================
+        // 渲染统一 Footer (Checks) & 微缩指示器
+        // ==========================================
+        let htmlChecks = '';
+        let allChecksPass = true;
+        
+        if (Object.keys(checks).length > 0) {
+            Object.entries(checks).forEach(([label, result]) => {
+                const isPass = result === true || result === 'true' || String(result).includes('通过');
+                if (!isPass) allChecksPass = false;
+                const checkClass = isPass ? 'check-pass' : 'check-fail';
+                const displayVal = result === true ? 'PASS' : (result === false ? 'FAIL' : result);
+                htmlChecks += `<div class="check-item ${checkClass}"><div class="check-light"></div><span class="check-label">${escapeHtml(label)}: ${escapeHtml(displayVal)}</span></div>`;
+            });
+            checkPanel.innerHTML = htmlChecks;
+        } else {
+            checkPanel.innerHTML = '<div class="check-item" style="color:gray;">NO DIAGNOSTICS</div>';
+        }
+
+        fsAssetCount.textContent = assetKeys.length;
+        fsTrackCount.textContent = tracks.length;
+        if (allChecksPass && (tracks.length > 0 || assetKeys.length > 0)) {
+            fsDiagStatus.className = 'fs-item fs-pass';
+            fsDiagStatus.innerHTML = '<i class="fa-solid fa-shield-check"></i> SYS_STABLE';
+        } else {
+            fsDiagStatus.className = 'fs-item fs-warn';
+            fsDiagStatus.innerHTML = '<i class="fa-solid fa-triangle-exclamation fa-fade"></i> SYS_WARN';
+        }
+
+        triggerResize();
+    }
+
+    // === 事件挂载与初始化 ===
+    async function initReactivity() {
+        const getWaitFunc = getApiFunc('waitGlobalInitialized');
+        if (getWaitFunc) await getWaitFunc('Mvu');
+
+        const mvuEvents = getApiFunc('Mvu')?.events || window.Mvu?.events || window.parent?.Mvu?.events;
+        if (mvuEvents && typeof mvuEvents.addEventListener === 'function') {
+            mvuEvents.addEventListener('VARIABLE_UPDATE_ENDED', render);
+        }
+
+        const tEvents = window.tavern_events || window.parent?.tavern_events;
+        if (tEvents && typeof tEvents.addEventListener === 'function') {
+            tEvents.addEventListener('MESSAGE_RECEIVED', render);
+            tEvents.addEventListener('MESSAGE_SWIPED', render);
+        }
+
+        render();
+    }
+
+    // === BizSim 按钮推演逻辑 ===
+    function setRunSimButtonState() {
+        const getBizSimApi = () => window.BizSim || window.parent?.BizSim || window.top?.BizSim;
+        let isRunning = !!getBizSimApi()?.isSimulating;
+        if (isRunning) {
+            runSimText.textContent = '推演中';
+            runSimBtn.style.opacity = '0.75';
+            runSimBtn.style.pointerEvents = 'none';
+            runSimBtn.querySelector('i').className = 'fa-solid fa-circle-notch fa-spin';
+        } else {
+            runSimText.textContent = '全局推演';
+            runSimBtn.style.opacity = '1';
+            runSimBtn.style.pointerEvents = 'auto';
+            runSimBtn.querySelector('i').className = 'fa-solid fa-play';
+        }
+    }
+
+    async function triggerSimulation() {
+        const api = window.BizSim || window.parent?.BizSim || window.top?.BizSim;
+        setRunSimButtonState();
+        try {
+            if (!api?.simulateFromHtml && !api?.simulate) throw new Error('BizSim API 不可用');
+            const result = api.simulateFromHtml ? await api.simulateFromHtml() : await api.simulate();
+            if (!result?.success) throw new Error(result?.error || '推演失败');
+            
+            toast.innerHTML = '<i class="fa-solid fa-check"></i> 全局推演完成';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+            render();
+        } catch (err) {
+            const reason = err?.message ? `：${escapeHtml(err.message)}` : '';
+            toast.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> 推演失败${reason}`;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        } finally {
+            setRunSimButtonState();
+        }
+    }
+
+    runSimBtn?.addEventListener('click', triggerSimulation);
+    setInterval(setRunSimButtonState, 1000);
+
+    initReactivity();
+})();
+</script>
+</body>
+</html>
+

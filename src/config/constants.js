@@ -38,7 +38,7 @@ export const BIZSIM_CONFIG = {
     retryCount: 2,
     repairOnParseError: true,
     autoSave: true,
-    autoRunEnabled: false,
+    autoRunEnabled: true,
     autoRunOnlyAssistant: true,
     autoRunAssistantFloorInterval: 1,
     autoRunUseHistory: true,
