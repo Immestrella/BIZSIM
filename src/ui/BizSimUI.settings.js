@@ -193,7 +193,7 @@ export function saveSimulationSettings(ui, silent = false) {
     ui.engine.config.AUDIT.liquidationPenalty.max = temp;
   }
 
-  ui.engine.saveData();
+  ui.engine.saveSettingsOnly();
   ui.log('推演配置已保存');
   if (!silent && typeof toastr !== 'undefined') toastr.success('推演配置已保存');
   return useHistory;
@@ -236,7 +236,7 @@ export function resetSimulationSettings(ui) {
   if (ui.byId('sim-worldbook-entry-selectors')) ui.byId('sim-worldbook-entry-selectors').value = ui.engine.config.SIMULATION.worldbookEntrySelectors || '';
   if (ui.byId('sim-worldbook-entry-limit')) ui.byId('sim-worldbook-entry-limit').value = ui.engine.config.SIMULATION.worldbookEntryLimit;
 
-  ui.engine.saveData();
+  ui.engine.saveSettingsOnly();
   ui.log('推演配置已恢复默认');
   if (typeof toastr !== 'undefined') toastr.info('推演配置已恢复默认');
   ui.initWorldbookPanel();
@@ -283,7 +283,7 @@ export function saveSettings(ui) {
     );
   }
 
-  ui.engine.saveData();
+  ui.engine.saveSettingsOnly();
   ui.log('设置已保存');
   if (typeof toastr !== 'undefined') toastr.success('设置已保存');
   ui.refreshPromptSnapshot();

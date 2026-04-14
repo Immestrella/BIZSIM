@@ -48,7 +48,7 @@ export function renderScaffoldEditingUI(ui) {
       engine.config.SIMULATION.tplRaw,
       engine.config.SIMULATION.userPref
     );
-    void engine.saveData();
+    void engine.saveSettingsOnly();
     renderScaffoldEditingUI(ui);
     if (typeof toastr !== 'undefined') toastr.success('内置块已恢复为最新默认');
   });
@@ -90,7 +90,7 @@ export function renderScaffoldEditingUI(ui) {
         engine.config.SIMULATION.tplRaw,
         newPref
       );
-      void engine.saveData();
+      void engine.saveSettingsOnly();
       // 刷新显示
       renderScaffoldEditingUI(ui);
       if (typeof toastr !== 'undefined') toastr.success('用户偏好已应用');
@@ -101,7 +101,7 @@ export function renderScaffoldEditingUI(ui) {
         engine.config.SIMULATION.tplRaw,
         null
       );
-      void engine.saveData();
+      void engine.saveSettingsOnly();
       renderScaffoldEditingUI(ui);
       if (typeof toastr !== 'undefined') toastr.info('用户偏好已清除');
     }
@@ -112,21 +112,21 @@ export function renderScaffoldEditingUI(ui) {
     renderPresetsPanel(presetsWrapper, presetManager.listPresets(), presetManager.currentPresetId, {
       onLoad: (presetId) => {
         presetManager.loadPreset(presetId);
-        void engine.saveData();
+        void engine.saveSettingsOnly();
         renderScaffoldEditingUI(ui);
         if (typeof toastr !== 'undefined') toastr.success('预设已加载');
       },
       onSaveNew: (name) => {
         presetManager.createPreset(name);
         presetManager.save();
-        void engine.saveData();
+        void engine.saveSettingsOnly();
         renderScaffoldEditingUI(ui);
         if (typeof toastr !== 'undefined') toastr.success(`预设 "${name}" 已保存`);
       },
       onDelete: (presetId) => {
         presetManager.deletePreset(presetId);
         presetManager.save();
-        void engine.saveData();
+        void engine.saveSettingsOnly();
         renderScaffoldEditingUI(ui);
         if (typeof toastr !== 'undefined') toastr.info('预设已删除');
       }
@@ -159,7 +159,7 @@ export async function saveScaffoldChanges(ui) {
   }
 
   // 4. 持久化到引擎
-  await engine.saveData();
+  await engine.saveSettingsOnly();
 
   if (typeof toastr !== 'undefined') toastr.success('所有更改已保存');
   return true;

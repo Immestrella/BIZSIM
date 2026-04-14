@@ -863,8 +863,10 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
   },
 
   async syncLatestFloorVariables(floorData, worldSimulation) {
-    const messageId = this.getLatestAssistantMessageIdSafe() ?? getCurrentMessageIdSafe();
-    if (messageId === null || messageId === undefined) return false;
+    const messageId = this.getLatestAssistantMessageIdSafe();
+    if (messageId === null || messageId === undefined) {
+      return { success: false, errors: ['未找到可写入的 AI 回复楼层'] };
+    }
 
     const currentVariables = getMessageVariablesSafe(messageId);
     const currentScoped = this.resolveFloorStatDataSource(currentVariables);

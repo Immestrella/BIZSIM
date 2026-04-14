@@ -391,7 +391,7 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
       if (syncResult.normalizedWorldSimulation) this.worldSimulation = syncResult.normalizedWorldSimulation;
 
       this.validateCrossSheetIntegrity();
-      if (this.config.SIMULATION?.autoSave !== false) await this.saveData();
+      if (this.config.SIMULATION?.autoSave !== false) await this.saveSettingsOnly();
 
       const injected = this.config.SIMULATION?.bodyInjectionEnabled === true
         ? await this.injectBizSimBlocksToMessage(syncResult.messageId, 10)

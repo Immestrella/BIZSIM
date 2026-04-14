@@ -1525,8 +1525,10 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
   },
 
   async syncLatestFloorVariables(floorData, worldSimulation) {
-    const messageId = this.getLatestAssistantMessageIdSafe() ?? getCurrentMessageIdSafe();
-    if (messageId === null || messageId === undefined) return false;
+    const messageId = this.getLatestAssistantMessageIdSafe();
+    if (messageId === null || messageId === undefined) {
+      return { success: false, errors: ['未找到可写入的 AI 回复楼层'] };
+    }
 
     const currentVariables = getMessageVariablesSafe(messageId);
     const currentScoped = this.resolveFloorStatDataSource(currentVariables);
@@ -2001,7 +2003,7 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
       if (syncResult.normalizedWorldSimulation) this.worldSimulation = syncResult.normalizedWorldSimulation;
 
       this.validateCrossSheetIntegrity();
-      if (this.config.SIMULATION?.autoSave !== false) await this.saveData();
+      if (this.config.SIMULATION?.autoSave !== false) await this.saveSettingsOnly();
 
       const injected = this.config.SIMULATION?.bodyInjectionEnabled === true
         ? await this.injectBizSimBlocksToMessage(syncResult.messageId, 10)
@@ -2167,7 +2169,7 @@ const BIZSIM_ENGINE_AUDIT_METHODS = {
 
     this.worldSimulation.tracks.push(newTrack);
     this.worldSimulation.checks.newTracksAdded = true;
-    this.saveData();
+    this.saveFloorDataOnly();
     return newTrack.id;
   },
 };
@@ -2789,9 +2791,8 @@ class BizSimEngine {
     return deepClone(DEFAULT_DATA);
   }
 
-  async saveData() {
+  async saveSettingsOnly() {
     try {
-      // 1. 保存设置到角色变量
       const safeLLM = {
         ...this.config.LLM,
         apiKey: this.config.LLM.persistApiKey ? this.config.LLM.apiKey : '',
@@ -2811,32 +2812,41 @@ class BizSimEngine {
       };
 
       insertOrAssignVariablesSafe(settingsPayload);
-
-      // 2. 保存数据到楼层变量
-      const messageId = getCurrentMessageIdSafe();
-      if (messageId !== null && messageId !== undefined) {
-        const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
-        const semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromFloorData(this.data));
-        const floorVars = getMessageVariablesSafe(messageId);
-        const currentScoped = this.resolveFloorStatDataSource(floorVars);
-        const baseStatData = currentScoped && typeof currentScoped === 'object'
-          ? deepClone(currentScoped)
-          : {};
-
-        const floorPayload = {
-          stat_data: {
-            ...baseStatData,
-            [assetsKey]: semanticAssets,
-            [worldStateKey]: this.worldSimulation,
-          },
-        };
-
-        insertOrAssignVariablesSafe(floorPayload, { type: 'message', message_id: messageId });
-      }
-
       return true;
     } catch (error) {
-      console.error('[BizSim] 保存失败:', error);
+      console.error('[BizSim] 保存设置失败:', error);
+      return false;
+    }
+  }
+
+  async saveFloorDataOnly() {
+    try {
+      const messageId = this.getLatestAssistantMessageIdSafe?.();
+      if (messageId === null || messageId === undefined) {
+        console.warn('[BizSim] 未找到可写入的 AI 回复楼层，已跳过楼层变量保存');
+        return false;
+      }
+
+      const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
+      const semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromFloorData(this.data));
+      const floorVars = getMessageVariablesSafe(messageId);
+      const currentScoped = this.resolveFloorStatDataSource(floorVars);
+      const baseStatData = currentScoped && typeof currentScoped === 'object'
+        ? deepClone(currentScoped)
+        : {};
+
+      const floorPayload = {
+        stat_data: {
+          ...baseStatData,
+          [assetsKey]: semanticAssets,
+          [worldStateKey]: this.worldSimulation,
+        },
+      };
+
+      insertOrAssignVariablesSafe(floorPayload, { type: 'message', message_id: messageId });
+      return true;
+    } catch (error) {
+      console.error('[BizSim] 保存楼层数据失败:', error);
       return false;
     }
   }
@@ -4136,7 +4146,7 @@ function saveSimulationSettings(ui, silent = false) {
     ui.engine.config.AUDIT.liquidationPenalty.max = temp;
   }
 
-  ui.engine.saveData();
+  ui.engine.saveSettingsOnly();
   ui.log('推演配置已保存');
   if (!silent && typeof toastr !== 'undefined') toastr.success('推演配置已保存');
   return useHistory;
@@ -4179,7 +4189,7 @@ function resetSimulationSettings(ui) {
   if (ui.byId('sim-worldbook-entry-selectors')) ui.byId('sim-worldbook-entry-selectors').value = ui.engine.config.SIMULATION.worldbookEntrySelectors || '';
   if (ui.byId('sim-worldbook-entry-limit')) ui.byId('sim-worldbook-entry-limit').value = ui.engine.config.SIMULATION.worldbookEntryLimit;
 
-  ui.engine.saveData();
+  ui.engine.saveSettingsOnly();
   ui.log('推演配置已恢复默认');
   if (typeof toastr !== 'undefined') toastr.info('推演配置已恢复默认');
   ui.initWorldbookPanel();
@@ -4226,7 +4236,7 @@ function saveSettings(ui) {
     );
   }
 
-  ui.engine.saveData();
+  ui.engine.saveSettingsOnly();
   ui.log('设置已保存');
   if (typeof toastr !== 'undefined') toastr.success('设置已保存');
   ui.refreshPromptSnapshot();
@@ -5418,7 +5428,7 @@ function renderScaffoldEditingUI(ui) {
       engine.config.SIMULATION.tplRaw,
       engine.config.SIMULATION.userPref
     );
-    void engine.saveData();
+    void engine.saveSettingsOnly();
     renderScaffoldEditingUI(ui);
     if (typeof toastr !== 'undefined') toastr.success('内置块已恢复为最新默认');
   });
@@ -5460,7 +5470,7 @@ function renderScaffoldEditingUI(ui) {
         engine.config.SIMULATION.tplRaw,
         newPref
       );
-      void engine.saveData();
+      void engine.saveSettingsOnly();
       // 刷新显示
       renderScaffoldEditingUI(ui);
       if (typeof toastr !== 'undefined') toastr.success('用户偏好已应用');
@@ -5471,7 +5481,7 @@ function renderScaffoldEditingUI(ui) {
         engine.config.SIMULATION.tplRaw,
         null
       );
-      void engine.saveData();
+      void engine.saveSettingsOnly();
       renderScaffoldEditingUI(ui);
       if (typeof toastr !== 'undefined') toastr.info('用户偏好已清除');
     }
@@ -5482,21 +5492,21 @@ function renderScaffoldEditingUI(ui) {
     renderPresetsPanel(presetsWrapper, presetManager.listPresets(), presetManager.currentPresetId, {
       onLoad: (presetId) => {
         presetManager.loadPreset(presetId);
-        void engine.saveData();
+        void engine.saveSettingsOnly();
         renderScaffoldEditingUI(ui);
         if (typeof toastr !== 'undefined') toastr.success('预设已加载');
       },
       onSaveNew: (name) => {
         presetManager.createPreset(name);
         presetManager.save();
-        void engine.saveData();
+        void engine.saveSettingsOnly();
         renderScaffoldEditingUI(ui);
         if (typeof toastr !== 'undefined') toastr.success(`预设 "${name}" 已保存`);
       },
       onDelete: (presetId) => {
         presetManager.deletePreset(presetId);
         presetManager.save();
-        void engine.saveData();
+        void engine.saveSettingsOnly();
         renderScaffoldEditingUI(ui);
         if (typeof toastr !== 'undefined') toastr.info('预设已删除');
       }
@@ -5529,7 +5539,7 @@ async function saveScaffoldChanges(ui) {
   }
 
   // 4. 持久化到引擎
-  await engine.saveData();
+  await engine.saveSettingsOnly();
 
   if (typeof toastr !== 'undefined') toastr.success('所有更改已保存');
   return true;

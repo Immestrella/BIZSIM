@@ -113,9 +113,8 @@ export class BizSimEngine {
     return deepClone(DEFAULT_DATA);
   }
 
-  async saveData() {
+  async saveSettingsOnly() {
     try {
-      // 1. 保存设置到角色变量
       const safeLLM = {
         ...this.config.LLM,
         apiKey: this.config.LLM.persistApiKey ? this.config.LLM.apiKey : '',
@@ -135,32 +134,41 @@ export class BizSimEngine {
       };
 
       insertOrAssignVariablesSafe(settingsPayload);
-
-      // 2. 保存数据到楼层变量
-      const messageId = getCurrentMessageIdSafe();
-      if (messageId !== null && messageId !== undefined) {
-        const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
-        const semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromFloorData(this.data));
-        const floorVars = getMessageVariablesSafe(messageId);
-        const currentScoped = this.resolveFloorStatDataSource(floorVars);
-        const baseStatData = currentScoped && typeof currentScoped === 'object'
-          ? deepClone(currentScoped)
-          : {};
-
-        const floorPayload = {
-          stat_data: {
-            ...baseStatData,
-            [assetsKey]: semanticAssets,
-            [worldStateKey]: this.worldSimulation,
-          },
-        };
-
-        insertOrAssignVariablesSafe(floorPayload, { type: 'message', message_id: messageId });
-      }
-
       return true;
     } catch (error) {
-      console.error('[BizSim] 保存失败:', error);
+      console.error('[BizSim] 保存设置失败:', error);
+      return false;
+    }
+  }
+
+  async saveFloorDataOnly() {
+    try {
+      const messageId = this.getLatestAssistantMessageIdSafe?.();
+      if (messageId === null || messageId === undefined) {
+        console.warn('[BizSim] 未找到可写入的 AI 回复楼层，已跳过楼层变量保存');
+        return false;
+      }
+
+      const { assetsKey, worldStateKey } = this.getFloorNamespaceKeys();
+      const semanticAssets = this.normalizeBizsimAssetsPayload(this.buildSemanticAssetsFromFloorData(this.data));
+      const floorVars = getMessageVariablesSafe(messageId);
+      const currentScoped = this.resolveFloorStatDataSource(floorVars);
+      const baseStatData = currentScoped && typeof currentScoped === 'object'
+        ? deepClone(currentScoped)
+        : {};
+
+      const floorPayload = {
+        stat_data: {
+          ...baseStatData,
+          [assetsKey]: semanticAssets,
+          [worldStateKey]: this.worldSimulation,
+        },
+      };
+
+      insertOrAssignVariablesSafe(floorPayload, { type: 'message', message_id: messageId });
+      return true;
+    } catch (error) {
+      console.error('[BizSim] 保存楼层数据失败:', error);
       return false;
     }
   }
