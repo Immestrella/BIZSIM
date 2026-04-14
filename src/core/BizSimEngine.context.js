@@ -1,6 +1,7 @@
 import {
   getCurrentMessageIdSafe,
   getLastMessageIdSafe,
+  getChatMessageByIdSafe,
   getMessageVariablesSafe,
   getCurrentCharPrimaryWorldbookSafe,
   getWorldbookNamesSafe,
@@ -200,6 +201,18 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
     if (!scoped) return null;
     const statData = this.extractAssetStatPayload(scoped);
     return statData || null;
+  },
+
+  getLatestAssistantMessageIdSafe() {
+    const lastMessageId = getLastMessageIdSafe();
+    if (lastMessageId === null || lastMessageId === undefined || lastMessageId < 0) return null;
+
+    for (let messageId = lastMessageId; messageId >= 0; messageId -= 1) {
+      const message = getChatMessageByIdSafe(messageId);
+      if (this.isAssistantMessage(message)) return messageId;
+    }
+
+    return null;
   },
 
   isFloorSnapshotEqual(left, right) {
@@ -830,7 +843,7 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
   },
 
   async syncLatestFloorVariables(floorData, worldSimulation) {
-    const messageId = getCurrentMessageIdSafe();
+    const messageId = this.getLatestAssistantMessageIdSafe() ?? getCurrentMessageIdSafe();
     if (messageId === null || messageId === undefined) return false;
 
     const currentVariables = getMessageVariablesSafe(messageId);
@@ -862,6 +875,7 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
 
       const normalizedEmpireFromSemantic = this.buildFloorDataFromSemanticAssets(semanticAssets);
       const payload = this.buildLatestFloorVariablesPayload(normalizedFloorData, normalizedWorldSimulation);
+      // 根据官方文档, insertOrAssignVariables 是同步操作，直接调用，不需要 await
       insertOrAssignVariablesSafe(payload, { type: 'message', message_id: messageId });
       return {
         success: true,

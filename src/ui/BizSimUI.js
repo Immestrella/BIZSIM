@@ -46,6 +46,7 @@ export class BizSimUI {
     this.currentWorldbookEntries = [];
     this.promptViewMode = 'preview';
     this.isSimulating = false;
+    this.simulationSource = '';
   }
 
   initWorldbookPanel() {
@@ -168,8 +169,9 @@ export class BizSimUI {
     return this.getScopeElement().querySelector(`#${id}`);
   }
 
-  setSimulationBusy(busy, source = '') {
+  setSimulationBusy(busy, source = '', publish = true) {
     this.isSimulating = !!busy;
+    this.simulationSource = this.isSimulating ? String(source || this.simulationSource || '') : '';
     const targets = [this.byId('btn-global-simulation'), this.byId('btn-start-simulation')].filter(Boolean);
 
     for (const button of targets) {
@@ -177,10 +179,24 @@ export class BizSimUI {
       button.classList.toggle('is-loading', this.isSimulating);
 
       if (button.id === 'btn-global-simulation') {
-        button.textContent = this.isSimulating ? `推演中${source ? ` · ${source}` : ''}` : '一键推演';
+        button.textContent = this.isSimulating ? `推演中${this.simulationSource ? ` · ${this.simulationSource}` : ''}` : '一键推演';
       } else {
-        button.textContent = this.isSimulating ? `推演中${source ? ` · ${source}` : ''}` : '开始推演';
+        button.textContent = this.isSimulating ? `推演中${this.simulationSource ? ` · ${this.simulationSource}` : ''}` : '开始推演';
       }
+    }
+
+    try {
+      if (publish) {
+        const api = window.BizSim || window.parent?.BizSim || window.top?.BizSim;
+        if (api?.setSimulationState) {
+        api.setSimulationState(this.isSimulating, this.simulationSource);
+        } else {
+          const sharedState = { isSimulating: this.isSimulating, source: this.simulationSource };
+          if (window.parent && window.parent !== window) window.parent.BizSimState = sharedState;
+          if (window.top && window.top !== window) window.top.BizSimState = sharedState;
+        }
+      }
+    } catch {
     }
   }
 
@@ -210,6 +226,12 @@ export class BizSimUI {
     this.refreshEmpire();
     this.refreshTracks();
     this.refreshPromptSnapshot();
+    const sharedState = window.BizSim?.simulationState || window.parent?.BizSimState || window.top?.BizSimState;
+    if (sharedState && typeof sharedState === 'object') {
+      this.setSimulationBusy(!!sharedState.isSimulating, String(sharedState.source || ''), false);
+    } else {
+      this.setSimulationBusy(this.isSimulating, this.simulationSource, false);
+    }
     this.initWorldbookPanel();
     injectEditorStyles();
     renderScaffoldEditingUI(this);

@@ -30,6 +30,7 @@ export const BIZSIM_CONFIG = {
     worldbookNames: '',
     worldbookEntrySelectors: '',
     worldbookEntryLimit: 12,
+    useHistory: true,
     mode: 'balanced',
     includeFloorData: true,
     includeWorldState: true,

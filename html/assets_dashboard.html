@@ -19,29 +19,10 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: transparent; color: var(--text); font: 13px/1.5 "PingFang SC", "Segoe UI", sans-serif; }
 .wrap { max-width: 900px; margin: 10px auto; background: rgba(12,18,32,.92); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.top {
-	padding: 10px 14px;
-	border-bottom: 1px solid var(--line);
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	gap: 10px;
-	flex-wrap: nowrap;
-}
-.top-main { min-width: 0; flex: 1 1 auto; }
+.top { padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .title { color: var(--accent); font-weight: 700; letter-spacing: .5px; }
-.meta { color: var(--sub); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.btn {
-	border: 1px solid var(--line);
-	background: #1a2743;
-	color: var(--text);
-	padding: 6px 10px;
-	border-radius: 6px;
-	cursor: pointer;
-	font-size: 12px;
-	min-width: 90px;
-	flex: 0 0 auto;
-}
+.meta { color: var(--sub); font-size: 12px; }
+.btn { border: 1px solid var(--line); background: #1a2743; color: var(--text); padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
 .btn[disabled] { opacity: .7; cursor: not-allowed; }
 .hint { padding: 8px 14px; border-bottom: 1px solid var(--line); color: var(--sub); background: rgba(93,211,255,.06); }
 .grid { display: grid; gap: 12px; padding: 12px; }
@@ -53,28 +34,12 @@ body { margin: 0; background: transparent; color: var(--text); font: 13px/1.5 "P
 .check { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; gap: 16px; flex-wrap: wrap; }
 .ok { color: var(--ok); }
 .warn { color: var(--warn); }
-
-@media (max-width: 760px) {
-	.top {
-		flex-wrap: wrap;
-		row-gap: 8px;
-	}
-
-	.top-main {
-		width: 100%;
-		flex-basis: 100%;
-	}
-
-	.btn {
-		margin-left: auto;
-	}
-}
 </style>
 </head>
 <body>
 <div class="wrap">
 	<div class="top">
-		<div class="top-main">
+		<div>
 			<div class="title">BizSim 资产统计</div>
 			<div class="meta" id="metaLine">正在解析数据...</div>
 		</div>
@@ -119,7 +84,7 @@ body { margin: 0; background: transparent; color: var(--text); font: 13px/1.5 "P
 
 	function parseAssetTables(text) {
 		const out = [];
-		const regex = /<asset_table\s+key="([^"]+)">([\s\S]*?)<\/asset_table>/g;
+		const regex = /<asset_table\s+key="([^"]+)"\s*>([\s\S]*?)<\/asset_table>/gi;
 		let m;
 		while ((m = regex.exec(text)) !== null) {
 			const key = m[1];
@@ -148,17 +113,19 @@ body { margin: 0; background: transparent; color: var(--text); font: 13px/1.5 "P
 	}
 
 	function render() {
-		const blockMatch = raw.match(/<bz_asset_sheet>([\s\S]*?)<\/bz_asset_sheet>/);
-		if (!blockMatch) {
-			hint.textContent = '未检测到 <bz_asset_sheet> 数据块';
+		const blockMatch = raw.match(/<bz_asset_sheet\b[^>]*>([\s\S]*?)<\/bz_asset_sheet>/i);
+		const text = blockMatch ? blockMatch[1] : raw;
+		blockMeta = parseMeta(text);
+		const tables = parseAssetTables(text);
+
+		if (!tables.length) {
+			hint.textContent = blockMatch
+				? '已检测到 <bz_asset_sheet>，但未解析到 <asset_table> 数据'
+				: '未检测到 <bz_asset_sheet>，且未解析到 <asset_table> 数据';
 			grid.innerHTML = '';
 			check.innerHTML = '<span class="warn">无可渲染资产数据</span>';
 			return;
 		}
-
-		const text = blockMatch[1];
-		blockMeta = parseMeta(text);
-		const tables = parseAssetTables(text);
 
 		metaLine.textContent = `来源楼层 ${blockMeta.sourceFloor || '-'} / 当前楼层 ${blockMeta.currentFloor || '-'}`;
 		hint.innerHTML = blockMeta.isLatest
@@ -166,15 +133,17 @@ body { margin: 0; background: transparent; color: var(--text); font: 13px/1.5 "P
 			: `<span class="warn">当前展示非最新（落后 ${esc(blockMeta.staleBy || '?')} 层）</span> · ${esc(blockMeta.actionHint)}`;
 
 		grid.innerHTML = tables.map((table) => {
-			const body = table.rows.map((pairs) => `
+			const body = `
 				<table class="table">
-					${pairs.map((pair) => `<tr><th>${esc(pair[0])}</th><td>${esc(pair[1])}</td></tr>`).join('')}
+					${table.rows
+						.map((pairs) => pairs.map((pair) => `<tr><th>${esc(pair[0])}</th><td>${esc(pair[1])}</td></tr>`).join(''))
+						.join('')}
 				</table>
-			`).join('');
+			`;
 			return `<div class="card"><div class="card-h">${esc(table.key)}</div>${body}</div>`;
 		}).join('');
 
-		const checkMatch = text.match(/<asset_check>([\s\S]*?)<\/asset_check>/);
+		const checkMatch = text.match(/<asset_check\b[^>]*>([\s\S]*?)<\/asset_check>/i);
 		if (checkMatch) {
 			const rows = checkMatch[1].split('\n').map((line) => line.trim()).filter(Boolean);
 			check.innerHTML = rows.map((row) => {
@@ -185,9 +154,20 @@ body { margin: 0; background: transparent; color: var(--text); font: 13px/1.5 "P
 	}
 
 	function setButtonState() {
+		const getBizSimApi = () => {
+			const candidates = [window, window.parent, window.top];
+			for (const host of candidates) {
+				try {
+					if (host?.BizSim) return host.BizSim;
+				} catch {
+				}
+			}
+			return null;
+		};
+
 		let running = false;
 		try {
-			const api = window.parent?.BizSim || window.BizSim;
+			const api = getBizSimApi();
 			running = !!api?.isSimulating;
 		} catch {
 		}
@@ -201,21 +181,61 @@ body { margin: 0; background: transparent; color: var(--text); font: 13px/1.5 "P
 		simBtn.title = blockMeta?.isLatest ? '当前已是最新，可手动再推演' : (blockMeta?.actionHint || '点击推演生成最新数据');
 	}
 
+	function subscribeSimulationState() {
+		const getBizSimApi = () => {
+			const candidates = [window, window.parent, window.top];
+			for (const host of candidates) {
+				try {
+					if (host?.BizSim) return host.BizSim;
+				} catch {
+				}
+			}
+			return null;
+		};
+
+		const api = getBizSimApi();
+		if (api?.subscribeSimulationState) {
+			api.subscribeSimulationState(() => setButtonState());
+			return;
+		}
+
+		setInterval(() => {
+			try {
+				const sharedState = window.BizSimState || window.parent?.BizSimState || window.top?.BizSimState;
+				if (sharedState) setButtonState();
+			} catch {
+			}
+		}, 250);
+	}
+
 	async function trigger() {
+		const getBizSimApi = () => {
+			const candidates = [window, window.parent, window.top];
+			for (const host of candidates) {
+				try {
+					if (host?.BizSim) return host.BizSim;
+				} catch {
+				}
+			}
+			return null;
+		};
+
 		setButtonState();
 		try {
-			const api = window.parent?.BizSim || window.BizSim;
+			const api = getBizSimApi();
 			if (!api?.simulateFromHtml && !api?.simulate) throw new Error('BizSim API 不可用');
 			const result = api.simulateFromHtml ? await api.simulateFromHtml() : await api.simulate();
 			if (!result?.success) throw new Error(result?.error || '推演失败');
 		} catch (err) {
 			console.error('[assets_dashboard] simulate failed', err);
+			simBtn.title = err?.message || '推演失败';
 		} finally {
 			setButtonState();
 		}
 	}
 
 	simBtn.addEventListener('click', trigger);
+	subscribeSimulationState();
 	setInterval(setButtonState, 1000);
 	render();
 	setButtonState();

@@ -16,11 +16,21 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
 
   replaceTaggedBlock(text, tagName, newBlock) {
     const escaped = escapeRegExp(tagName);
-    const pattern = new RegExp(`<${escaped}>([\\s\\S]*?)</${escaped}>`, 'gi');
-    if (pattern.test(text)) {
-      return text.replace(pattern, newBlock);
-    }
-    const trimmed = String(text || '').replace(/\s+$/, '');
+    const completeBlockPattern = new RegExp(`<${escaped}\\b[^>]*>[\\s\\S]*?<\\/${escaped}>`, 'gi');
+    const danglingOpenPattern = new RegExp(`<${escaped}\\b[^>]*>[\\s\\S]*$`, 'i');
+    const danglingClosePattern = new RegExp(`<\\/${escaped}>`, 'gi');
+
+    const cleaned = String(text || '')
+      // 先移除所有完整标签块
+      .replace(completeBlockPattern, '')
+      // 再移除末尾残缺开标签（例如: <tag> ... <tag> ... </tag> 这类异常拼接后残留）
+      .replace(danglingOpenPattern, '')
+      // 最后清理孤立闭标签
+      .replace(danglingClosePattern, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trimEnd();
+
+    const trimmed = cleaned;
     return trimmed ? `${trimmed}\n\n${newBlock}` : newBlock;
   },
 
@@ -38,7 +48,7 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
     if (assetBlock) updatedText = this.replaceTaggedBlock(updatedText, 'bz_asset_sheet', assetBlock);
     if (updatedText === originalText) return { success: true, updated: false };
 
-    const ok = await setChatMessageTextSafe(messageId, updatedText, 'affected');
+    const ok = await setChatMessageTextSafe(messageId, updatedText, 'none');
     return { success: ok, updated: ok };
   },
   getTrackIdPattern() {

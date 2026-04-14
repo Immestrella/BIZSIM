@@ -385,10 +385,10 @@ export function createMainPanelHtml(engine) {
               <div class="bizsim-form-group"><label>折损最大值</label><input type="number" id="sim-liquidation-max" min="0" max="1" step="0.05" value="${engine.config.AUDIT.liquidationPenalty.max}"></div>
             </div>
             <div class="bizsim-form-group">
-              <label><input type="checkbox" id="sim-use-history" checked> 使用聊天历史</label>
+              <label><input type="checkbox" id="sim-use-history" ${engine.config.SIMULATION.useHistory ? 'checked' : ''}> 使用聊天历史</label>
             </div>
             <div class="bizsim-form-group">
-              <label><input type="checkbox" id="sim-include-empire-data" ${engine.config.SIMULATION.includeFloorData ? 'checked' : ''}> 注入资产状态</label>
+              <label><input type="checkbox" id="sim-include-floor-data" ${engine.config.SIMULATION.includeFloorData !== false ? 'checked' : ''}> 注入资产状态</label>
             </div>
             <div class="bizsim-form-group">
               <label><input type="checkbox" id="sim-include-world-state" ${engine.config.SIMULATION.includeWorldState ? 'checked' : ''}> 注入世界推演状态</label>
@@ -464,6 +464,28 @@ export function createMainPanelHtml(engine) {
               <div id="worldbook-entry-list" class="bizsim-list">
                 <div class="bizsim-helper">请选择世界书后加载条目</div>
               </div>
+            </div>
+            <div class="bizsim-form-group" style="margin-top:14px; padding-top:14px; border-top:1px solid var(--bizsim-line);">
+              <label>高级选项</label>
+            </div>
+            <div class="bizsim-form-group">
+              <label><input type="checkbox" id="sim-use-active-worldbooks" ${engine.config.SIMULATION.useActiveWorldbooks !== false ? 'checked' : ''}> 在未指定时自动使用活跃世界书</label>
+              <div class="bizsim-helper">启用时：如果未指定世界书名单，自动检测角色/聊天/全局世界书。禁用时：仅使用指定的世界书。</div>
+            </div>
+            <div class="bizsim-form-group">
+              <label>指定世界书名单（逗号分隔）</label>
+              <input type="text" id="sim-worldbook-names" value="${escapeHtml(engine.config.SIMULATION.worldbookNames || '')}" placeholder="worldbook1,worldbook2,worldbook3">
+              <div class="bizsim-helper">留空则按上述规则自动检测。填写后只使用指定的世界书，多个名称用逗号分隔。</div>
+            </div>
+            <div class="bizsim-form-group">
+              <label>条目选择器（逗号分隔）</label>
+              <input type="text" id="sim-worldbook-entry-selectors" value="${escapeHtml(engine.config.SIMULATION.worldbookEntrySelectors || '')}" placeholder="id1,name2,pattern3">
+              <div class="bizsim-helper">按 UID 或名称精确匹配条目。支持部分模糊匹配。多个选择器用逗号分隔，任一匹配都会包含该条目。</div>
+            </div>
+            <div class="bizsim-form-group">
+              <label>单个世界书条目限制</label>
+              <input type="number" id="sim-worldbook-entry-limit" min="1" max="100" step="1" value="${engine.config.SIMULATION.worldbookEntryLimit}">
+              <div class="bizsim-helper">每个世界书最多提取多少条条目。0 表示无限制。</div>
             </div>
           </div>
         </div>

@@ -247,6 +247,7 @@ const BIZSIM_CONFIG = {
     worldbookNames: '',
     worldbookEntrySelectors: '',
     worldbookEntryLimit: 12,
+    useHistory: true,
     mode: 'balanced',
     includeFloorData: true,
     includeWorldState: true,
@@ -403,10 +404,10 @@ const DEFAULT_CORE_PROMPT_MODULES = {
   你必须把每张表视为"有状态对象"，严格遵守以下增删改规则。
 
   【集团架构表】类型: single | 操作: 仅更新，禁止增删
-  - 说明：单行顶层节点表，记录主角控制体系最顶层实体核心状态
+  - 说明：单行顶层节点表，记录主角控制体系最顶层实体核心状态，务必注意是主角实控事业的顶层概括
   - 泛用化：核心管理层→权力架构(CEO/宗主/领主)；上市状态→势力能见度
   - 重点审查：实控持股%[控制力度]、员工审计结构（比例失衡触发失控）
-  - 初始化：按世界观（现代/修仙/废土等）映射语义填写；若无明确名称，填「[主角名]核心势力」
+  - 初始化：按世界观（现代/修仙/废土等）映射语义填写；若无明确名称明确事业，填「[主角名]核心势力」，必须是主角实际控制，随剧情发展迭代。
   - 删除：【禁止删除】此表永久保留
   - 更新：重大变动时更新；重点审查列3「控制力度」与列11「员工审计」；一旦结构失控，须立即更新，并在本表列10与业务板块扣减利润
 
@@ -501,7 +502,7 @@ const DEFAULT_CORE_PROMPT_MODULES = {
   "stat_data": {
     "bizsim_assets": {
       "集团架构表": {
-        "实体名称": "\${顶层实体全称或势力名称；缺省可用[主角名]核心势力}",
+        "实体名称": "\${顶层实体全称或势力名称；缺省可用[主角名]核心势力，必须是主角实际控制的事业核心}",
         "注册地|架构类型": "\${按世界观映射：现代[开曼|离岸]/修仙[南瞻部洲|血契附属]/奇幻[北境|封建采邑]，用'|'分隔}",
         "发展阶段": "\${单一实体/多部门/分支群/集团架构/跨界跨国集团}",
         "实控持股%": "\${比例[控制力度：绝对控制/联合治理/傀儡名义/代理人代持]}",
@@ -861,6 +862,18 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
     if (!scoped) return null;
     const statData = this.extractAssetStatPayload(scoped);
     return statData || null;
+  },
+
+  getLatestAssistantMessageIdSafe() {
+    const lastMessageId = getLastMessageIdSafe();
+    if (lastMessageId === null || lastMessageId === undefined || lastMessageId < 0) return null;
+
+    for (let messageId = lastMessageId; messageId >= 0; messageId -= 1) {
+      const message = getChatMessageByIdSafe(messageId);
+      if (this.isAssistantMessage(message)) return messageId;
+    }
+
+    return null;
   },
 
   isFloorSnapshotEqual(left, right) {
@@ -1491,7 +1504,7 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
   },
 
   async syncLatestFloorVariables(floorData, worldSimulation) {
-    const messageId = getCurrentMessageIdSafe();
+    const messageId = this.getLatestAssistantMessageIdSafe() ?? getCurrentMessageIdSafe();
     if (messageId === null || messageId === undefined) return false;
 
     const currentVariables = getMessageVariablesSafe(messageId);
@@ -1523,6 +1536,7 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
 
       const normalizedEmpireFromSemantic = this.buildFloorDataFromSemanticAssets(semanticAssets);
       const payload = this.buildLatestFloorVariablesPayload(normalizedFloorData, normalizedWorldSimulation);
+      // 根据官方文档, insertOrAssignVariables 是同步操作，直接调用，不需要 await
       insertOrAssignVariablesSafe(payload, { type: 'message', message_id: messageId });
       return {
         success: true,
@@ -1591,11 +1605,21 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
 
   replaceTaggedBlock(text, tagName, newBlock) {
     const escaped = escapeRegExp(tagName);
-    const pattern = new RegExp(`<${escaped}>([\\s\\S]*?)</${escaped}>`, 'gi');
-    if (pattern.test(text)) {
-      return text.replace(pattern, newBlock);
-    }
-    const trimmed = String(text || '').replace(/\s+$/, '');
+    const completeBlockPattern = new RegExp(`<${escaped}\\b[^>]*>[\\s\\S]*?<\\/${escaped}>`, 'gi');
+    const danglingOpenPattern = new RegExp(`<${escaped}\\b[^>]*>[\\s\\S]*$`, 'i');
+    const danglingClosePattern = new RegExp(`<\\/${escaped}>`, 'gi');
+
+    const cleaned = String(text || '')
+      // 先移除所有完整标签块
+      .replace(completeBlockPattern, '')
+      // 再移除末尾残缺开标签（例如: <tag> ... <tag> ... </tag> 这类异常拼接后残留）
+      .replace(danglingOpenPattern, '')
+      // 最后清理孤立闭标签
+      .replace(danglingClosePattern, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trimEnd();
+
+    const trimmed = cleaned;
     return trimmed ? `${trimmed}\n\n${newBlock}` : newBlock;
   },
 
@@ -1613,7 +1637,7 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
     if (assetBlock) updatedText = this.replaceTaggedBlock(updatedText, 'bz_asset_sheet', assetBlock);
     if (updatedText === originalText) return { success: true, updated: false };
 
-    const ok = await setChatMessageTextSafe(messageId, updatedText, 'affected');
+    const ok = await setChatMessageTextSafe(messageId, updatedText, 'none');
     return { success: ok, updated: ok };
   },
   getTrackIdPattern() {
@@ -3243,10 +3267,10 @@ function createMainPanelHtml(engine) {
               <div class="bizsim-form-group"><label>折损最大值</label><input type="number" id="sim-liquidation-max" min="0" max="1" step="0.05" value="${engine.config.AUDIT.liquidationPenalty.max}"></div>
             </div>
             <div class="bizsim-form-group">
-              <label><input type="checkbox" id="sim-use-history" checked> 使用聊天历史</label>
+              <label><input type="checkbox" id="sim-use-history" ${engine.config.SIMULATION.useHistory ? 'checked' : ''}> 使用聊天历史</label>
             </div>
             <div class="bizsim-form-group">
-              <label><input type="checkbox" id="sim-include-empire-data" ${engine.config.SIMULATION.includeFloorData ? 'checked' : ''}> 注入资产状态</label>
+              <label><input type="checkbox" id="sim-include-floor-data" ${engine.config.SIMULATION.includeFloorData !== false ? 'checked' : ''}> 注入资产状态</label>
             </div>
             <div class="bizsim-form-group">
               <label><input type="checkbox" id="sim-include-world-state" ${engine.config.SIMULATION.includeWorldState ? 'checked' : ''}> 注入世界推演状态</label>
@@ -3322,6 +3346,28 @@ function createMainPanelHtml(engine) {
               <div id="worldbook-entry-list" class="bizsim-list">
                 <div class="bizsim-helper">请选择世界书后加载条目</div>
               </div>
+            </div>
+            <div class="bizsim-form-group" style="margin-top:14px; padding-top:14px; border-top:1px solid var(--bizsim-line);">
+              <label>高级选项</label>
+            </div>
+            <div class="bizsim-form-group">
+              <label><input type="checkbox" id="sim-use-active-worldbooks" ${engine.config.SIMULATION.useActiveWorldbooks !== false ? 'checked' : ''}> 在未指定时自动使用活跃世界书</label>
+              <div class="bizsim-helper">启用时：如果未指定世界书名单，自动检测角色/聊天/全局世界书。禁用时：仅使用指定的世界书。</div>
+            </div>
+            <div class="bizsim-form-group">
+              <label>指定世界书名单（逗号分隔）</label>
+              <input type="text" id="sim-worldbook-names" value="${escapeHtml(engine.config.SIMULATION.worldbookNames || '')}" placeholder="worldbook1,worldbook2,worldbook3">
+              <div class="bizsim-helper">留空则按上述规则自动检测。填写后只使用指定的世界书，多个名称用逗号分隔。</div>
+            </div>
+            <div class="bizsim-form-group">
+              <label>条目选择器（逗号分隔）</label>
+              <input type="text" id="sim-worldbook-entry-selectors" value="${escapeHtml(engine.config.SIMULATION.worldbookEntrySelectors || '')}" placeholder="id1,name2,pattern3">
+              <div class="bizsim-helper">按 UID 或名称精确匹配条目。支持部分模糊匹配。多个选择器用逗号分隔，任一匹配都会包含该条目。</div>
+            </div>
+            <div class="bizsim-form-group">
+              <label>单个世界书条目限制</label>
+              <input type="number" id="sim-worldbook-entry-limit" min="1" max="100" step="1" value="${engine.config.SIMULATION.worldbookEntryLimit}">
+              <div class="bizsim-helper">每个世界书最多提取多少条条目。0 表示无限制。</div>
             </div>
           </div>
         </div>
@@ -3986,7 +4032,7 @@ function saveSimulationSettings(ui, silent = false) {
   const historyLimit = Number.parseInt(ui.byId('sim-history-limit')?.value, 10);
   const assetHistoryFloors = Number.parseInt(ui.byId('sim-asset-history-floors')?.value, 10);
   const worldHistoryFloors = Number.parseInt(ui.byId('sim-world-history-floors')?.value, 10);
-  const includeFloorData = !!ui.byId('sim-include-empire-data')?.checked;
+  const includeFloorData = !!ui.byId('sim-include-floor-data')?.checked;
   const includeWorldState = !!ui.byId('sim-include-world-state')?.checked;
   const retryCount = Number.parseInt(ui.byId('sim-retry-count')?.value, 10);
   const repairOnParseError = !!ui.byId('sim-repair-on-parse')?.checked;
@@ -4006,8 +4052,17 @@ function saveSimulationSettings(ui, silent = false) {
   const loyaltyThreshold = Number.parseInt(ui.byId('sim-loyalty-threshold')?.value, 10);
   const liquidationMin = Number.parseFloat(ui.byId('sim-liquidation-min')?.value);
   const liquidationMax = Number.parseFloat(ui.byId('sim-liquidation-max')?.value);
+  const useActiveWorldbooks = !!ui.byId('sim-use-active-worldbooks')?.checked;
+  const worldbookNames = (ui.byId('sim-worldbook-names')?.value || '').trim();
+  const worldbookEntrySelectors = (ui.byId('sim-worldbook-entry-selectors')?.value || '').trim();
+  const worldbookEntryLimit = Number.parseInt(ui.byId('sim-worldbook-entry-limit')?.value, 10);
 
   ui.engine.config.SIMULATION.mode = simulationMode;
+  ui.engine.config.SIMULATION.useActiveWorldbooks = useActiveWorldbooks;
+  ui.engine.config.SIMULATION.worldbookNames = worldbookNames;
+  ui.engine.config.SIMULATION.worldbookEntrySelectors = worldbookEntrySelectors;
+  if (!Number.isNaN(worldbookEntryLimit) && worldbookEntryLimit > 0) ui.engine.config.SIMULATION.worldbookEntryLimit = worldbookEntryLimit;
+  ui.engine.config.SIMULATION.useHistory = useHistory;
   ui.engine.config.SIMULATION.autoSave = autoSave;
   ui.engine.config.SIMULATION.includeFloorData = includeFloorData;
   ui.engine.config.SIMULATION.includeWorldState = includeWorldState;
@@ -4054,12 +4109,12 @@ function resetSimulationSettings(ui) {
   ui.engine.config.AUDIT = JSON.parse(JSON.stringify(BIZSIM_CONFIG.AUDIT));
 
   if (ui.byId('sim-mode')) ui.byId('sim-mode').value = ui.engine.config.SIMULATION.mode;
-  if (ui.byId('sim-use-history')) ui.byId('sim-use-history').checked = true;
+  if (ui.byId('sim-use-history')) ui.byId('sim-use-history').checked = ui.engine.config.SIMULATION.useHistory !== false;
   if (ui.byId('sim-auto-save')) ui.byId('sim-auto-save').checked = ui.engine.config.SIMULATION.autoSave;
   if (ui.byId('sim-history-limit')) ui.byId('sim-history-limit').value = ui.engine.config.SIMULATION.historyLimit;
   if (ui.byId('sim-asset-history-floors')) ui.byId('sim-asset-history-floors').value = ui.engine.config.SIMULATION.assetHistoryFloors;
   if (ui.byId('sim-world-history-floors')) ui.byId('sim-world-history-floors').value = ui.engine.config.SIMULATION.worldHistoryFloors;
-  if (ui.byId('sim-include-empire-data')) ui.byId('sim-include-empire-data').checked = ui.engine.config.SIMULATION.includeFloorData;
+  if (ui.byId('sim-include-floor-data')) ui.byId('sim-include-floor-data').checked = ui.engine.config.SIMULATION.includeFloorData !== false;
   if (ui.byId('sim-include-world-state')) ui.byId('sim-include-world-state').checked = ui.engine.config.SIMULATION.includeWorldState;
   if (ui.byId('sim-worldbook-name')) ui.byId('sim-worldbook-name').value = ui.engine.config.SIMULATION.worldbookName || '';
   if (ui.byId('sim-retry-count')) ui.byId('sim-retry-count').value = ui.engine.config.SIMULATION.retryCount;
@@ -4080,6 +4135,10 @@ function resetSimulationSettings(ui) {
   if (ui.byId('sim-loyalty-threshold')) ui.byId('sim-loyalty-threshold').value = ui.engine.config.AUDIT.loyaltyThreshold;
   if (ui.byId('sim-liquidation-min')) ui.byId('sim-liquidation-min').value = ui.engine.config.AUDIT.liquidationPenalty.min;
   if (ui.byId('sim-liquidation-max')) ui.byId('sim-liquidation-max').value = ui.engine.config.AUDIT.liquidationPenalty.max;
+  if (ui.byId('sim-use-active-worldbooks')) ui.byId('sim-use-active-worldbooks').checked = ui.engine.config.SIMULATION.useActiveWorldbooks !== false;
+  if (ui.byId('sim-worldbook-names')) ui.byId('sim-worldbook-names').value = ui.engine.config.SIMULATION.worldbookNames || '';
+  if (ui.byId('sim-worldbook-entry-selectors')) ui.byId('sim-worldbook-entry-selectors').value = ui.engine.config.SIMULATION.worldbookEntrySelectors || '';
+  if (ui.byId('sim-worldbook-entry-limit')) ui.byId('sim-worldbook-entry-limit').value = ui.engine.config.SIMULATION.worldbookEntryLimit;
 
   ui.engine.saveData();
   ui.log('推演配置已恢复默认');
@@ -5452,6 +5511,7 @@ class BizSimUI {
     this.currentWorldbookEntries = [];
     this.promptViewMode = 'preview';
     this.isSimulating = false;
+    this.simulationSource = '';
   }
 
   initWorldbookPanel() {
@@ -5574,8 +5634,9 @@ class BizSimUI {
     return this.getScopeElement().querySelector(`#${id}`);
   }
 
-  setSimulationBusy(busy, source = '') {
+  setSimulationBusy(busy, source = '', publish = true) {
     this.isSimulating = !!busy;
+    this.simulationSource = this.isSimulating ? String(source || this.simulationSource || '') : '';
     const targets = [this.byId('btn-global-simulation'), this.byId('btn-start-simulation')].filter(Boolean);
 
     for (const button of targets) {
@@ -5583,10 +5644,24 @@ class BizSimUI {
       button.classList.toggle('is-loading', this.isSimulating);
 
       if (button.id === 'btn-global-simulation') {
-        button.textContent = this.isSimulating ? `推演中${source ? ` · ${source}` : ''}` : '一键推演';
+        button.textContent = this.isSimulating ? `推演中${this.simulationSource ? ` · ${this.simulationSource}` : ''}` : '一键推演';
       } else {
-        button.textContent = this.isSimulating ? `推演中${source ? ` · ${source}` : ''}` : '开始推演';
+        button.textContent = this.isSimulating ? `推演中${this.simulationSource ? ` · ${this.simulationSource}` : ''}` : '开始推演';
       }
+    }
+
+    try {
+      if (publish) {
+        const api = window.BizSim || window.parent?.BizSim || window.top?.BizSim;
+        if (api?.setSimulationState) {
+        api.setSimulationState(this.isSimulating, this.simulationSource);
+        } else {
+          const sharedState = { isSimulating: this.isSimulating, source: this.simulationSource };
+          if (window.parent && window.parent !== window) window.parent.BizSimState = sharedState;
+          if (window.top && window.top !== window) window.top.BizSimState = sharedState;
+        }
+      }
+    } catch {
     }
   }
 
@@ -5616,6 +5691,12 @@ class BizSimUI {
     this.refreshEmpire();
     this.refreshTracks();
     this.refreshPromptSnapshot();
+    const sharedState = window.BizSim?.simulationState || window.parent?.BizSimState || window.top?.BizSimState;
+    if (sharedState && typeof sharedState === 'object') {
+      this.setSimulationBusy(!!sharedState.isSimulating, String(sharedState.source || ''), false);
+    } else {
+      this.setSimulationBusy(this.isSimulating, this.simulationSource, false);
+    }
     this.initWorldbookPanel();
     injectEditorStyles();
     renderScaffoldEditingUI(this);
@@ -5836,6 +5917,47 @@ let autoSimInFlight = false;
 let lastAutoSimAt = 0;
 let assistantMessageCount = 0;
 let manualSimInFlight = false;
+const injectedAssistantMessageIds = new Set();
+const simulationStateListeners = new Set();
+const simulationState = { isSimulating: false, source: '' };
+
+function emitSimulationState() {
+  const snapshot = { isSimulating: simulationState.isSimulating, source: simulationState.source };
+
+  try {
+    if (ui?.setSimulationBusy) {
+      ui.setSimulationBusy(snapshot.isSimulating, snapshot.source, false);
+    }
+  } catch {
+  }
+
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.BizSimState = snapshot;
+    }
+  } catch {
+  }
+
+  try {
+    if (window.top && window.top !== window) {
+      window.top.BizSimState = snapshot;
+    }
+  } catch {
+  }
+
+  for (const listener of simulationStateListeners) {
+    try {
+      listener(snapshot);
+    } catch {
+    }
+  }
+}
+
+function setSimulationState(isSimulating, source = '') {
+  simulationState.isSimulating = !!isSimulating;
+  simulationState.source = simulationState.isSimulating ? String(source || simulationState.source || '') : '';
+  emitSimulationState();
+}
 
 function getMessageFromEvent(messageId) {
   try {
@@ -5850,6 +5972,11 @@ function getMessageFromEvent(messageId) {
 function getMessageText(message) {
   if (!message || typeof message !== 'object') return '';
   return String(message.mes || message.message || message.content || '').trim();
+}
+
+function hasBizSimInjectionBlock(message) {
+  const text = getMessageText(message);
+  return /<bz_world_state\b[^>]*>/i.test(text) || /<bz_asset_sheet\b[^>]*>/i.test(text);
 }
 
 function isUserMessage(message) {
@@ -5883,87 +6010,88 @@ function shouldRunAutoSimulation(cfg, message) {
 }
 
 async function maybeAutoSimulate(messageId) {
-  if (autoSimInFlight) return;
+  if (autoSimInFlight) return false;
 
   const ctx = await initBizSim();
   const cfg = ctx.engine?.config?.SIMULATION || {};
   const message = getMessageFromEvent(messageId);
 
+  if (hasBizSimInjectionBlock(message)) return false;
+
   const assistantOnly = cfg.autoRunOnlyAssistant !== false;
   const assistantInterval = Math.max(1, Number(cfg.autoRunAssistantFloorInterval) || 1);
   const isAssistant = isAssistantMessage(message);
 
-  if (assistantOnly && !isAssistant) return;
+  if (assistantOnly && !isAssistant) return false;
 
   if (isAssistant) {
     assistantMessageCount += 1;
-    if (assistantMessageCount % assistantInterval !== 0) return;
+    if (assistantMessageCount % assistantInterval !== 0) return false;
   }
 
-  if (!shouldRunAutoSimulation(cfg, message)) return;
+  if (!shouldRunAutoSimulation(cfg, message)) return false;
 
   autoSimInFlight = true;
   lastAutoSimAt = Date.now();
 
   try {
     const useHistory = cfg.autoRunUseHistory !== false;
+    setSimulationState(true, '自动推演');
     const result = await ctx.engine.runSimulation(useHistory);
     if (result?.success) {
+      const injectedMessageId = Number(result?.data?.floorSync?.messageId);
+      if (Number.isInteger(injectedMessageId)) injectedAssistantMessageIds.add(injectedMessageId);
       const activeTracks = result.data?.worldSimulation?.tracks?.filter((t) => t.status === '推演中').length || 0;
       console.log(`[BizSim] 自动推演完成，活跃视角 ${activeTracks}`);
     } else {
       console.warn('[BizSim] 自动推演失败:', result?.error || '未知错误');
     }
+    return true;
   } catch (error) {
     console.error('[BizSim] 自动推演异常:', error);
+    return true;
   } finally {
+    setSimulationState(false);
     autoSimInFlight = false;
   }
 }
 
 async function injectForAssistantMessage(messageId) {
+  const targetMessageId = Number(messageId);
+  if (injectedAssistantMessageIds.has(targetMessageId)) return;
+
+  const ctx = await initBizSim();
+  const latestAssistantMessageId = ctx.engine?.getLatestAssistantMessageIdSafe?.();
+  if (latestAssistantMessageId === null || latestAssistantMessageId === undefined) return;
+  if (Number(messageId) !== Number(latestAssistantMessageId)) return;
+
   const message = getMessageFromEvent(messageId);
   if (!isAssistantMessage(message)) return;
-  const ctx = await initBizSim();
+  if (hasBizSimInjectionBlock(message)) {
+    injectedAssistantMessageIds.add(targetMessageId);
+    return;
+  }
+
   try {
-    await ctx.engine.injectBizSimBlocksToMessage(messageId, 10);
+    const result = await ctx.engine.injectBizSimBlocksToMessage(messageId, 10);
+    if (result?.success) injectedAssistantMessageIds.add(targetMessageId);
   } catch (error) {
     console.warn('[BizSim] 正文注入失败:', error?.message || error);
   }
 }
 
-async function sweepRecentAssistantInjections(maxScan = 120) {
-  const ctx = await initBizSim();
-  if (typeof getLastMessageId !== 'function') return;
-
-  let lastId = -1;
-  try {
-    lastId = Number(getLastMessageId());
-  } catch {
-    return;
-  }
-  if (!Number.isInteger(lastId) || lastId < 0) return;
-
-  const begin = Math.max(0, lastId - Math.max(1, Number(maxScan) || 120) + 1);
-  for (let messageId = begin; messageId <= lastId; messageId += 1) {
-    const message = getMessageFromEvent(messageId);
-    if (!isAssistantMessage(message)) continue;
-    try {
-      await ctx.engine.injectBizSimBlocksToMessage(messageId, 10);
-    } catch {
+async function triggerSimulationFromHtml() {
+  if (manualSimInFlight || autoSimInFlight) {
+    const waitUntil = Date.now() + 20000;
+    while ((manualSimInFlight || autoSimInFlight) && Date.now() < waitUntil) {
+      // Give in-flight simulation a chance to finish instead of failing immediately.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    if (manualSimInFlight || autoSimInFlight) {
+      return { success: false, error: '推演任务繁忙，请稍后再试' };
     }
   }
-}
-
-async function triggerSimulationFromHtml() {
-  if (manualSimInFlight || autoSimInFlight) return { success: false, error: '推演中' };
-  manualSimInFlight = true;
-  try {
-    const result = await quickSimulate();
-    return result;
-  } finally {
-    manualSimInFlight = false;
-  }
+  return quickSimulate();
 }
 
 async function initBizSim() {
@@ -5994,7 +6122,12 @@ async function quickSimulate() {
   }
 
   try {
+    setSimulationState(true, '手动推演');
     const result = await ctx.engine.runSimulation(true);
+    if (result?.success) {
+      const injectedMessageId = Number(result?.data?.floorSync?.messageId);
+      if (Number.isInteger(injectedMessageId)) injectedAssistantMessageIds.add(injectedMessageId);
+    }
     if (typeof toastr !== 'undefined') {
       if (result.success) {
         const count = result.data.worldSimulation?.tracks?.length || 0;
@@ -6006,6 +6139,7 @@ async function quickSimulate() {
 
     return result;
   } finally {
+    setSimulationState(false);
     manualSimInFlight = false;
   }
 }
@@ -6024,8 +6158,10 @@ function registerBizSimEvents() {
 
   if (typeof tavern_events !== 'undefined') {
     eventOnSafe(tavern_events.MESSAGE_RECEIVED, async (messageId) => {
-      await injectForAssistantMessage(messageId);
-      await maybeAutoSimulate(messageId);
+      const autoSimStarted = await maybeAutoSimulate(messageId);
+      if (!autoSimStarted) {
+        await injectForAssistantMessage(messageId);
+      }
     });
 
     eventOnSafe(tavern_events.MESSAGE_SWIPED, () => {
@@ -6035,7 +6171,7 @@ function registerBizSimEvents() {
 }
 
 function exposeBizSimDebugApi() {
-  window.BizSim = {
+  const api = {
     get engine() {
       return engine;
     },
@@ -6046,15 +6182,45 @@ function exposeBizSimDebugApi() {
     simulate: quickSimulate,
     simulateFromHtml: triggerSimulationFromHtml,
     get isSimulating() {
-      return manualSimInFlight || autoSimInFlight;
+      return simulationState.isSimulating;
+    },
+    get simulationState() {
+      return { isSimulating: simulationState.isSimulating, source: simulationState.source };
+    },
+    setSimulationState(isSimulating, source = '') {
+      setSimulationState(isSimulating, source);
+    },
+    subscribeSimulationState(listener) {
+      if (typeof listener !== 'function') return () => {};
+      simulationStateListeners.add(listener);
+      try {
+        listener({ isSimulating: simulationState.isSimulating, source: simulationState.source });
+      } catch {
+      }
+      return () => simulationStateListeners.delete(listener);
     },
   };
+
+  window.BizSim = api;
+
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.BizSim = api;
+    }
+  } catch {
+  }
+
+  try {
+    if (window.top && window.top !== window) {
+      window.top.BizSim = api;
+    }
+  } catch {
+  }
 }
 
 async function bootBizSim() {
   registerBizSimEvents();
   exposeBizSimDebugApi();
-  await sweepRecentAssistantInjections(120);
 
   console.log('[BizSim] 模块化开发版本已加载，点击"世界推演"按钮使用');
   if (typeof toastr !== 'undefined') {

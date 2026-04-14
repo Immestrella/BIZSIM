@@ -125,7 +125,7 @@ export function saveSimulationSettings(ui, silent = false) {
   const historyLimit = Number.parseInt(ui.byId('sim-history-limit')?.value, 10);
   const assetHistoryFloors = Number.parseInt(ui.byId('sim-asset-history-floors')?.value, 10);
   const worldHistoryFloors = Number.parseInt(ui.byId('sim-world-history-floors')?.value, 10);
-  const includeFloorData = !!ui.byId('sim-include-empire-data')?.checked;
+  const includeFloorData = !!ui.byId('sim-include-floor-data')?.checked;
   const includeWorldState = !!ui.byId('sim-include-world-state')?.checked;
   const retryCount = Number.parseInt(ui.byId('sim-retry-count')?.value, 10);
   const repairOnParseError = !!ui.byId('sim-repair-on-parse')?.checked;
@@ -145,8 +145,17 @@ export function saveSimulationSettings(ui, silent = false) {
   const loyaltyThreshold = Number.parseInt(ui.byId('sim-loyalty-threshold')?.value, 10);
   const liquidationMin = Number.parseFloat(ui.byId('sim-liquidation-min')?.value);
   const liquidationMax = Number.parseFloat(ui.byId('sim-liquidation-max')?.value);
+  const useActiveWorldbooks = !!ui.byId('sim-use-active-worldbooks')?.checked;
+  const worldbookNames = (ui.byId('sim-worldbook-names')?.value || '').trim();
+  const worldbookEntrySelectors = (ui.byId('sim-worldbook-entry-selectors')?.value || '').trim();
+  const worldbookEntryLimit = Number.parseInt(ui.byId('sim-worldbook-entry-limit')?.value, 10);
 
   ui.engine.config.SIMULATION.mode = simulationMode;
+  ui.engine.config.SIMULATION.useActiveWorldbooks = useActiveWorldbooks;
+  ui.engine.config.SIMULATION.worldbookNames = worldbookNames;
+  ui.engine.config.SIMULATION.worldbookEntrySelectors = worldbookEntrySelectors;
+  if (!Number.isNaN(worldbookEntryLimit) && worldbookEntryLimit > 0) ui.engine.config.SIMULATION.worldbookEntryLimit = worldbookEntryLimit;
+  ui.engine.config.SIMULATION.useHistory = useHistory;
   ui.engine.config.SIMULATION.autoSave = autoSave;
   ui.engine.config.SIMULATION.includeFloorData = includeFloorData;
   ui.engine.config.SIMULATION.includeWorldState = includeWorldState;
@@ -193,12 +202,12 @@ export function resetSimulationSettings(ui) {
   ui.engine.config.AUDIT = JSON.parse(JSON.stringify(BIZSIM_CONFIG.AUDIT));
 
   if (ui.byId('sim-mode')) ui.byId('sim-mode').value = ui.engine.config.SIMULATION.mode;
-  if (ui.byId('sim-use-history')) ui.byId('sim-use-history').checked = true;
+  if (ui.byId('sim-use-history')) ui.byId('sim-use-history').checked = ui.engine.config.SIMULATION.useHistory !== false;
   if (ui.byId('sim-auto-save')) ui.byId('sim-auto-save').checked = ui.engine.config.SIMULATION.autoSave;
   if (ui.byId('sim-history-limit')) ui.byId('sim-history-limit').value = ui.engine.config.SIMULATION.historyLimit;
   if (ui.byId('sim-asset-history-floors')) ui.byId('sim-asset-history-floors').value = ui.engine.config.SIMULATION.assetHistoryFloors;
   if (ui.byId('sim-world-history-floors')) ui.byId('sim-world-history-floors').value = ui.engine.config.SIMULATION.worldHistoryFloors;
-  if (ui.byId('sim-include-empire-data')) ui.byId('sim-include-empire-data').checked = ui.engine.config.SIMULATION.includeFloorData;
+  if (ui.byId('sim-include-floor-data')) ui.byId('sim-include-floor-data').checked = ui.engine.config.SIMULATION.includeFloorData !== false;
   if (ui.byId('sim-include-world-state')) ui.byId('sim-include-world-state').checked = ui.engine.config.SIMULATION.includeWorldState;
   if (ui.byId('sim-worldbook-name')) ui.byId('sim-worldbook-name').value = ui.engine.config.SIMULATION.worldbookName || '';
   if (ui.byId('sim-retry-count')) ui.byId('sim-retry-count').value = ui.engine.config.SIMULATION.retryCount;
@@ -219,6 +228,10 @@ export function resetSimulationSettings(ui) {
   if (ui.byId('sim-loyalty-threshold')) ui.byId('sim-loyalty-threshold').value = ui.engine.config.AUDIT.loyaltyThreshold;
   if (ui.byId('sim-liquidation-min')) ui.byId('sim-liquidation-min').value = ui.engine.config.AUDIT.liquidationPenalty.min;
   if (ui.byId('sim-liquidation-max')) ui.byId('sim-liquidation-max').value = ui.engine.config.AUDIT.liquidationPenalty.max;
+  if (ui.byId('sim-use-active-worldbooks')) ui.byId('sim-use-active-worldbooks').checked = ui.engine.config.SIMULATION.useActiveWorldbooks !== false;
+  if (ui.byId('sim-worldbook-names')) ui.byId('sim-worldbook-names').value = ui.engine.config.SIMULATION.worldbookNames || '';
+  if (ui.byId('sim-worldbook-entry-selectors')) ui.byId('sim-worldbook-entry-selectors').value = ui.engine.config.SIMULATION.worldbookEntrySelectors || '';
+  if (ui.byId('sim-worldbook-entry-limit')) ui.byId('sim-worldbook-entry-limit').value = ui.engine.config.SIMULATION.worldbookEntryLimit;
 
   ui.engine.saveData();
   ui.log('推演配置已恢复默认');

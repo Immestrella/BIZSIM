@@ -8,6 +8,47 @@ let autoSimInFlight = false;
 let lastAutoSimAt = 0;
 let assistantMessageCount = 0;
 let manualSimInFlight = false;
+const injectedAssistantMessageIds = new Set();
+const simulationStateListeners = new Set();
+const simulationState = { isSimulating: false, source: '' };
+
+function emitSimulationState() {
+  const snapshot = { isSimulating: simulationState.isSimulating, source: simulationState.source };
+
+  try {
+    if (ui?.setSimulationBusy) {
+      ui.setSimulationBusy(snapshot.isSimulating, snapshot.source, false);
+    }
+  } catch {
+  }
+
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.BizSimState = snapshot;
+    }
+  } catch {
+  }
+
+  try {
+    if (window.top && window.top !== window) {
+      window.top.BizSimState = snapshot;
+    }
+  } catch {
+  }
+
+  for (const listener of simulationStateListeners) {
+    try {
+      listener(snapshot);
+    } catch {
+    }
+  }
+}
+
+function setSimulationState(isSimulating, source = '') {
+  simulationState.isSimulating = !!isSimulating;
+  simulationState.source = simulationState.isSimulating ? String(source || simulationState.source || '') : '';
+  emitSimulationState();
+}
 
 function getMessageFromEvent(messageId) {
   try {
@@ -22,6 +63,11 @@ function getMessageFromEvent(messageId) {
 function getMessageText(message) {
   if (!message || typeof message !== 'object') return '';
   return String(message.mes || message.message || message.content || '').trim();
+}
+
+function hasBizSimInjectionBlock(message) {
+  const text = getMessageText(message);
+  return /<bz_world_state\b[^>]*>/i.test(text) || /<bz_asset_sheet\b[^>]*>/i.test(text);
 }
 
 function isUserMessage(message) {
@@ -55,87 +101,88 @@ function shouldRunAutoSimulation(cfg, message) {
 }
 
 async function maybeAutoSimulate(messageId) {
-  if (autoSimInFlight) return;
+  if (autoSimInFlight) return false;
 
   const ctx = await initBizSim();
   const cfg = ctx.engine?.config?.SIMULATION || {};
   const message = getMessageFromEvent(messageId);
 
+  if (hasBizSimInjectionBlock(message)) return false;
+
   const assistantOnly = cfg.autoRunOnlyAssistant !== false;
   const assistantInterval = Math.max(1, Number(cfg.autoRunAssistantFloorInterval) || 1);
   const isAssistant = isAssistantMessage(message);
 
-  if (assistantOnly && !isAssistant) return;
+  if (assistantOnly && !isAssistant) return false;
 
   if (isAssistant) {
     assistantMessageCount += 1;
-    if (assistantMessageCount % assistantInterval !== 0) return;
+    if (assistantMessageCount % assistantInterval !== 0) return false;
   }
 
-  if (!shouldRunAutoSimulation(cfg, message)) return;
+  if (!shouldRunAutoSimulation(cfg, message)) return false;
 
   autoSimInFlight = true;
   lastAutoSimAt = Date.now();
 
   try {
     const useHistory = cfg.autoRunUseHistory !== false;
+    setSimulationState(true, '自动推演');
     const result = await ctx.engine.runSimulation(useHistory);
     if (result?.success) {
+      const injectedMessageId = Number(result?.data?.floorSync?.messageId);
+      if (Number.isInteger(injectedMessageId)) injectedAssistantMessageIds.add(injectedMessageId);
       const activeTracks = result.data?.worldSimulation?.tracks?.filter((t) => t.status === '推演中').length || 0;
       console.log(`[BizSim] 自动推演完成，活跃视角 ${activeTracks}`);
     } else {
       console.warn('[BizSim] 自动推演失败:', result?.error || '未知错误');
     }
+    return true;
   } catch (error) {
     console.error('[BizSim] 自动推演异常:', error);
+    return true;
   } finally {
+    setSimulationState(false);
     autoSimInFlight = false;
   }
 }
 
 async function injectForAssistantMessage(messageId) {
+  const targetMessageId = Number(messageId);
+  if (injectedAssistantMessageIds.has(targetMessageId)) return;
+
+  const ctx = await initBizSim();
+  const latestAssistantMessageId = ctx.engine?.getLatestAssistantMessageIdSafe?.();
+  if (latestAssistantMessageId === null || latestAssistantMessageId === undefined) return;
+  if (Number(messageId) !== Number(latestAssistantMessageId)) return;
+
   const message = getMessageFromEvent(messageId);
   if (!isAssistantMessage(message)) return;
-  const ctx = await initBizSim();
+  if (hasBizSimInjectionBlock(message)) {
+    injectedAssistantMessageIds.add(targetMessageId);
+    return;
+  }
+
   try {
-    await ctx.engine.injectBizSimBlocksToMessage(messageId, 10);
+    const result = await ctx.engine.injectBizSimBlocksToMessage(messageId, 10);
+    if (result?.success) injectedAssistantMessageIds.add(targetMessageId);
   } catch (error) {
     console.warn('[BizSim] 正文注入失败:', error?.message || error);
   }
 }
 
-async function sweepRecentAssistantInjections(maxScan = 120) {
-  const ctx = await initBizSim();
-  if (typeof getLastMessageId !== 'function') return;
-
-  let lastId = -1;
-  try {
-    lastId = Number(getLastMessageId());
-  } catch {
-    return;
-  }
-  if (!Number.isInteger(lastId) || lastId < 0) return;
-
-  const begin = Math.max(0, lastId - Math.max(1, Number(maxScan) || 120) + 1);
-  for (let messageId = begin; messageId <= lastId; messageId += 1) {
-    const message = getMessageFromEvent(messageId);
-    if (!isAssistantMessage(message)) continue;
-    try {
-      await ctx.engine.injectBizSimBlocksToMessage(messageId, 10);
-    } catch {
+export async function triggerSimulationFromHtml() {
+  if (manualSimInFlight || autoSimInFlight) {
+    const waitUntil = Date.now() + 20000;
+    while ((manualSimInFlight || autoSimInFlight) && Date.now() < waitUntil) {
+      // Give in-flight simulation a chance to finish instead of failing immediately.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    if (manualSimInFlight || autoSimInFlight) {
+      return { success: false, error: '推演任务繁忙，请稍后再试' };
     }
   }
-}
-
-export async function triggerSimulationFromHtml() {
-  if (manualSimInFlight || autoSimInFlight) return { success: false, error: '推演中' };
-  manualSimInFlight = true;
-  try {
-    const result = await quickSimulate();
-    return result;
-  } finally {
-    manualSimInFlight = false;
-  }
+  return quickSimulate();
 }
 
 export async function initBizSim() {
@@ -166,7 +213,12 @@ export async function quickSimulate() {
   }
 
   try {
+    setSimulationState(true, '手动推演');
     const result = await ctx.engine.runSimulation(true);
+    if (result?.success) {
+      const injectedMessageId = Number(result?.data?.floorSync?.messageId);
+      if (Number.isInteger(injectedMessageId)) injectedAssistantMessageIds.add(injectedMessageId);
+    }
     if (typeof toastr !== 'undefined') {
       if (result.success) {
         const count = result.data.worldSimulation?.tracks?.length || 0;
@@ -178,6 +230,7 @@ export async function quickSimulate() {
 
     return result;
   } finally {
+    setSimulationState(false);
     manualSimInFlight = false;
   }
 }
@@ -196,8 +249,10 @@ export function registerBizSimEvents() {
 
   if (typeof tavern_events !== 'undefined') {
     eventOnSafe(tavern_events.MESSAGE_RECEIVED, async (messageId) => {
-      await injectForAssistantMessage(messageId);
-      await maybeAutoSimulate(messageId);
+      const autoSimStarted = await maybeAutoSimulate(messageId);
+      if (!autoSimStarted) {
+        await injectForAssistantMessage(messageId);
+      }
     });
 
     eventOnSafe(tavern_events.MESSAGE_SWIPED, () => {
@@ -207,7 +262,7 @@ export function registerBizSimEvents() {
 }
 
 export function exposeBizSimDebugApi() {
-  window.BizSim = {
+  const api = {
     get engine() {
       return engine;
     },
@@ -218,15 +273,45 @@ export function exposeBizSimDebugApi() {
     simulate: quickSimulate,
     simulateFromHtml: triggerSimulationFromHtml,
     get isSimulating() {
-      return manualSimInFlight || autoSimInFlight;
+      return simulationState.isSimulating;
+    },
+    get simulationState() {
+      return { isSimulating: simulationState.isSimulating, source: simulationState.source };
+    },
+    setSimulationState(isSimulating, source = '') {
+      setSimulationState(isSimulating, source);
+    },
+    subscribeSimulationState(listener) {
+      if (typeof listener !== 'function') return () => {};
+      simulationStateListeners.add(listener);
+      try {
+        listener({ isSimulating: simulationState.isSimulating, source: simulationState.source });
+      } catch {
+      }
+      return () => simulationStateListeners.delete(listener);
     },
   };
+
+  window.BizSim = api;
+
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.BizSim = api;
+    }
+  } catch {
+  }
+
+  try {
+    if (window.top && window.top !== window) {
+      window.top.BizSim = api;
+    }
+  } catch {
+  }
 }
 
 export async function bootBizSim() {
   registerBizSimEvents();
   exposeBizSimDebugApi();
-  await sweepRecentAssistantInjections(120);
 
   console.log('[BizSim] 模块化开发版本已加载，点击"世界推演"按钮使用');
   if (typeof toastr !== 'undefined') {
