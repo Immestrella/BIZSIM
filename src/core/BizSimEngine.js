@@ -36,30 +36,48 @@ export class BizSimEngine {
 
   on(eventName, handler) {
     if (!eventName || typeof handler !== 'function') return () => {};
-    const key = String(eventName);
-    if (!this._listeners.has(key)) {
-      this._listeners.set(key, new Set());
+    const rawKey = String(eventName);
+    const aliases = rawKey === 'data:updated'
+      ? ['data:updated', 'data-changed']
+      : (rawKey === 'data-changed' ? ['data-changed', 'data:updated'] : [rawKey]);
+
+    for (const key of aliases) {
+      if (!this._listeners.has(key)) {
+        this._listeners.set(key, new Set());
+      }
+      this._listeners.get(key).add(handler);
     }
-    this._listeners.get(key).add(handler);
+
     return () => {
-      const listeners = this._listeners.get(key);
-      if (!listeners) return;
-      listeners.delete(handler);
-      if (!listeners.size) this._listeners.delete(key);
+      for (const key of aliases) {
+        const listeners = this._listeners.get(key);
+        if (!listeners) continue;
+        listeners.delete(handler);
+        if (!listeners.size) this._listeners.delete(key);
+      }
     };
   }
 
   emit(eventName, payload = {}) {
-    const key = String(eventName || '');
-    if (!key) return;
-    const listeners = this._listeners.get(key);
-    if (!listeners || !listeners.size) return;
+    const rawKey = String(eventName || '');
+    if (!rawKey) return;
+    const aliases = rawKey === 'data:updated'
+      ? ['data:updated', 'data-changed']
+      : (rawKey === 'data-changed' ? ['data-changed', 'data:updated'] : [rawKey]);
 
-    for (const listener of listeners) {
-      try {
-        listener(payload);
-      } catch (error) {
-        console.warn(`[BizSim] 事件监听器执行失败: ${key}`, error);
+    const executed = new Set();
+    for (const key of aliases) {
+      const listeners = this._listeners.get(key);
+      if (!listeners || !listeners.size) continue;
+
+      for (const listener of listeners) {
+        if (executed.has(listener)) continue;
+        executed.add(listener);
+        try {
+          listener(payload);
+        } catch (error) {
+          console.warn(`[BizSim] 事件监听器执行失败: ${key}`, error);
+        }
       }
     }
   }

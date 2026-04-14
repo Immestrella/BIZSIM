@@ -35,10 +35,12 @@ export function renderScaffoldEditor(container, tpl, handlers = {}) {
       </div>`;
     } else {
       const block = scaffold[v.idx];
-      return `<div class="scaffold-block" data-block-id="${block.id}" data-idx="${v.idx}" data-pos="${logicalPos}">
+      const priority = Number.isInteger(block.priority) ? block.priority : Number.parseInt(block.priority, 10) || 1;
+      return `<div class="scaffold-block priority-${priority}" data-block-id="${block.id}" data-idx="${v.idx}" data-pos="${logicalPos}">
         <div class="block-header">
           <span class="block-name">${block.name}</span>
           <span class="block-role">[${block.role}]</span>
+          <span class="block-priority">P${priority}</span>
           ${block.isBuiltIn ? '<span class="badge-builtin">内置</span>' : '<button class="btn-delete" title="删除块">✕</button>'}
         </div>
         <textarea class="block-content" data-idx="${v.idx}" placeholder="块内容..."></textarea>
@@ -50,10 +52,15 @@ export function renderScaffoldEditor(container, tpl, handlers = {}) {
     }
   }).join('');
 
-  container.innerHTML = `<div class="scaffold-list">${html}</div>`;
+  container.innerHTML = `<div class="scaffold-list">${html}</div>
+  <div class="prompt-preview-zone">
+    <div class="preview-header">编译后 Prompt 片段预览</div>
+    <pre class="prompt-preview" id="scaffold-prompt-preview"></pre>
+  </div>`;
 
   // 绑定事件
   bindScaffoldEditorEvents(container, tpl, handlers, view);
+  updatePromptPreview(container, tpl);
 }
 
 function bindScaffoldEditorEvents(container, tpl, handlers, view) {
@@ -71,6 +78,7 @@ function bindScaffoldEditorEvents(container, tpl, handlers, view) {
         tpl.builtInSyncMode = 'customized';
       }
       if (handlers.onBlockChange) handlers.onBlockChange(idx);
+      updatePromptPreview(container, tpl);
     });
   });
 
@@ -121,6 +129,25 @@ function bindScaffoldEditorEvents(container, tpl, handlers, view) {
       renderScaffoldEditor(container, tpl, handlers);
     });
   });
+}
+
+function buildPromptPreviewText(tpl) {
+  const scaffold = Array.isArray(tpl?.scaffold) ? tpl.scaffold : [];
+  const rendered = scaffold
+    .map((block) => String(block?.text || '').trim())
+    .filter(Boolean)
+    .join('\n\n');
+
+  if (!rendered) return '[暂无可预览内容]';
+  const maxChars = 1800;
+  if (rendered.length <= maxChars) return rendered;
+  return `${rendered.slice(0, maxChars)}\n\n... [预览已截断，完整内容请使用右侧提示词快照]`;
+}
+
+function updatePromptPreview(container, tpl) {
+  const preview = container.querySelector('#scaffold-prompt-preview');
+  if (!preview) return;
+  preview.textContent = buildPromptPreviewText(tpl);
 }
 
 function swapScaffoldBlocks(scaffold, leftIdx, rightIdx) {
@@ -206,6 +233,15 @@ export function injectEditorStyles() {
   const style = document.createElement('style');
   style.id = 'bizsim-scaffold-editor-styles';
   style.textContent = `
+    :root {
+      --bizsim-editor-bg: #0d1117;
+      --bizsim-editor-system: #00d2ff;
+      --bizsim-editor-growth: #4ecca3;
+      --bizsim-editor-risk: #ff6b6b;
+      --bizsim-editor-glass: rgba(13, 17, 23, 0.85);
+      --bizsim-editor-line: rgba(255,255,255,0.14);
+    }
+
     .scaffold-list {
       display: flex;
       flex-direction: column;
@@ -214,15 +250,36 @@ export function injectEditorStyles() {
       background: rgba(255,255,255,0.03);
       border-radius: 12px;
       border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(15px);
     }
 
     .scaffold-block {
-      background: rgba(6, 12, 22, 0.92);
-      border: 1px solid rgba(255,255,255,0.1);
+      background: var(--bizsim-editor-glass);
+      border: 1px solid var(--bizsim-editor-line);
       border-radius: 10px;
       padding: 12px;
       box-shadow: 0 6px 16px rgba(0,0,0,0.2);
       color: #e8eef8;
+    }
+
+    .scaffold-block.priority-0 {
+      border-color: rgba(244, 208, 63, 0.72);
+      box-shadow: inset 0 0 0 1px rgba(244, 208, 63, 0.25), 0 10px 22px rgba(0, 0, 0, 0.24);
+    }
+
+    .scaffold-block.priority-2 {
+      border-color: rgba(148, 163, 184, 0.65);
+    }
+
+    .block-priority {
+      font-size: 11px;
+      color: #9cc7da;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.04);
     }
 
     .scaffold-block.special-slot {
@@ -284,6 +341,7 @@ export function injectEditorStyles() {
       color: #e8eef8;
       border: 1px solid rgba(255,255,255,0.14);
       border-radius: 3px;
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
     }
 
     .block-actions button:disabled {
@@ -293,6 +351,8 @@ export function injectEditorStyles() {
 
     .block-actions button:hover:not(:disabled) {
       background: rgba(93, 211, 255, 0.18);
+      transform: scale(1.03);
+      box-shadow: 0 0 14px rgba(0, 210, 255, 0.22);
     }
 
     .btn-delete {
@@ -311,10 +371,13 @@ export function injectEditorStyles() {
       border-radius: 6px;
       padding: 4px 8px;
       cursor: pointer;
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
     }
 
     .btn-toggle-special:hover {
       background: rgba(93, 211, 255, 0.18);
+      transform: scale(1.03);
+      box-shadow: 0 0 14px rgba(0, 210, 255, 0.22);
     }
 
     .userPref-editor,
@@ -360,6 +423,12 @@ export function injectEditorStyles() {
       cursor: pointer;
       color: #e8eef8;
       background: rgba(255,255,255,0.06);
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .module-btn:hover {
+      transform: scale(1.03);
+      box-shadow: 0 0 14px rgba(0, 210, 255, 0.22);
     }
 
     .module-btn-primary {
@@ -372,6 +441,37 @@ export function injectEditorStyles() {
       background: rgba(251, 113, 133, 0.16);
       color: #ffd8de;
       border-color: rgba(251, 113, 133, 0.35);
+    }
+
+    .prompt-preview-zone {
+      margin-top: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      background: rgba(4, 10, 18, 0.86);
+      overflow: hidden;
+    }
+
+    .preview-header {
+      padding: 9px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #8ddfff;
+      background: rgba(0, 210, 255, 0.08);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      letter-spacing: 0.04em;
+    }
+
+    .prompt-preview {
+      margin: 0;
+      max-height: 220px;
+      overflow: auto;
+      padding: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #dce9ff;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
   `;
 

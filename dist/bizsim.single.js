@@ -2815,30 +2815,48 @@ class BizSimEngine {
 
   on(eventName, handler) {
     if (!eventName || typeof handler !== 'function') return () => {};
-    const key = String(eventName);
-    if (!this._listeners.has(key)) {
-      this._listeners.set(key, new Set());
+    const rawKey = String(eventName);
+    const aliases = rawKey === 'data:updated'
+      ? ['data:updated', 'data-changed']
+      : (rawKey === 'data-changed' ? ['data-changed', 'data:updated'] : [rawKey]);
+
+    for (const key of aliases) {
+      if (!this._listeners.has(key)) {
+        this._listeners.set(key, new Set());
+      }
+      this._listeners.get(key).add(handler);
     }
-    this._listeners.get(key).add(handler);
+
     return () => {
-      const listeners = this._listeners.get(key);
-      if (!listeners) return;
-      listeners.delete(handler);
-      if (!listeners.size) this._listeners.delete(key);
+      for (const key of aliases) {
+        const listeners = this._listeners.get(key);
+        if (!listeners) continue;
+        listeners.delete(handler);
+        if (!listeners.size) this._listeners.delete(key);
+      }
     };
   }
 
   emit(eventName, payload = {}) {
-    const key = String(eventName || '');
-    if (!key) return;
-    const listeners = this._listeners.get(key);
-    if (!listeners || !listeners.size) return;
+    const rawKey = String(eventName || '');
+    if (!rawKey) return;
+    const aliases = rawKey === 'data:updated'
+      ? ['data:updated', 'data-changed']
+      : (rawKey === 'data-changed' ? ['data-changed', 'data:updated'] : [rawKey]);
 
-    for (const listener of listeners) {
-      try {
-        listener(payload);
-      } catch (error) {
-        console.warn(`[BizSim] 事件监听器执行失败: ${key}`, error);
+    const executed = new Set();
+    for (const key of aliases) {
+      const listeners = this._listeners.get(key);
+      if (!listeners || !listeners.size) continue;
+
+      for (const listener of listeners) {
+        if (executed.has(listener)) continue;
+        executed.add(listener);
+        try {
+          listener(payload);
+        } catch (error) {
+          console.warn(`[BizSim] 事件监听器执行失败: ${key}`, error);
+        }
       }
     }
   }
@@ -3144,18 +3162,18 @@ function createMainPanelHtml(engine) {
 <div id="bizsim-panel" class="bizsim-shell">
   <style>
     :root {
-      --bizsim-bg: #07111f;
-      --bizsim-bg-soft: #0c1728;
+      --bizsim-bg: #0d1117;
+      --bizsim-bg-soft: #111827;
       --bizsim-panel: rgba(11, 18, 32, 0.78);
       --bizsim-panel-strong: #0d1728;
-      --bizsim-line: rgba(255, 255, 255, 0.08);
+      --bizsim-line: rgba(255, 255, 255, 0.10);
       --bizsim-text: #e8eef8;
       --bizsim-muted: #92a4c3;
-      --bizsim-primary: #5dd3ff;
+      --bizsim-primary: #00d2ff;
       --bizsim-accent: #8b5cf6;
       --bizsim-warm: #f59e0b;
-      --bizsim-danger: #fb7185;
-      --bizsim-success: #34d399;
+      --bizsim-danger: #ff6b6b;
+      --bizsim-success: #4ecca3;
       --bizsim-radius-xl: 24px;
       --bizsim-radius-lg: 18px;
       --bizsim-radius-md: 14px;
@@ -3166,11 +3184,50 @@ function createMainPanelHtml(engine) {
       font-family: Inter, "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
       color: var(--bizsim-text);
       background:
-        radial-gradient(circle at top left, rgba(93, 211, 255, 0.18), transparent 32%),
-        radial-gradient(circle at top right, rgba(139, 92, 246, 0.20), transparent 36%),
-        linear-gradient(180deg, #08111d 0%, #0b1320 100%);
+        radial-gradient(circle at top left, rgba(0, 210, 255, 0.2), transparent 34%),
+        radial-gradient(circle at top right, rgba(78, 204, 163, 0.16), transparent 42%),
+        linear-gradient(180deg, #0b111b 0%, #0d1117 100%);
       border-radius: 24px;
       overflow: hidden;
+      border: 1px solid rgba(0, 210, 255, 0.16);
+      position: relative;
+    }
+
+    .bizsim-shell::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.03) 0,
+        rgba(255, 255, 255, 0.03) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+      opacity: 0.18;
+      z-index: 0;
+    }
+
+    .bizsim-shell.is-simulating::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 2px solid transparent;
+      border-radius: 24px;
+      pointer-events: none;
+      background: linear-gradient(90deg, transparent, rgba(0, 210, 255, 0.85), transparent) border-box;
+      mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+      -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      animation: bizsim-edge-scan 1.2s linear infinite;
+      z-index: 2;
+    }
+
+    @keyframes bizsim-edge-scan {
+      from { background-position: -320px 0; }
+      to { background-position: 320px 0; }
     }
 
     .bizsim-shell * { box-sizing: border-box; }
@@ -3208,10 +3265,47 @@ function createMainPanelHtml(engine) {
     .bizsim-brand p { margin: 8px 0 0; color: var(--bizsim-muted); font-size: 13px; }
     .bizsim-hero-actions {
       display: flex;
+      flex-direction: column;
       gap: 10px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
+      align-items: flex-end;
+    }
+    .bizsim-status-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, auto));
+      gap: 10px;
       align-items: center;
+      justify-items: end;
+    }
+    .bizsim-status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 11px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(16, 24, 40, 0.66);
+      color: var(--bizsim-muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .bizsim-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--bizsim-success);
+      box-shadow: 0 0 0 6px rgba(78, 204, 163, 0.1), 0 0 12px rgba(78, 204, 163, 0.7);
+      animation: bizsim-dot-pulse 1.4s ease-in-out infinite;
+      flex: 0 0 auto;
+    }
+    .bizsim-status-value {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      color: #d2f6ff;
+      letter-spacing: 0.03em;
+      font-weight: 700;
+    }
+    @keyframes bizsim-dot-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.22); opacity: 0.82; }
     }
     .bizsim-chip {
       display: inline-flex;
@@ -3278,31 +3372,65 @@ function createMainPanelHtml(engine) {
       align-items: center;
       justify-content: flex-end;
     }
+    .bizsim-terminal-grid {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr) 300px;
+      min-height: min(74vh, 980px);
+    }
+    .bizsim-sidebar {
+      border-right: 1px solid var(--bizsim-line);
+      background: rgba(6, 12, 22, 0.82);
+      backdrop-filter: blur(10px);
+      padding: 12px 8px;
+    }
     .bizsim-nav {
-      display: flex;
+      display: grid;
       gap: 8px;
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--bizsim-line);
-      background: rgba(6, 11, 21, 0.88);
-      overflow-x: auto;
+      background: transparent;
+      border: 0;
+      padding: 0;
     }
     .bizsim-tab {
       border: 1px solid transparent;
       background: rgba(255,255,255,0.04);
       color: var(--bizsim-muted);
       padding: 10px 16px;
-      border-radius: 999px;
+      border-radius: 12px;
       cursor: pointer;
-      white-space: nowrap;
-      font-size: 13px;
+      white-space: normal;
+      font-size: 12px;
       font-weight: 700;
+      min-height: 46px;
+      line-height: 1.2;
+      text-align: left;
     }
     .bizsim-tab.active {
       color: var(--bizsim-text);
       background: rgba(93, 211, 255, 0.16);
       border-color: rgba(93, 211, 255, 0.25);
     }
-    .bizsim-main { padding: 20px; }
+    .bizsim-main {
+      padding: 18px;
+      overflow-y: auto;
+      border-right: 1px solid var(--bizsim-line);
+    }
+    .bizsim-audit-rail {
+      padding: 16px;
+      background: rgba(11, 18, 32, 0.62);
+      backdrop-filter: blur(12px);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .bizsim-audit-title {
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #8ddfff;
+      font-weight: 800;
+      margin: 0;
+    }
     .bizsim-section { display: none; }
     .bizsim-section.active { display: block; }
     .bizsim-grid-2 { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr); gap: 16px; }
@@ -3353,6 +3481,20 @@ function createMainPanelHtml(engine) {
     }
     .bizsim-stat-label { color: var(--bizsim-muted); font-size: 12px; }
     .bizsim-stat-value { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+    .bizsim-value-mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    .bizsim-stat-trend {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .bizsim-stat-trend.up { color: var(--bizsim-success); }
+    .bizsim-stat-trend.down { color: var(--bizsim-danger); }
+    .bizsim-stat-trend.neutral { color: var(--bizsim-primary); }
     .bizsim-stat-hint { color: #b8c5dc; font-size: 12px; }
     .bizsim-dashboard-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr); gap: 16px; }
     .bizsim-dashboard-stack { display: grid; gap: 16px; }
@@ -3366,7 +3508,8 @@ function createMainPanelHtml(engine) {
       font-size: 12px;
       color: #9fe7b7;
       white-space: pre-line;
-      max-height: 220px;
+      max-height: calc(100vh - 260px);
+      min-height: 220px;
       overflow-y: auto;
     }
     .bizsim-sheet-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -3397,11 +3540,93 @@ function createMainPanelHtml(engine) {
       background: rgba(4, 10, 18, 0.9);
     }
     .bizsim-split-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    @media (max-width: 1100px) {
-      .bizsim-grid-2, .bizsim-dashboard-layout { grid-template-columns: 1fr; }
-      .bizsim-grid-3 { grid-template-columns: 1fr; }
+
+    .bizsim-flash-update {
+      animation: bizsim-flash-update .5s ease-out;
+    }
+
+    @keyframes bizsim-flash-update {
+      0% {
+        background-color: rgba(0, 210, 255, 0.28);
+        box-shadow: 0 0 0 0 rgba(0, 210, 255, 0.45);
+      }
+      100% {
+        background-color: transparent;
+        box-shadow: 0 0 0 10px rgba(0, 210, 255, 0);
+      }
+    }
+
+    .bizsim-timeline {
+      margin-top: 8px;
+      border-left: 2px solid rgba(0, 210, 255, 0.35);
+      padding-left: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .bizsim-timeline-item {
+      position: relative;
+      padding: 10px 12px 10px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .bizsim-timeline-item::before {
+      content: '';
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--bizsim-primary);
+      box-shadow: 0 0 10px rgba(0, 210, 255, 0.75);
+      left: -20px;
+      top: 16px;
+    }
+
+    .bizsim-timeline-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .bizsim-timeline-meta {
+      font-size: 12px;
+      color: var(--bizsim-muted);
+      margin-bottom: 6px;
+    }
+    @media (max-width: 1280px) {
+      .bizsim-terminal-grid { grid-template-columns: 84px minmax(0, 1fr) 260px; }
+      .bizsim-status-strip { grid-template-columns: 1fr; justify-items: stretch; width: 100%; }
+      .bizsim-status-chip { justify-content: space-between; }
+    }
+
+    @media (max-width: 980px) {
+      .bizsim-terminal-grid { grid-template-columns: 1fr; }
+      .bizsim-sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--bizsim-line);
+        padding: 8px;
+      }
+      .bizsim-nav {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .bizsim-tab { min-height: 40px; text-align: center; }
+      .bizsim-main { border-right: 0; }
+      .bizsim-audit-rail {
+        border-top: 1px solid var(--bizsim-line);
+        max-height: 220px;
+      }
+      .bizsim-grid-2, .bizsim-dashboard-layout, .bizsim-grid-3 { grid-template-columns: 1fr; }
       .bizsim-hero { align-items: flex-start; flex-direction: column; }
-      .bizsim-hero-actions { justify-content: flex-start; }
+      .bizsim-hero-actions { align-items: stretch; width: 100%; }
+      .bizsim-top-actions { justify-content: flex-start; }
+      .bizsim-btn { width: 100%; }
     }
   </style>
 
@@ -3413,21 +3638,30 @@ function createMainPanelHtml(engine) {
         <p>模块化版本 v${engine.config.VERSION} · 独立 LLM · 世界书注入 · 可回放提示词</p>
       </div>
       <div class="bizsim-hero-actions">
-        <div class="bizsim-chip">默认模型：${escapeHtml(engine.config.LLM.model || '未配置')}</div>
-        <button class="bizsim-btn bizsim-btn-primary" id="btn-global-simulation" type="button">一键推演</button>
-        <button class="bizsim-btn bizsim-btn-secondary" id="btn-global-audit" type="button">快速审计</button>
-        <button class="bizsim-btn bizsim-btn-secondary" id="btn-global-export" type="button">导出报告</button>
+        <div class="bizsim-status-strip">
+          <div class="bizsim-status-chip">模型 <span class="bizsim-status-value" id="status-current-model">${escapeHtml(engine.config.LLM.model || '未配置')}</span></div>
+          <div class="bizsim-status-chip"><span class="bizsim-status-dot" id="bizsim-status-led"></span> 状态 <span class="bizsim-status-value" id="bizsim-status-text">待机</span></div>
+          <div class="bizsim-status-chip">总资产 <span class="bizsim-status-value" id="bizsim-asset-overview">--</span></div>
+        </div>
+        <div class="bizsim-top-actions">
+          <button class="bizsim-btn bizsim-btn-primary" id="btn-global-simulation" type="button">一键推演</button>
+          <button class="bizsim-btn bizsim-btn-secondary" id="btn-global-audit" type="button">快速审计</button>
+          <button class="bizsim-btn bizsim-btn-secondary" id="btn-global-export" type="button">导出报告</button>
+        </div>
       </div>
     </header>
 
-    <nav class="bizsim-nav">
-      <button class="bizsim-tab active" data-tab="dashboard">仪表盘</button>
-      <button class="bizsim-tab" data-tab="simulation">推演设置</button>
-      <button class="bizsim-tab" data-tab="api">API设置</button>
-      <button class="bizsim-tab" data-tab="prompts">提示词</button>
-    </nav>
+    <div class="bizsim-terminal-grid">
+      <aside class="bizsim-sidebar">
+        <nav class="bizsim-nav">
+          <button class="bizsim-tab active" data-tab="dashboard">📊 仪表盘</button>
+          <button class="bizsim-tab" data-tab="simulation">🧪 推演设置</button>
+          <button class="bizsim-tab" data-tab="api">🛰 API设置</button>
+          <button class="bizsim-tab" data-tab="prompts">🧩 提示词</button>
+        </nav>
+      </aside>
 
-    <main class="bizsim-main">
+      <main class="bizsim-main">
       <section class="bizsim-section active" id="tab-dashboard">
         <div class="bizsim-dashboard-layout">
           <div class="bizsim-dashboard-stack">
@@ -3476,13 +3710,6 @@ function createMainPanelHtml(engine) {
               <div id="world-tracks-container"><div class="bizsim-helper">暂无轨迹</div></div>
             </div>
 
-            <div class="bizsim-card">
-              <div class="bizsim-card-title">
-                <span>运行日志</span>
-                <span class="bizsim-card-subtitle">最近操作</span>
-              </div>
-              <div class="bizsim-log" id="bizsim-logs">&gt; BizSim 引擎已初始化\n&gt; 等待指令...</div>
-            </div>
           </div>
         </div>
       </section>
@@ -3728,7 +3955,14 @@ function createMainPanelHtml(engine) {
           </div>
         </div>
       </section>
-    </main>
+      </main>
+
+      <aside class="bizsim-audit-rail">
+        <h3 class="bizsim-audit-title">Realtime Audit Stream</h3>
+        <div class="bizsim-helper">系统事件、推演结果与审计提示会在这里持续输出。</div>
+        <div class="bizsim-log" id="bizsim-logs">&gt; BizSim 引擎已初始化\n&gt; 等待指令...</div>
+      </aside>
+    </div>
   </div>
 </div>
 `;
@@ -4049,16 +4283,58 @@ function refreshDashboard(ui) {
       : `显示第 ${snapshotInfo.sourceMessageId} 层（落后 ${snapshotInfo.floorOffset} 层）`)
     : '最近10层无楼层变量';
 
+  const modelNode = ui.byId('status-current-model');
+  if (modelNode) modelNode.textContent = String(ui.engine?.config?.LLM?.model || '未配置');
+
+  const statusTextNode = ui.byId('bizsim-status-text');
+  if (statusTextNode) {
+    statusTextNode.textContent = ui.isSimulating ? `推演中${ui.simulationSource ? ` · ${ui.simulationSource}` : ''}` : (audit.valid ? '稳定' : '告警');
+  }
+
+  const ledNode = ui.byId('bizsim-status-led');
+  if (ledNode) {
+    ledNode.style.background = ui.isSimulating ? 'var(--bizsim-primary)' : (audit.valid ? 'var(--bizsim-success)' : 'var(--bizsim-danger)');
+    ledNode.style.boxShadow = ui.isSimulating
+      ? '0 0 0 6px rgba(0,210,255,0.12), 0 0 12px rgba(0,210,255,0.75)'
+      : (audit.valid
+        ? '0 0 0 6px rgba(78,204,163,0.1), 0 0 12px rgba(78,204,163,0.7)'
+        : '0 0 0 6px rgba(255,107,107,0.12), 0 0 12px rgba(255,107,107,0.75)');
+  }
+
+  const overviewNode = ui.byId('bizsim-asset-overview');
+  const overviewRow = ui.engine?.data?.sheet_assetOVW0?.content?.[1] || [];
+  const netAssetText = String(overviewRow[6] || '--');
+  if (overviewNode) overviewNode.textContent = netAssetText;
+
   const cards = [
-    { title: '推演视角', value: String(worldSource?.tracks?.length || 0), hint: `活跃 ${activeTracks} 个` },
-    { title: '数据表', value: String(sheetNames.length), hint: '角色卡变量中的资产表' },
-    { title: '审计状态', value: audit.valid ? '通过' : '异常', hint: audit.valid ? snapshotHint : `${audit.issues.length} 个问题` },
+    {
+      title: '净资产',
+      value: netAssetText,
+      hint: `资产总览快照 · ${snapshotHint}`,
+      trend: ui.isSimulating ? 'neutral' : 'up',
+      trendText: ui.isSimulating ? '↔ 推演中' : '▲ 资产跟踪',
+    },
+    {
+      title: '活跃视角',
+      value: String(activeTracks),
+      hint: `总视角 ${worldSource?.tracks?.length || 0} 个`,
+      trend: activeTracks > 0 ? 'up' : 'neutral',
+      trendText: activeTracks > 0 ? '▲ 世界线活跃' : '↔ 等待推进',
+    },
+    {
+      title: '风险负载',
+      value: audit.valid ? '低' : '高',
+      hint: audit.valid ? '跨表一致性通过' : `${audit.issues.length} 个异常等待修复`,
+      trend: audit.valid ? 'up' : 'down',
+      trendText: audit.valid ? '▲ 风险可控' : '▼ 审计告警',
+    },
   ];
 
   container.innerHTML = cards.map((card) => `
     <div class="bizsim-card bizsim-stat" style="margin-bottom:0;">
       <div class="bizsim-stat-label">${escapeHtml(card.title)}</div>
-      <div class="bizsim-stat-value">${escapeHtml(card.value)}</div>
+      <div class="bizsim-stat-value bizsim-value-mono" data-update-value="${escapeHtml(card.title)}">${escapeHtml(card.value)}</div>
+      <div class="bizsim-stat-trend ${escapeHtml(card.trend || 'neutral')}">${escapeHtml(card.trendText || '')}</div>
       <div class="bizsim-stat-hint">${escapeHtml(card.hint)}</div>
     </div>
   `).join('');
@@ -4154,17 +4430,20 @@ function refreshTracks(ui) {
   container.innerHTML = `
     <div class="bizsim-helper" style="margin-bottom:8px;">轨迹来源：${escapeHtml(sourceHint)}</div>
     ${staleHint}
-  ` + tracks.map((track) => `
-    <div class="bizsim-card" style="margin-bottom:10px;">
-      <div class="bizsim-card-title" style="margin-bottom:8px;">
-        <span>${escapeHtml(track.id)}: ${escapeHtml(track.characterName)}</span>
-        <span class="bizsim-card-subtitle">${escapeHtml(track.status)}</span>
-      </div>
-      <div class="bizsim-helper">📍 ${escapeHtml(track.location)} | 迭代: ${escapeHtml(String(track.iteration ?? '--'))}</div>
-      <div style="margin:8px 0 6px;">${escapeHtml(track.progress || '')}</div>
-      <div class="bizsim-helper">${escapeHtml(track.summary || '')}</div>
+    <div class="bizsim-timeline">
+      ${tracks.map((track) => `
+        <article class="bizsim-timeline-item">
+          <div class="bizsim-timeline-head">
+            <span>${escapeHtml(track.id)} · ${escapeHtml(track.characterName)}</span>
+            <span class="bizsim-card-subtitle">${escapeHtml(track.status)}</span>
+          </div>
+          <div class="bizsim-timeline-meta">📍 ${escapeHtml(track.location)} | 迭代: ${escapeHtml(String(track.iteration ?? '--'))}</div>
+          <div style="margin:8px 0 6px;">${escapeHtml(track.progress || '')}</div>
+          <div class="bizsim-helper">${escapeHtml(track.summary || '')}</div>
+        </article>
+      `).join('')}
     </div>
-  `).join('');
+  `;
 }
 
 function showAddTrackForm(ui) {
@@ -4192,8 +4471,11 @@ function log(ui, message) {
   if (!logDiv) return;
 
   const time = new Date().toLocaleTimeString();
+  const nearBottom = (logDiv.scrollHeight - logDiv.scrollTop - logDiv.clientHeight) < 40;
   logDiv.innerHTML += `\n[${time}] ${message}`;
-  logDiv.scrollTop = logDiv.scrollHeight;
+  if (nearBottom) {
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
 }
 
 // ---- src/ui/BizSimUI.settings.js ----
@@ -5157,10 +5439,12 @@ function renderScaffoldEditor(container, tpl, handlers = {}) {
       </div>`;
     } else {
       const block = scaffold[v.idx];
-      return `<div class="scaffold-block" data-block-id="${block.id}" data-idx="${v.idx}" data-pos="${logicalPos}">
+      const priority = Number.isInteger(block.priority) ? block.priority : Number.parseInt(block.priority, 10) || 1;
+      return `<div class="scaffold-block priority-${priority}" data-block-id="${block.id}" data-idx="${v.idx}" data-pos="${logicalPos}">
         <div class="block-header">
           <span class="block-name">${block.name}</span>
           <span class="block-role">[${block.role}]</span>
+          <span class="block-priority">P${priority}</span>
           ${block.isBuiltIn ? '<span class="badge-builtin">内置</span>' : '<button class="btn-delete" title="删除块">✕</button>'}
         </div>
         <textarea class="block-content" data-idx="${v.idx}" placeholder="块内容..."></textarea>
@@ -5172,10 +5456,15 @@ function renderScaffoldEditor(container, tpl, handlers = {}) {
     }
   }).join('');
 
-  container.innerHTML = `<div class="scaffold-list">${html}</div>`;
+  container.innerHTML = `<div class="scaffold-list">${html}</div>
+  <div class="prompt-preview-zone">
+    <div class="preview-header">编译后 Prompt 片段预览</div>
+    <pre class="prompt-preview" id="scaffold-prompt-preview"></pre>
+  </div>`;
 
   // 绑定事件
   bindScaffoldEditorEvents(container, tpl, handlers, view);
+  updatePromptPreview(container, tpl);
 }
 
 function bindScaffoldEditorEvents(container, tpl, handlers, view) {
@@ -5193,6 +5482,7 @@ function bindScaffoldEditorEvents(container, tpl, handlers, view) {
         tpl.builtInSyncMode = 'customized';
       }
       if (handlers.onBlockChange) handlers.onBlockChange(idx);
+      updatePromptPreview(container, tpl);
     });
   });
 
@@ -5243,6 +5533,25 @@ function bindScaffoldEditorEvents(container, tpl, handlers, view) {
       renderScaffoldEditor(container, tpl, handlers);
     });
   });
+}
+
+function buildPromptPreviewText(tpl) {
+  const scaffold = Array.isArray(tpl?.scaffold) ? tpl.scaffold : [];
+  const rendered = scaffold
+    .map((block) => String(block?.text || '').trim())
+    .filter(Boolean)
+    .join('\n\n');
+
+  if (!rendered) return '[暂无可预览内容]';
+  const maxChars = 1800;
+  if (rendered.length <= maxChars) return rendered;
+  return `${rendered.slice(0, maxChars)}\n\n... [预览已截断，完整内容请使用右侧提示词快照]`;
+}
+
+function updatePromptPreview(container, tpl) {
+  const preview = container.querySelector('#scaffold-prompt-preview');
+  if (!preview) return;
+  preview.textContent = buildPromptPreviewText(tpl);
 }
 
 function swapScaffoldBlocks(scaffold, leftIdx, rightIdx) {
@@ -5328,6 +5637,15 @@ function injectEditorStyles() {
   const style = document.createElement('style');
   style.id = 'bizsim-scaffold-editor-styles';
   style.textContent = `
+    :root {
+      --bizsim-editor-bg: #0d1117;
+      --bizsim-editor-system: #00d2ff;
+      --bizsim-editor-growth: #4ecca3;
+      --bizsim-editor-risk: #ff6b6b;
+      --bizsim-editor-glass: rgba(13, 17, 23, 0.85);
+      --bizsim-editor-line: rgba(255,255,255,0.14);
+    }
+
     .scaffold-list {
       display: flex;
       flex-direction: column;
@@ -5336,15 +5654,36 @@ function injectEditorStyles() {
       background: rgba(255,255,255,0.03);
       border-radius: 12px;
       border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(15px);
     }
 
     .scaffold-block {
-      background: rgba(6, 12, 22, 0.92);
-      border: 1px solid rgba(255,255,255,0.1);
+      background: var(--bizsim-editor-glass);
+      border: 1px solid var(--bizsim-editor-line);
       border-radius: 10px;
       padding: 12px;
       box-shadow: 0 6px 16px rgba(0,0,0,0.2);
       color: #e8eef8;
+    }
+
+    .scaffold-block.priority-0 {
+      border-color: rgba(244, 208, 63, 0.72);
+      box-shadow: inset 0 0 0 1px rgba(244, 208, 63, 0.25), 0 10px 22px rgba(0, 0, 0, 0.24);
+    }
+
+    .scaffold-block.priority-2 {
+      border-color: rgba(148, 163, 184, 0.65);
+    }
+
+    .block-priority {
+      font-size: 11px;
+      color: #9cc7da;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.04);
     }
 
     .scaffold-block.special-slot {
@@ -5406,6 +5745,7 @@ function injectEditorStyles() {
       color: #e8eef8;
       border: 1px solid rgba(255,255,255,0.14);
       border-radius: 3px;
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
     }
 
     .block-actions button:disabled {
@@ -5415,6 +5755,8 @@ function injectEditorStyles() {
 
     .block-actions button:hover:not(:disabled) {
       background: rgba(93, 211, 255, 0.18);
+      transform: scale(1.03);
+      box-shadow: 0 0 14px rgba(0, 210, 255, 0.22);
     }
 
     .btn-delete {
@@ -5433,10 +5775,13 @@ function injectEditorStyles() {
       border-radius: 6px;
       padding: 4px 8px;
       cursor: pointer;
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
     }
 
     .btn-toggle-special:hover {
       background: rgba(93, 211, 255, 0.18);
+      transform: scale(1.03);
+      box-shadow: 0 0 14px rgba(0, 210, 255, 0.22);
     }
 
     .userPref-editor,
@@ -5482,6 +5827,12 @@ function injectEditorStyles() {
       cursor: pointer;
       color: #e8eef8;
       background: rgba(255,255,255,0.06);
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+
+    .module-btn:hover {
+      transform: scale(1.03);
+      box-shadow: 0 0 14px rgba(0, 210, 255, 0.22);
     }
 
     .module-btn-primary {
@@ -5494,6 +5845,37 @@ function injectEditorStyles() {
       background: rgba(251, 113, 133, 0.16);
       color: #ffd8de;
       border-color: rgba(251, 113, 133, 0.35);
+    }
+
+    .prompt-preview-zone {
+      margin-top: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      background: rgba(4, 10, 18, 0.86);
+      overflow: hidden;
+    }
+
+    .preview-header {
+      padding: 9px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #8ddfff;
+      background: rgba(0, 210, 255, 0.08);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      letter-spacing: 0.04em;
+    }
+
+    .prompt-preview {
+      margin: 0;
+      max-height: 220px;
+      overflow: auto;
+      padding: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #dce9ff;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
   `;
 
@@ -5968,18 +6350,29 @@ class BizSimUI {
       this.refreshDashboard();
       this.refreshEmpire();
       this.refreshTracks();
+      this.flashUpdatedValues();
     }, 80);
+  }
+
+  flashUpdatedValues() {
+    const targets = this.$$('[data-update-value]');
+    for (const node of targets) {
+      node.classList.remove('bizsim-flash-update');
+      void node.offsetWidth;
+      node.classList.add('bizsim-flash-update');
+    }
   }
 
   attachEngineEventListeners() {
     this.detachEngineEventListeners();
     if (!this.engine || typeof this.engine.on !== 'function') return;
 
-    this._engineUnsubscribers.push(
-      this.engine.on('data-changed', () => {
-        this.queueEngineDrivenRefresh();
-      }),
-    );
+    const onDataUpdated = () => {
+      this.queueEngineDrivenRefresh();
+    };
+
+    this._engineUnsubscribers.push(this.engine.on('data-changed', onDataUpdated));
+    this._engineUnsubscribers.push(this.engine.on('data:updated', onDataUpdated));
 
     this._engineUnsubscribers.push(
       this.engine.on('simulation-state-changed', (payload = {}) => {
@@ -6131,6 +6524,11 @@ class BizSimUI {
       } else {
         button.textContent = this.isSimulating ? `推演中${this.simulationSource ? ` · ${this.simulationSource}` : ''}` : '开始推演';
       }
+    }
+
+    const panelRoot = this.byId('bizsim-panel');
+    if (panelRoot) {
+      panelRoot.classList.toggle('is-simulating', this.isSimulating);
     }
 
     try {

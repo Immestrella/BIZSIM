@@ -73,18 +73,29 @@ export class BizSimUI {
       this.refreshDashboard();
       this.refreshEmpire();
       this.refreshTracks();
+      this.flashUpdatedValues();
     }, 80);
+  }
+
+  flashUpdatedValues() {
+    const targets = this.$$('[data-update-value]');
+    for (const node of targets) {
+      node.classList.remove('bizsim-flash-update');
+      void node.offsetWidth;
+      node.classList.add('bizsim-flash-update');
+    }
   }
 
   attachEngineEventListeners() {
     this.detachEngineEventListeners();
     if (!this.engine || typeof this.engine.on !== 'function') return;
 
-    this._engineUnsubscribers.push(
-      this.engine.on('data-changed', () => {
-        this.queueEngineDrivenRefresh();
-      }),
-    );
+    const onDataUpdated = () => {
+      this.queueEngineDrivenRefresh();
+    };
+
+    this._engineUnsubscribers.push(this.engine.on('data-changed', onDataUpdated));
+    this._engineUnsubscribers.push(this.engine.on('data:updated', onDataUpdated));
 
     this._engineUnsubscribers.push(
       this.engine.on('simulation-state-changed', (payload = {}) => {
@@ -236,6 +247,11 @@ export class BizSimUI {
       } else {
         button.textContent = this.isSimulating ? `推演中${this.simulationSource ? ` · ${this.simulationSource}` : ''}` : '开始推演';
       }
+    }
+
+    const panelRoot = this.byId('bizsim-panel');
+    if (panelRoot) {
+      panelRoot.classList.toggle('is-simulating', this.isSimulating);
     }
 
     try {

@@ -5,18 +5,18 @@ export function createMainPanelHtml(engine) {
 <div id="bizsim-panel" class="bizsim-shell">
   <style>
     :root {
-      --bizsim-bg: #07111f;
-      --bizsim-bg-soft: #0c1728;
+      --bizsim-bg: #0d1117;
+      --bizsim-bg-soft: #111827;
       --bizsim-panel: rgba(11, 18, 32, 0.78);
       --bizsim-panel-strong: #0d1728;
-      --bizsim-line: rgba(255, 255, 255, 0.08);
+      --bizsim-line: rgba(255, 255, 255, 0.10);
       --bizsim-text: #e8eef8;
       --bizsim-muted: #92a4c3;
-      --bizsim-primary: #5dd3ff;
+      --bizsim-primary: #00d2ff;
       --bizsim-accent: #8b5cf6;
       --bizsim-warm: #f59e0b;
-      --bizsim-danger: #fb7185;
-      --bizsim-success: #34d399;
+      --bizsim-danger: #ff6b6b;
+      --bizsim-success: #4ecca3;
       --bizsim-radius-xl: 24px;
       --bizsim-radius-lg: 18px;
       --bizsim-radius-md: 14px;
@@ -27,11 +27,50 @@ export function createMainPanelHtml(engine) {
       font-family: Inter, "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
       color: var(--bizsim-text);
       background:
-        radial-gradient(circle at top left, rgba(93, 211, 255, 0.18), transparent 32%),
-        radial-gradient(circle at top right, rgba(139, 92, 246, 0.20), transparent 36%),
-        linear-gradient(180deg, #08111d 0%, #0b1320 100%);
+        radial-gradient(circle at top left, rgba(0, 210, 255, 0.2), transparent 34%),
+        radial-gradient(circle at top right, rgba(78, 204, 163, 0.16), transparent 42%),
+        linear-gradient(180deg, #0b111b 0%, #0d1117 100%);
       border-radius: 24px;
       overflow: hidden;
+      border: 1px solid rgba(0, 210, 255, 0.16);
+      position: relative;
+    }
+
+    .bizsim-shell::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.03) 0,
+        rgba(255, 255, 255, 0.03) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+      opacity: 0.18;
+      z-index: 0;
+    }
+
+    .bizsim-shell.is-simulating::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 2px solid transparent;
+      border-radius: 24px;
+      pointer-events: none;
+      background: linear-gradient(90deg, transparent, rgba(0, 210, 255, 0.85), transparent) border-box;
+      mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+      -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      animation: bizsim-edge-scan 1.2s linear infinite;
+      z-index: 2;
+    }
+
+    @keyframes bizsim-edge-scan {
+      from { background-position: -320px 0; }
+      to { background-position: 320px 0; }
     }
 
     .bizsim-shell * { box-sizing: border-box; }
@@ -69,10 +108,47 @@ export function createMainPanelHtml(engine) {
     .bizsim-brand p { margin: 8px 0 0; color: var(--bizsim-muted); font-size: 13px; }
     .bizsim-hero-actions {
       display: flex;
+      flex-direction: column;
       gap: 10px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
+      align-items: flex-end;
+    }
+    .bizsim-status-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, auto));
+      gap: 10px;
       align-items: center;
+      justify-items: end;
+    }
+    .bizsim-status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 11px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(16, 24, 40, 0.66);
+      color: var(--bizsim-muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .bizsim-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--bizsim-success);
+      box-shadow: 0 0 0 6px rgba(78, 204, 163, 0.1), 0 0 12px rgba(78, 204, 163, 0.7);
+      animation: bizsim-dot-pulse 1.4s ease-in-out infinite;
+      flex: 0 0 auto;
+    }
+    .bizsim-status-value {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      color: #d2f6ff;
+      letter-spacing: 0.03em;
+      font-weight: 700;
+    }
+    @keyframes bizsim-dot-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.22); opacity: 0.82; }
     }
     .bizsim-chip {
       display: inline-flex;
@@ -139,31 +215,65 @@ export function createMainPanelHtml(engine) {
       align-items: center;
       justify-content: flex-end;
     }
+    .bizsim-terminal-grid {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr) 300px;
+      min-height: min(74vh, 980px);
+    }
+    .bizsim-sidebar {
+      border-right: 1px solid var(--bizsim-line);
+      background: rgba(6, 12, 22, 0.82);
+      backdrop-filter: blur(10px);
+      padding: 12px 8px;
+    }
     .bizsim-nav {
-      display: flex;
+      display: grid;
       gap: 8px;
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--bizsim-line);
-      background: rgba(6, 11, 21, 0.88);
-      overflow-x: auto;
+      background: transparent;
+      border: 0;
+      padding: 0;
     }
     .bizsim-tab {
       border: 1px solid transparent;
       background: rgba(255,255,255,0.04);
       color: var(--bizsim-muted);
       padding: 10px 16px;
-      border-radius: 999px;
+      border-radius: 12px;
       cursor: pointer;
-      white-space: nowrap;
-      font-size: 13px;
+      white-space: normal;
+      font-size: 12px;
       font-weight: 700;
+      min-height: 46px;
+      line-height: 1.2;
+      text-align: left;
     }
     .bizsim-tab.active {
       color: var(--bizsim-text);
       background: rgba(93, 211, 255, 0.16);
       border-color: rgba(93, 211, 255, 0.25);
     }
-    .bizsim-main { padding: 20px; }
+    .bizsim-main {
+      padding: 18px;
+      overflow-y: auto;
+      border-right: 1px solid var(--bizsim-line);
+    }
+    .bizsim-audit-rail {
+      padding: 16px;
+      background: rgba(11, 18, 32, 0.62);
+      backdrop-filter: blur(12px);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .bizsim-audit-title {
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #8ddfff;
+      font-weight: 800;
+      margin: 0;
+    }
     .bizsim-section { display: none; }
     .bizsim-section.active { display: block; }
     .bizsim-grid-2 { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr); gap: 16px; }
@@ -214,6 +324,20 @@ export function createMainPanelHtml(engine) {
     }
     .bizsim-stat-label { color: var(--bizsim-muted); font-size: 12px; }
     .bizsim-stat-value { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+    .bizsim-value-mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    .bizsim-stat-trend {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .bizsim-stat-trend.up { color: var(--bizsim-success); }
+    .bizsim-stat-trend.down { color: var(--bizsim-danger); }
+    .bizsim-stat-trend.neutral { color: var(--bizsim-primary); }
     .bizsim-stat-hint { color: #b8c5dc; font-size: 12px; }
     .bizsim-dashboard-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr); gap: 16px; }
     .bizsim-dashboard-stack { display: grid; gap: 16px; }
@@ -227,7 +351,8 @@ export function createMainPanelHtml(engine) {
       font-size: 12px;
       color: #9fe7b7;
       white-space: pre-line;
-      max-height: 220px;
+      max-height: calc(100vh - 260px);
+      min-height: 220px;
       overflow-y: auto;
     }
     .bizsim-sheet-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -258,11 +383,93 @@ export function createMainPanelHtml(engine) {
       background: rgba(4, 10, 18, 0.9);
     }
     .bizsim-split-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    @media (max-width: 1100px) {
-      .bizsim-grid-2, .bizsim-dashboard-layout { grid-template-columns: 1fr; }
-      .bizsim-grid-3 { grid-template-columns: 1fr; }
+
+    .bizsim-flash-update {
+      animation: bizsim-flash-update .5s ease-out;
+    }
+
+    @keyframes bizsim-flash-update {
+      0% {
+        background-color: rgba(0, 210, 255, 0.28);
+        box-shadow: 0 0 0 0 rgba(0, 210, 255, 0.45);
+      }
+      100% {
+        background-color: transparent;
+        box-shadow: 0 0 0 10px rgba(0, 210, 255, 0);
+      }
+    }
+
+    .bizsim-timeline {
+      margin-top: 8px;
+      border-left: 2px solid rgba(0, 210, 255, 0.35);
+      padding-left: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .bizsim-timeline-item {
+      position: relative;
+      padding: 10px 12px 10px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .bizsim-timeline-item::before {
+      content: '';
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--bizsim-primary);
+      box-shadow: 0 0 10px rgba(0, 210, 255, 0.75);
+      left: -20px;
+      top: 16px;
+    }
+
+    .bizsim-timeline-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .bizsim-timeline-meta {
+      font-size: 12px;
+      color: var(--bizsim-muted);
+      margin-bottom: 6px;
+    }
+    @media (max-width: 1280px) {
+      .bizsim-terminal-grid { grid-template-columns: 84px minmax(0, 1fr) 260px; }
+      .bizsim-status-strip { grid-template-columns: 1fr; justify-items: stretch; width: 100%; }
+      .bizsim-status-chip { justify-content: space-between; }
+    }
+
+    @media (max-width: 980px) {
+      .bizsim-terminal-grid { grid-template-columns: 1fr; }
+      .bizsim-sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--bizsim-line);
+        padding: 8px;
+      }
+      .bizsim-nav {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .bizsim-tab { min-height: 40px; text-align: center; }
+      .bizsim-main { border-right: 0; }
+      .bizsim-audit-rail {
+        border-top: 1px solid var(--bizsim-line);
+        max-height: 220px;
+      }
+      .bizsim-grid-2, .bizsim-dashboard-layout, .bizsim-grid-3 { grid-template-columns: 1fr; }
       .bizsim-hero { align-items: flex-start; flex-direction: column; }
-      .bizsim-hero-actions { justify-content: flex-start; }
+      .bizsim-hero-actions { align-items: stretch; width: 100%; }
+      .bizsim-top-actions { justify-content: flex-start; }
+      .bizsim-btn { width: 100%; }
     }
   </style>
 
@@ -274,21 +481,30 @@ export function createMainPanelHtml(engine) {
         <p>模块化版本 v${engine.config.VERSION} · 独立 LLM · 世界书注入 · 可回放提示词</p>
       </div>
       <div class="bizsim-hero-actions">
-        <div class="bizsim-chip">默认模型：${escapeHtml(engine.config.LLM.model || '未配置')}</div>
-        <button class="bizsim-btn bizsim-btn-primary" id="btn-global-simulation" type="button">一键推演</button>
-        <button class="bizsim-btn bizsim-btn-secondary" id="btn-global-audit" type="button">快速审计</button>
-        <button class="bizsim-btn bizsim-btn-secondary" id="btn-global-export" type="button">导出报告</button>
+        <div class="bizsim-status-strip">
+          <div class="bizsim-status-chip">模型 <span class="bizsim-status-value" id="status-current-model">${escapeHtml(engine.config.LLM.model || '未配置')}</span></div>
+          <div class="bizsim-status-chip"><span class="bizsim-status-dot" id="bizsim-status-led"></span> 状态 <span class="bizsim-status-value" id="bizsim-status-text">待机</span></div>
+          <div class="bizsim-status-chip">总资产 <span class="bizsim-status-value" id="bizsim-asset-overview">--</span></div>
+        </div>
+        <div class="bizsim-top-actions">
+          <button class="bizsim-btn bizsim-btn-primary" id="btn-global-simulation" type="button">一键推演</button>
+          <button class="bizsim-btn bizsim-btn-secondary" id="btn-global-audit" type="button">快速审计</button>
+          <button class="bizsim-btn bizsim-btn-secondary" id="btn-global-export" type="button">导出报告</button>
+        </div>
       </div>
     </header>
 
-    <nav class="bizsim-nav">
-      <button class="bizsim-tab active" data-tab="dashboard">仪表盘</button>
-      <button class="bizsim-tab" data-tab="simulation">推演设置</button>
-      <button class="bizsim-tab" data-tab="api">API设置</button>
-      <button class="bizsim-tab" data-tab="prompts">提示词</button>
-    </nav>
+    <div class="bizsim-terminal-grid">
+      <aside class="bizsim-sidebar">
+        <nav class="bizsim-nav">
+          <button class="bizsim-tab active" data-tab="dashboard">📊 仪表盘</button>
+          <button class="bizsim-tab" data-tab="simulation">🧪 推演设置</button>
+          <button class="bizsim-tab" data-tab="api">🛰 API设置</button>
+          <button class="bizsim-tab" data-tab="prompts">🧩 提示词</button>
+        </nav>
+      </aside>
 
-    <main class="bizsim-main">
+      <main class="bizsim-main">
       <section class="bizsim-section active" id="tab-dashboard">
         <div class="bizsim-dashboard-layout">
           <div class="bizsim-dashboard-stack">
@@ -337,13 +553,6 @@ export function createMainPanelHtml(engine) {
               <div id="world-tracks-container"><div class="bizsim-helper">暂无轨迹</div></div>
             </div>
 
-            <div class="bizsim-card">
-              <div class="bizsim-card-title">
-                <span>运行日志</span>
-                <span class="bizsim-card-subtitle">最近操作</span>
-              </div>
-              <div class="bizsim-log" id="bizsim-logs">&gt; BizSim 引擎已初始化\n&gt; 等待指令...</div>
-            </div>
           </div>
         </div>
       </section>
@@ -589,7 +798,14 @@ export function createMainPanelHtml(engine) {
           </div>
         </div>
       </section>
-    </main>
+      </main>
+
+      <aside class="bizsim-audit-rail">
+        <h3 class="bizsim-audit-title">Realtime Audit Stream</h3>
+        <div class="bizsim-helper">系统事件、推演结果与审计提示会在这里持续输出。</div>
+        <div class="bizsim-log" id="bizsim-logs">&gt; BizSim 引擎已初始化\n&gt; 等待指令...</div>
+      </aside>
+    </div>
   </div>
 </div>
 `;

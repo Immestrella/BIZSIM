@@ -16,16 +16,58 @@ export function refreshDashboard(ui) {
       : `显示第 ${snapshotInfo.sourceMessageId} 层（落后 ${snapshotInfo.floorOffset} 层）`)
     : '最近10层无楼层变量';
 
+  const modelNode = ui.byId('status-current-model');
+  if (modelNode) modelNode.textContent = String(ui.engine?.config?.LLM?.model || '未配置');
+
+  const statusTextNode = ui.byId('bizsim-status-text');
+  if (statusTextNode) {
+    statusTextNode.textContent = ui.isSimulating ? `推演中${ui.simulationSource ? ` · ${ui.simulationSource}` : ''}` : (audit.valid ? '稳定' : '告警');
+  }
+
+  const ledNode = ui.byId('bizsim-status-led');
+  if (ledNode) {
+    ledNode.style.background = ui.isSimulating ? 'var(--bizsim-primary)' : (audit.valid ? 'var(--bizsim-success)' : 'var(--bizsim-danger)');
+    ledNode.style.boxShadow = ui.isSimulating
+      ? '0 0 0 6px rgba(0,210,255,0.12), 0 0 12px rgba(0,210,255,0.75)'
+      : (audit.valid
+        ? '0 0 0 6px rgba(78,204,163,0.1), 0 0 12px rgba(78,204,163,0.7)'
+        : '0 0 0 6px rgba(255,107,107,0.12), 0 0 12px rgba(255,107,107,0.75)');
+  }
+
+  const overviewNode = ui.byId('bizsim-asset-overview');
+  const overviewRow = ui.engine?.data?.sheet_assetOVW0?.content?.[1] || [];
+  const netAssetText = String(overviewRow[6] || '--');
+  if (overviewNode) overviewNode.textContent = netAssetText;
+
   const cards = [
-    { title: '推演视角', value: String(worldSource?.tracks?.length || 0), hint: `活跃 ${activeTracks} 个` },
-    { title: '数据表', value: String(sheetNames.length), hint: '角色卡变量中的资产表' },
-    { title: '审计状态', value: audit.valid ? '通过' : '异常', hint: audit.valid ? snapshotHint : `${audit.issues.length} 个问题` },
+    {
+      title: '净资产',
+      value: netAssetText,
+      hint: `资产总览快照 · ${snapshotHint}`,
+      trend: ui.isSimulating ? 'neutral' : 'up',
+      trendText: ui.isSimulating ? '↔ 推演中' : '▲ 资产跟踪',
+    },
+    {
+      title: '活跃视角',
+      value: String(activeTracks),
+      hint: `总视角 ${worldSource?.tracks?.length || 0} 个`,
+      trend: activeTracks > 0 ? 'up' : 'neutral',
+      trendText: activeTracks > 0 ? '▲ 世界线活跃' : '↔ 等待推进',
+    },
+    {
+      title: '风险负载',
+      value: audit.valid ? '低' : '高',
+      hint: audit.valid ? '跨表一致性通过' : `${audit.issues.length} 个异常等待修复`,
+      trend: audit.valid ? 'up' : 'down',
+      trendText: audit.valid ? '▲ 风险可控' : '▼ 审计告警',
+    },
   ];
 
   container.innerHTML = cards.map((card) => `
     <div class="bizsim-card bizsim-stat" style="margin-bottom:0;">
       <div class="bizsim-stat-label">${escapeHtml(card.title)}</div>
-      <div class="bizsim-stat-value">${escapeHtml(card.value)}</div>
+      <div class="bizsim-stat-value bizsim-value-mono" data-update-value="${escapeHtml(card.title)}">${escapeHtml(card.value)}</div>
+      <div class="bizsim-stat-trend ${escapeHtml(card.trend || 'neutral')}">${escapeHtml(card.trendText || '')}</div>
       <div class="bizsim-stat-hint">${escapeHtml(card.hint)}</div>
     </div>
   `).join('');
@@ -121,17 +163,20 @@ export function refreshTracks(ui) {
   container.innerHTML = `
     <div class="bizsim-helper" style="margin-bottom:8px;">轨迹来源：${escapeHtml(sourceHint)}</div>
     ${staleHint}
-  ` + tracks.map((track) => `
-    <div class="bizsim-card" style="margin-bottom:10px;">
-      <div class="bizsim-card-title" style="margin-bottom:8px;">
-        <span>${escapeHtml(track.id)}: ${escapeHtml(track.characterName)}</span>
-        <span class="bizsim-card-subtitle">${escapeHtml(track.status)}</span>
-      </div>
-      <div class="bizsim-helper">📍 ${escapeHtml(track.location)} | 迭代: ${escapeHtml(String(track.iteration ?? '--'))}</div>
-      <div style="margin:8px 0 6px;">${escapeHtml(track.progress || '')}</div>
-      <div class="bizsim-helper">${escapeHtml(track.summary || '')}</div>
+    <div class="bizsim-timeline">
+      ${tracks.map((track) => `
+        <article class="bizsim-timeline-item">
+          <div class="bizsim-timeline-head">
+            <span>${escapeHtml(track.id)} · ${escapeHtml(track.characterName)}</span>
+            <span class="bizsim-card-subtitle">${escapeHtml(track.status)}</span>
+          </div>
+          <div class="bizsim-timeline-meta">📍 ${escapeHtml(track.location)} | 迭代: ${escapeHtml(String(track.iteration ?? '--'))}</div>
+          <div style="margin:8px 0 6px;">${escapeHtml(track.progress || '')}</div>
+          <div class="bizsim-helper">${escapeHtml(track.summary || '')}</div>
+        </article>
+      `).join('')}
     </div>
-  `).join('');
+  `;
 }
 
 export function showAddTrackForm(ui) {
@@ -159,6 +204,9 @@ export function log(ui, message) {
   if (!logDiv) return;
 
   const time = new Date().toLocaleTimeString();
+  const nearBottom = (logDiv.scrollHeight - logDiv.scrollTop - logDiv.clientHeight) < 40;
   logDiv.innerHTML += `\n[${time}] ${message}`;
-  logDiv.scrollTop = logDiv.scrollHeight;
+  if (nearBottom) {
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
 }
