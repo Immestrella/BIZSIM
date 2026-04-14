@@ -6086,6 +6086,58 @@ function shouldRunAutoSimulation(cfg, message) {
   return true;
 }
 
+function getMvuVariableUpdateEndedEventName() {
+  try {
+    if (window?.Mvu?.events?.VARIABLE_UPDATE_ENDED) return window.Mvu.events.VARIABLE_UPDATE_ENDED;
+  } catch {
+  }
+  try {
+    if (typeof Mvu !== 'undefined' && Mvu?.events?.VARIABLE_UPDATE_ENDED) return Mvu.events.VARIABLE_UPDATE_ENDED;
+  } catch {
+  }
+  return '';
+}
+
+async function waitForMvuVariableUpdateEnded(timeoutMs = 8000) {
+  const eventName = getMvuVariableUpdateEndedEventName();
+  if (!eventName) return false;
+
+  return new Promise((resolve) => {
+    let finished = false;
+    let stopListener = null;
+
+    const finish = (ok) => {
+      if (finished) return;
+      finished = true;
+      if (typeof stopListener === 'function') {
+        try { stopListener(); } catch {
+        }
+      }
+      resolve(ok);
+    };
+
+    const onEnded = () => finish(true);
+
+    try {
+      if (typeof eventOnce === 'function') {
+        const handle = eventOnce(eventName, onEnded);
+        if (handle && typeof handle.stop === 'function') stopListener = handle.stop;
+      } else if (typeof eventOn === 'function') {
+        const handle = eventOn(eventName, onEnded);
+        if (handle && typeof handle.stop === 'function') stopListener = handle.stop;
+      } else {
+        finish(false);
+        return;
+      }
+    } catch {
+      finish(false);
+      return;
+    }
+
+    setTimeout(() => finish(false), Math.max(0, Number(timeoutMs) || 0));
+  });
+}
+
 async function maybeAutoSimulate(messageId) {
   if (autoSimInFlight) {
     console.debug('[BizSim][AutoSim] skip: autoSimInFlight=true');
@@ -6266,6 +6318,14 @@ function registerBizSimEvents() {
 
   if (typeof tavern_events !== 'undefined') {
     eventOnSafe(tavern_events.MESSAGE_RECEIVED, async (messageId) => {
+      const mvuEventName = getMvuVariableUpdateEndedEventName();
+      if (mvuEventName) {
+        const waited = await waitForMvuVariableUpdateEnded(8000);
+        if (!waited) {
+          console.debug('[BizSim][AutoSim] MVU update-ended wait timeout, continue with fallback timing.');
+        }
+      }
+
       const autoSimStarted = await maybeAutoSimulate(messageId);
       if (!autoSimStarted) {
         await injectForAssistantMessage(messageId);
