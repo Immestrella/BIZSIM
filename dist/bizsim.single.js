@@ -1,5 +1,8 @@
 // ---- src/utils/object.js ----
 function deepClone(value) {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(value);
+  }
   return JSON.parse(JSON.stringify(value));
 }
 
@@ -3656,11 +3659,14 @@ function renderWorldbookEntries(ui, entries) {
     `;
   }).join('');
 
-  ui.$$('.bizsim-worldbook-entry-checkbox').forEach((checkbox) => {
-    checkbox.addEventListener('change', () => {
+  if (!container._bizsimBound) {
+    container.addEventListener('change', (event) => {
+      const target = event?.target;
+      if (!target || !target.classList?.contains('bizsim-worldbook-entry-checkbox')) return;
       syncWorldbookSelectionsToConfig(ui, { persist: true });
     });
-  });
+    container._bizsimBound = true;
+  }
 }
 
 function setWorldbookSelections(ui, checked) {
@@ -6296,6 +6302,9 @@ async function quickSimulate() {
     }
 
     return result;
+  } catch (error) {
+    console.error('[BizSim] 手动推演异常:', error);
+    return { success: false, error: error?.message || '推演发生未知错误' };
   } finally {
     setSimulationState(false);
     manualSimInFlight = false;
@@ -6311,7 +6320,7 @@ function registerBizSimEvents() {
   });
 
   eventOnSafe(eventSimulate, async () => {
-    await quickSimulate();
+    await triggerSimulationFromHtml();
   });
 
   if (typeof tavern_events !== 'undefined') {

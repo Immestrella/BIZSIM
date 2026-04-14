@@ -136,11 +136,14 @@ export function renderWorldbookEntries(ui, entries) {
     `;
   }).join('');
 
-  ui.$$('.bizsim-worldbook-entry-checkbox').forEach((checkbox) => {
-    checkbox.addEventListener('change', () => {
+  if (!container._bizsimBound) {
+    container.addEventListener('change', (event) => {
+      const target = event?.target;
+      if (!target || !target.classList?.contains('bizsim-worldbook-entry-checkbox')) return;
       syncWorldbookSelectionsToConfig(ui, { persist: true });
     });
-  });
+    container._bizsimBound = true;
+  }
 }
 
 export function setWorldbookSelections(ui, checked) {

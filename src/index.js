@@ -312,6 +312,9 @@ export async function quickSimulate() {
     }
 
     return result;
+  } catch (error) {
+    console.error('[BizSim] 手动推演异常:', error);
+    return { success: false, error: error?.message || '推演发生未知错误' };
   } finally {
     setSimulationState(false);
     manualSimInFlight = false;
@@ -327,7 +330,7 @@ export function registerBizSimEvents() {
   });
 
   eventOnSafe(eventSimulate, async () => {
-    await quickSimulate();
+    await triggerSimulationFromHtml();
   });
 
   if (typeof tavern_events !== 'undefined') {
