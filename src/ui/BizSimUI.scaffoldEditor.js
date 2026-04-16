@@ -52,11 +52,7 @@ export function renderScaffoldEditor(container, tpl, handlers = {}) {
     }
   }).join('');
 
-  container.innerHTML = `<div class="scaffold-list">${html}</div>
-  <div class="prompt-preview-zone">
-    <div class="preview-header">编译后 Prompt 片段预览</div>
-    <pre class="prompt-preview" id="scaffold-prompt-preview"></pre>
-  </div>`;
+  container.innerHTML = `<div class="scaffold-list">${html}</div>`;
 
   // 绑定事件
   bindScaffoldEditorEvents(container, tpl, handlers, view);

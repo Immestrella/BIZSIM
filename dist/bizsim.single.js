@@ -3088,6 +3088,34 @@ class BizSimEngine {
   }
 
   async reloadFromVariables() {
+    try {
+      const charVars = await getCharacterVariablesSafe();
+      const savedSettings = getByPath(charVars, `${this.config.VAR_PATH}.settings`);
+
+      if (savedSettings) {
+        if (savedSettings.LLM) {
+          this.config.LLM = { ...this.config.LLM, ...savedSettings.LLM };
+        }
+        if (savedSettings.SIMULATION) {
+          const migratedSimulation = { ...savedSettings.SIMULATION };
+          if (migratedSimulation.includeFloorData === undefined && migratedSimulation.includeEmpireData !== undefined) {
+            migratedSimulation.includeFloorData = !!migratedSimulation.includeEmpireData;
+          }
+          this.config.SIMULATION = { ...this.config.SIMULATION, ...migratedSimulation };
+        }
+        if (savedSettings.AUDIT) {
+          this.config.AUDIT = { ...this.config.AUDIT, ...savedSettings.AUDIT };
+        }
+        if (savedSettings.prompts) {
+          this.promptTemplates = { ...this.promptTemplates, ...savedSettings.prompts };
+        }
+      }
+
+      this.initializePromptTemplates();
+    } catch (error) {
+      console.warn('[BizSim] 读取角色设置失败，继续使用当前配置:', error?.message || error);
+    }
+
     return this.reloadFromFloorVariables();
   }
 
@@ -5456,11 +5484,7 @@ function renderScaffoldEditor(container, tpl, handlers = {}) {
     }
   }).join('');
 
-  container.innerHTML = `<div class="scaffold-list">${html}</div>
-  <div class="prompt-preview-zone">
-    <div class="preview-header">编译后 Prompt 片段预览</div>
-    <pre class="prompt-preview" id="scaffold-prompt-preview"></pre>
-  </div>`;
+  container.innerHTML = `<div class="scaffold-list">${html}</div>`;
 
   // 绑定事件
   bindScaffoldEditorEvents(container, tpl, handlers, view);
