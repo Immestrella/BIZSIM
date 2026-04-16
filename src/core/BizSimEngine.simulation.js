@@ -403,10 +403,11 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
         floorData: previousData,
         worldSimulation: previousWorldSimulation,
       });
+      const validatedData = validationResult?.data || normalized;
       const blockingIssues = Array.isArray(validationResult?.blockingIssues) ? validationResult.blockingIssues : [];
       const warningIssues = Array.isArray(validationResult?.warningIssues) ? validationResult.warningIssues : [];
 
-      this._stagePendingState?.(normalized.floorData, normalized.worldSimulation, {
+      this._stagePendingState?.(validatedData.floorData, validatedData.worldSimulation, {
         source: 'simulation:parsed',
         traceId,
       });
@@ -448,14 +449,10 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
       this.validateCrossSheetIntegrity();
       if (this.config.SIMULATION?.autoSave !== false) await this.saveSettingsOnly();
 
-      const injected = this.config.SIMULATION?.bodyInjectionEnabled === true
-        ? await this.injectBizSimBlocksToMessage(syncResult.messageId, 10)
-        : { success: false, updated: false, reason: 'body-injection-disabled' };
-
       const successResult = {
         success: true,
         data: {
-          ...normalized,
+          ...validatedData,
           floorData: this.data,
           worldSimulation: this.worldSimulation,
           floorSync: {
@@ -469,9 +466,12 @@ export const BIZSIM_ENGINE_SIMULATION_METHODS = {
           localValidationWouldBlock: blockingIssues.length > 0,
           localValidationAutoRepaired: !!validationResult?.autoRepaired,
           bodyInjection: {
-            success: !!injected?.success,
-            updated: !!injected?.updated,
-            reason: injected?.reason || '',
+            queued: this.config.SIMULATION?.bodyInjectionEnabled === true,
+            success: false,
+            updated: false,
+            reason: this.config.SIMULATION?.bodyInjectionEnabled === true
+              ? 'deferred-to-post-render'
+              : 'body-injection-disabled',
           },
         },
         chainOfThought: normalized._chainOfThought,

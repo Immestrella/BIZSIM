@@ -2019,10 +2019,11 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
         floorData: previousData,
         worldSimulation: previousWorldSimulation,
       });
+      const validatedData = validationResult?.data || normalized;
       const blockingIssues = Array.isArray(validationResult?.blockingIssues) ? validationResult.blockingIssues : [];
       const warningIssues = Array.isArray(validationResult?.warningIssues) ? validationResult.warningIssues : [];
 
-      this._stagePendingState?.(normalized.floorData, normalized.worldSimulation, {
+      this._stagePendingState?.(validatedData.floorData, validatedData.worldSimulation, {
         source: 'simulation:parsed',
         traceId,
       });
@@ -2064,14 +2065,10 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
       this.validateCrossSheetIntegrity();
       if (this.config.SIMULATION?.autoSave !== false) await this.saveSettingsOnly();
 
-      const injected = this.config.SIMULATION?.bodyInjectionEnabled === true
-        ? await this.injectBizSimBlocksToMessage(syncResult.messageId, 10)
-        : { success: false, updated: false, reason: 'body-injection-disabled' };
-
       const successResult = {
         success: true,
         data: {
-          ...normalized,
+          ...validatedData,
           floorData: this.data,
           worldSimulation: this.worldSimulation,
           floorSync: {
@@ -2085,9 +2082,12 @@ const BIZSIM_ENGINE_SIMULATION_METHODS = {
           localValidationWouldBlock: blockingIssues.length > 0,
           localValidationAutoRepaired: !!validationResult?.autoRepaired,
           bodyInjection: {
-            success: !!injected?.success,
-            updated: !!injected?.updated,
-            reason: injected?.reason || '',
+            queued: this.config.SIMULATION?.bodyInjectionEnabled === true,
+            success: false,
+            updated: false,
+            reason: this.config.SIMULATION?.bodyInjectionEnabled === true
+              ? 'deferred-to-post-render'
+              : 'body-injection-disabled',
           },
         },
         chainOfThought: normalized._chainOfThought,
@@ -6801,7 +6801,11 @@ let autoSimInFlight = false;
 let lastAutoSimAt = 0;
 let assistantMessageCount = 0;
 let manualSimInFlight = false;
-const injectedAssistantMessageIds = new Set();
+const MVU_FALLBACK_WAIT_MS = 3 * 60 * 1000;
+const MVU_DETECTED_WAIT_MAX_MS = 10 * 60 * 1000;
+const POST_RENDER_INJECTION_WAIT_MS = 30 * 1000;
+const AUTO_SIM_RENDER_WAIT_MAX_MS = 10 * 60 * 1000;
+const pendingPostRenderInjections = new Set();
 const simulationStateListeners = new Set();
 const simulationState = { isSimulating: false, source: '' };
 
@@ -6941,8 +6945,39 @@ async function waitForMvuVariableUpdateEnded(timeoutMs = 8000) {
       return;
     }
 
-    setTimeout(() => finish(false), Math.max(0, Number(timeoutMs) || 0));
+    const normalizedTimeout = Number(timeoutMs);
+    if (Number.isFinite(normalizedTimeout) && normalizedTimeout > 0) {
+      setTimeout(() => finish(false), normalizedTimeout);
+    }
   });
+}
+
+async function hasCharacterMvuSystem() {
+  const eventName = getMvuVariableUpdateEndedEventName();
+  if (!eventName) return false;
+
+  try {
+    if (typeof waitGlobalInitialized === 'function') {
+      await Promise.race([
+        waitGlobalInitialized('Mvu'),
+        new Promise((resolve) => setTimeout(resolve, 1500)),
+      ]);
+    }
+  } catch {
+  }
+
+  try {
+    const mvuApi = window?.Mvu || (typeof Mvu !== 'undefined' ? Mvu : null);
+    if (!mvuApi || typeof mvuApi.getMvuData !== 'function') return true;
+    const characterData = mvuApi.getMvuData({ type: 'character' });
+    if (!characterData || typeof characterData !== 'object') return false;
+    if (characterData.stat_data && typeof characterData.stat_data === 'object') return true;
+    if (characterData.initialized_lorebooks && typeof characterData.initialized_lorebooks === 'object') return true;
+    return true;
+  } catch {
+    // 能拿到 eventName 说明 MVU 基本已挂载，读取失败时仍按有 MVU 处理，避免提前 fallback。
+    return true;
+  }
 }
 
 async function maybeAutoSimulate(messageId) {
@@ -7004,8 +7039,10 @@ async function maybeAutoSimulate(messageId) {
     setSimulationState(true, '自动推演');
     const result = await ctx.engine.runSimulation(useHistory);
     if (result?.success) {
-      const injectedMessageId = Number(result?.data?.floorSync?.messageId);
-      if (Number.isInteger(injectedMessageId)) injectedAssistantMessageIds.add(injectedMessageId);
+      const floorMessageId = Number(result?.data?.floorSync?.messageId);
+      if (Number.isInteger(floorMessageId)) {
+        void schedulePostRenderBodyInjection(floorMessageId, 'auto-simulation');
+      }
       const activeTracks = result.data?.worldSimulation?.tracks?.filter((t) => t.status === '推演中').length || 0;
       console.log(`[BizSim] 自动推演完成，活跃视角 ${activeTracks}`);
     } else {
@@ -7021,29 +7058,81 @@ async function maybeAutoSimulate(messageId) {
   }
 }
 
-async function injectForAssistantMessage(messageId) {
+async function waitForMessageRenderCompleted(messageId, timeoutMs = POST_RENDER_INJECTION_WAIT_MS) {
+  const targetId = Number(messageId);
+  if (!Number.isInteger(targetId)) return false;
+
+  return new Promise((resolve) => {
+    let finished = false;
+    let stopCharacterRendered = null;
+    let stopMessageUpdated = null;
+
+    const finish = (ok) => {
+      if (finished) return;
+      finished = true;
+      try { if (typeof stopCharacterRendered === 'function') stopCharacterRendered(); } catch {
+      }
+      try { if (typeof stopMessageUpdated === 'function') stopMessageUpdated(); } catch {
+      }
+      resolve(ok);
+    };
+
+    const onCharacterRendered = (renderedMessageId) => {
+      if (Number(renderedMessageId) === targetId) finish(true);
+    };
+
+    const onMessageUpdated = (updatedMessageId) => {
+      if (Number(updatedMessageId) === targetId) finish(true);
+    };
+
+    try {
+      if (typeof eventOn === 'function' && typeof tavern_events !== 'undefined') {
+        const h1 = eventOn(tavern_events.CHARACTER_MESSAGE_RENDERED, onCharacterRendered);
+        if (h1 && typeof h1.stop === 'function') stopCharacterRendered = h1.stop;
+        const h2 = eventOn(tavern_events.MESSAGE_UPDATED, onMessageUpdated);
+        if (h2 && typeof h2.stop === 'function') stopMessageUpdated = h2.stop;
+      }
+    } catch {
+    }
+
+    setTimeout(() => finish(false), Math.max(0, Number(timeoutMs) || 0));
+  });
+}
+
+async function waitForAssistantMessageRendered(messageId, timeoutMs = AUTO_SIM_RENDER_WAIT_MAX_MS) {
+  const targetId = Number(messageId);
+  if (!Number.isInteger(targetId)) return false;
+
+  const waited = await waitForMessageRenderCompleted(targetId, timeoutMs);
+  if (!waited) return false;
+
+  const message = getMessageFromEvent(targetId);
+  return !!message && isAssistantMessage(message);
+}
+
+async function schedulePostRenderBodyInjection(messageId, source = 'simulation') {
+  const targetId = Number(messageId);
+  if (!Number.isInteger(targetId)) return;
+  if (pendingPostRenderInjections.has(targetId)) return;
+
   const ctx = await initBizSim();
   if (ctx.engine?.config?.SIMULATION?.bodyInjectionEnabled !== true) return;
 
-  const targetMessageId = Number(messageId);
-  if (injectedAssistantMessageIds.has(targetMessageId)) return;
-
-  const latestAssistantMessageId = ctx.engine?.getLatestAssistantMessageIdSafe?.();
-  if (latestAssistantMessageId === null || latestAssistantMessageId === undefined) return;
-  if (Number(messageId) !== Number(latestAssistantMessageId)) return;
-
-  const message = getMessageFromEvent(messageId);
-  if (!isAssistantMessage(message)) return;
-  if (hasBizSimInjectionBlock(message)) {
-    injectedAssistantMessageIds.add(targetMessageId);
-    return;
-  }
-
+  pendingPostRenderInjections.add(targetId);
   try {
-    const result = await ctx.engine.injectBizSimBlocksToMessage(messageId, 10);
-    if (result?.success) injectedAssistantMessageIds.add(targetMessageId);
+    await waitForMessageRenderCompleted(targetId, POST_RENDER_INJECTION_WAIT_MS);
+
+    const message = getMessageFromEvent(targetId);
+    if (!message || !isAssistantMessage(message) || hasBizSimInjectionBlock(message)) return;
+
+    const injected = await ctx.engine.injectBizSimBlocksToMessage(targetId, 10);
+    if (!injected?.success) {
+      console.debug(`[BizSim] 后置正文注入未生效: messageId=${targetId}, source=${source}, reason=${injected?.reason || 'unknown'}`);
+    }
   } catch (error) {
-    console.warn('[BizSim] 正文注入失败:', error?.message || error);
+    console.warn('[BizSim] 后置正文注入异常:', error?.message || error);
+  } finally {
+    pendingPostRenderInjections.delete(targetId);
   }
 }
 
@@ -7091,9 +7180,11 @@ async function quickSimulate() {
   try {
     setSimulationState(true, '手动推演');
     const result = await ctx.engine.runSimulation(true);
-    if (result?.success && ctx.engine.config.SIMULATION?.bodyInjectionEnabled === true) {
-      const injectedMessageId = Number(result?.data?.floorSync?.messageId);
-      if (Number.isInteger(injectedMessageId)) injectedAssistantMessageIds.add(injectedMessageId);
+    if (result?.success) {
+      const floorMessageId = Number(result?.data?.floorSync?.messageId);
+      if (Number.isInteger(floorMessageId)) {
+        void schedulePostRenderBodyInjection(floorMessageId, 'manual-simulation');
+      }
     }
     if (typeof toastr !== 'undefined') {
       if (result.success) {
@@ -7128,18 +7219,25 @@ function registerBizSimEvents() {
 
   if (typeof tavern_events !== 'undefined') {
     eventOnSafe(tavern_events.MESSAGE_RECEIVED, async (messageId) => {
-      const mvuEventName = getMvuVariableUpdateEndedEventName();
-      if (mvuEventName) {
-        const waited = await waitForMvuVariableUpdateEnded(8000);
-        if (!waited) {
-          console.debug('[BizSim][AutoSim] MVU update-ended wait timeout, continue with fallback timing.');
-        }
+      // 自动推演门控：新的 AI 楼层消息 && 楼层渲染完成 && MVU 变量更新结束
+      const hasMvu = await hasCharacterMvuSystem();
+      const mvuWaitTimeout = hasMvu ? MVU_DETECTED_WAIT_MAX_MS : MVU_FALLBACK_WAIT_MS;
+
+      const renderWaitPromise = waitForAssistantMessageRendered(messageId, AUTO_SIM_RENDER_WAIT_MAX_MS);
+      const mvuWaitPromise = waitForMvuVariableUpdateEnded(mvuWaitTimeout);
+
+      const [renderReady, mvuReady] = await Promise.all([renderWaitPromise, mvuWaitPromise]);
+
+      if (!renderReady) {
+        console.debug(`[BizSim][AutoSim] skip: render-not-ready-or-not-assistant, messageId=${messageId}`);
+        return;
       }
 
-      const autoSimStarted = await maybeAutoSimulate(messageId);
-      if (!autoSimStarted) {
-        await injectForAssistantMessage(messageId);
+      if (!mvuReady) {
+        console.debug(`[BizSim][AutoSim] MVU update-ended wait timeout (${mvuWaitTimeout}ms), continue with fallback timing.`);
       }
+
+      await maybeAutoSimulate(messageId);
     });
 
     eventOnSafe(tavern_events.MESSAGE_SWIPED, () => {
