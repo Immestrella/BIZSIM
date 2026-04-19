@@ -364,6 +364,23 @@ export function createMainPanelHtml(engine) {
     .bizsim-table th { position: sticky; top: 0; background: rgba(16, 27, 46, 0.98); color: #7fdcff; text-align: left; z-index: 1; }
     .bizsim-table td:first-child { color: #93ffbe; white-space: nowrap; }
     .bizsim-list { display: grid; gap: 10px; }
+    #worldbook-entry-list {
+      max-height: min(46vh, 420px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding-right: 6px;
+    }
+    #worldbook-entry-list::-webkit-scrollbar {
+      width: 8px;
+    }
+    #worldbook-entry-list::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background: rgba(93, 211, 255, 0.45);
+    }
+    #worldbook-entry-list::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 999px;
+    }
     .bizsim-entry {
       display: flex;
       gap: 10px;
@@ -470,6 +487,7 @@ export function createMainPanelHtml(engine) {
       .bizsim-hero-actions { align-items: stretch; width: 100%; }
       .bizsim-top-actions { justify-content: flex-start; }
       .bizsim-btn { width: 100%; }
+      #worldbook-entry-list { max-height: min(34vh, 320px); }
     }
   </style>
 
@@ -663,6 +681,7 @@ export function createMainPanelHtml(engine) {
               <div class="bizsim-helper" id="sim-worldbook-binding-hint">默认使用当前角色/聊天绑定的世界书</div>
             </div>
             <div class="bizsim-toolbar">
+              <button class="bizsim-btn bizsim-btn-primary" id="btn-save-worldbook-settings" type="button">保存世界书设置</button>
               <button class="bizsim-btn bizsim-btn-secondary" id="btn-worldbook-refresh" type="button">刷新条目</button>
               <button class="bizsim-btn bizsim-btn-secondary" id="btn-worldbook-select-all" type="button">全选</button>
               <button class="bizsim-btn bizsim-btn-secondary" id="btn-worldbook-select-none" type="button">全不选</button>
@@ -696,7 +715,7 @@ export function createMainPanelHtml(engine) {
             </div>
             <div class="bizsim-form-group">
               <label>单个世界书条目限制</label>
-              <input type="number" id="sim-worldbook-entry-limit" min="1" max="100" step="1" value="${engine.config.SIMULATION.worldbookEntryLimit}">
+              <input type="number" id="sim-worldbook-entry-limit" min="0" max="100" step="1" value="${engine.config.SIMULATION.worldbookEntryLimit}">
               <div class="bizsim-helper">每个世界书最多提取多少条条目。0 表示无限制。</div>
             </div>
           </div>

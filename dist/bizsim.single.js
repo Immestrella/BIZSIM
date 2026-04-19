@@ -249,7 +249,7 @@ const BIZSIM_CONFIG = {
     useActiveWorldbooks: true,
     worldbookNames: '',
     worldbookEntrySelectors: '',
-    worldbookEntryLimit: 12,
+    worldbookEntryLimit: 0,
     useHistory: true,
     mode: 'balanced',
     includeFloorData: true,
@@ -265,8 +265,8 @@ const BIZSIM_CONFIG = {
     autoRunUseHistory: true,
     autoRunMinChars: 300,
     autoRunCooldownSec: 8,
-    contentExtractTags: 'content,game',
-    contentExcludeTags: 'details,UpdateVariable,background,tucao,reasoning,analysis,think,npc_action,recall,dm_box',
+    contentExtractTags: 'content,game,LILY_STORY',
+    contentExcludeTags: 'details,UpdateVariable,background,tucao,reasoning,analysis,think,npc_action,recall,dm_box,image',
   },
   AUDIT: {
     cashToleranceWan: 1,
@@ -495,7 +495,15 @@ const DEFAULT_CORE_PROMPT_MODULES = {
       "【汇入判断】哪些视角的剧情已自然汇入主线？（与主角相遇/合并）已汇入的正常更新该视角剧情，但状态标记为'已汇入'，未汇入的保持'推演中'——任其独立发展直到视角死亡完结或汇入主线为止，禁止硬往主线上靠",
       "【离场检测】是否有核心角色离开主角视线？如有，必须新增该角色的独立视角（编号=最大编号+1，命名用纯姓名无任何职位/称谓）",
       "【新增机会】是否有有趣的新视角可以设计？新视角命名规则：BG.n[视角名称][推演中][1]，n为当前最大编号+1",
-      "【数量校验】确保推演中视角数量>=3，不满足则按世界背景&剧情进度补足"
+      "【数量校验】确保推演中视角数量>=3，不满足则按世界背景&剧情进度补足",
+      "【推演原则】必须思考如何根据[言行平和化]和[角色独立性]描写角色的反应，防止角色神化主角或失去独立动机，确保推演符合相关角色人设&世界背景。"
+    ],
+    "biz_asset_analysis": [
+      "【资产盘点】当前集团架构？主角事业的总体状态？",
+      "【时间经过】时间经过了多久？根据表格设定，主角的事业可能的合理发展？",
+      "【资产核对】根据时间进度，查看上一轮回复的资产状态，哪些数据需要进行更新？",
+      "【新增业务】是否有新增业务？新增管理人员？新增资产、现金？按规则记录",
+      "【推演原则】必须思考如何根据[世界合理性][世界推演]记录主角的事业进度，确保符合相关角色人设&世界背景。"
     ],
     "empire_audit": [
       "\${盘点本轮资金与势力变更，按通用事业框架(公司/宗门/领地等)校验语义映射与跨表审计锁}",
@@ -1371,7 +1379,8 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
 
     const selectorsMap = this.parseWorldbookSelectors();
     const selectedUidSet = this.buildSelectedUidSet();
-    const entryLimit = Math.max(1, Number(this.config.SIMULATION?.worldbookEntryLimit) || 12);
+    const configuredLimit = Number(this.config.SIMULATION?.worldbookEntryLimit);
+    const entryLimit = Number.isFinite(configuredLimit) ? Math.max(0, configuredLimit) : 12;
     const sections = [];
 
     for (const worldbookName of worldbookNames) {
@@ -1386,7 +1395,7 @@ const BIZSIM_ENGINE_CONTEXT_METHODS = {
       });
       if (!matchedEntries.length) continue;
 
-      const limitedEntries = matchedEntries.slice(0, entryLimit);
+      const limitedEntries = entryLimit === 0 ? matchedEntries : matchedEntries.slice(0, entryLimit);
       const entryText = limitedEntries.map((entry) => {
         const meta = `uid=${entry.uid}${entry.position?.type ? `, position=${entry.position.type}` : ''}`;
         return `- ${entry.name || entry.comment || '未命名条目'} (${meta})\n${this.stripText(entry.content, 1400)}`;
@@ -3549,6 +3558,23 @@ function createMainPanelHtml(engine) {
     .bizsim-table th { position: sticky; top: 0; background: rgba(16, 27, 46, 0.98); color: #7fdcff; text-align: left; z-index: 1; }
     .bizsim-table td:first-child { color: #93ffbe; white-space: nowrap; }
     .bizsim-list { display: grid; gap: 10px; }
+    #worldbook-entry-list {
+      max-height: min(46vh, 420px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding-right: 6px;
+    }
+    #worldbook-entry-list::-webkit-scrollbar {
+      width: 8px;
+    }
+    #worldbook-entry-list::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background: rgba(93, 211, 255, 0.45);
+    }
+    #worldbook-entry-list::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 999px;
+    }
     .bizsim-entry {
       display: flex;
       gap: 10px;
@@ -3655,6 +3681,7 @@ function createMainPanelHtml(engine) {
       .bizsim-hero-actions { align-items: stretch; width: 100%; }
       .bizsim-top-actions { justify-content: flex-start; }
       .bizsim-btn { width: 100%; }
+      #worldbook-entry-list { max-height: min(34vh, 320px); }
     }
   </style>
 
@@ -3848,6 +3875,7 @@ function createMainPanelHtml(engine) {
               <div class="bizsim-helper" id="sim-worldbook-binding-hint">默认使用当前角色/聊天绑定的世界书</div>
             </div>
             <div class="bizsim-toolbar">
+              <button class="bizsim-btn bizsim-btn-primary" id="btn-save-worldbook-settings" type="button">保存世界书设置</button>
               <button class="bizsim-btn bizsim-btn-secondary" id="btn-worldbook-refresh" type="button">刷新条目</button>
               <button class="bizsim-btn bizsim-btn-secondary" id="btn-worldbook-select-all" type="button">全选</button>
               <button class="bizsim-btn bizsim-btn-secondary" id="btn-worldbook-select-none" type="button">全不选</button>
@@ -3881,7 +3909,7 @@ function createMainPanelHtml(engine) {
             </div>
             <div class="bizsim-form-group">
               <label>单个世界书条目限制</label>
-              <input type="number" id="sim-worldbook-entry-limit" min="1" max="100" step="1" value="${engine.config.SIMULATION.worldbookEntryLimit}">
+              <input type="number" id="sim-worldbook-entry-limit" min="0" max="100" step="1" value="${engine.config.SIMULATION.worldbookEntryLimit}">
               <div class="bizsim-helper">每个世界书最多提取多少条条目。0 表示无限制。</div>
             </div>
           </div>
@@ -4661,7 +4689,7 @@ function saveSimulationSettings(ui, silent = false) {
   ui.engine.config.SIMULATION.useActiveWorldbooks = useActiveWorldbooks;
   ui.engine.config.SIMULATION.worldbookNames = worldbookNames;
   ui.engine.config.SIMULATION.worldbookEntrySelectors = worldbookEntrySelectors;
-  if (!Number.isNaN(worldbookEntryLimit) && worldbookEntryLimit > 0) ui.engine.config.SIMULATION.worldbookEntryLimit = worldbookEntryLimit;
+  if (!Number.isNaN(worldbookEntryLimit) && worldbookEntryLimit >= 0) ui.engine.config.SIMULATION.worldbookEntryLimit = worldbookEntryLimit;
   ui.engine.config.SIMULATION.useHistory = useHistory;
   ui.engine.config.SIMULATION.autoSave = autoSave;
   ui.engine.config.SIMULATION.includeFloorData = includeFloorData;
@@ -6781,6 +6809,10 @@ class BizSimUI {
       this.refreshWorldbookBindingHint();
     });
 
+    this.byId('btn-save-worldbook-settings')?.addEventListener('click', () => {
+      this.saveSimulationSettings();
+    });
+
     this.byId('btn-worldbook-select-all')?.addEventListener('click', () => {
       this.setWorldbookSelections(true);
     });
@@ -6830,8 +6862,24 @@ const MVU_DETECTED_WAIT_MAX_MS = 10 * 60 * 1000;
 const POST_RENDER_INJECTION_WAIT_MS = 30 * 1000;
 const AUTO_SIM_RENDER_WAIT_MAX_MS = 10 * 60 * 1000;
 const pendingPostRenderInjections = new Set();
+const renderedAssistantMessageIds = new Set();
 const simulationStateListeners = new Set();
 const simulationState = { isSimulating: false, source: '' };
+
+function isAutoSimDebugEnabled() {
+  try {
+    // 默认开启，显式设置 window.BIZSIM_DEBUG_AUTOSIM = false 可关闭
+    return window?.BIZSIM_DEBUG_AUTOSIM !== false;
+  } catch {
+    return true;
+  }
+}
+
+function logAutoSim(stage, payload = {}) {
+  if (!isAutoSimDebugEnabled()) return;
+  const time = new Date().toISOString();
+  console.debug(`[BizSim][AutoSim][${time}] ${stage}`, payload);
+}
 
 function emitSimulationState() {
   const snapshot = { isSimulating: simulationState.isSimulating, source: simulationState.source };
@@ -6933,13 +6981,62 @@ function getMvuVariableUpdateEndedEventName() {
   return '';
 }
 
+function getMvuApi() {
+  try {
+    return window?.Mvu || (typeof Mvu !== 'undefined' ? Mvu : null);
+  } catch {
+    return null;
+  }
+}
+
+function isMvuIdle() {
+  const api = getMvuApi();
+  if (!api || typeof api.isDuringExtraAnalysis !== 'function') return false;
+  try {
+    return api.isDuringExtraAnalysis() === false;
+  } catch {
+    return false;
+  }
+}
+
+function markAssistantMessageRendered(messageId, type = '') {
+  const id = Number(messageId);
+  if (!Number.isInteger(id)) return;
+  if (String(type || '').toLowerCase() !== 'swipe') {
+    renderedAssistantMessageIds.add(id);
+    return;
+  }
+  const message = getMessageFromEvent(id);
+  if (message && isAssistantMessage(message)) {
+    renderedAssistantMessageIds.add(id);
+  }
+}
+
+function isMessageRenderReady(messageId) {
+  const id = Number(messageId);
+  if (!Number.isInteger(id)) return false;
+  if (renderedAssistantMessageIds.has(id)) return true;
+  const message = getMessageFromEvent(id);
+  return !!message && isAssistantMessage(message) && getMessageText(message).length > 0;
+}
+
 async function waitForMvuVariableUpdateEnded(timeoutMs = 8000) {
   const eventName = getMvuVariableUpdateEndedEventName();
-  if (!eventName) return false;
+  if (!eventName) {
+    logAutoSim('mvu.wait.skip:no-event-name', { timeoutMs });
+    return false;
+  }
+  if (isMvuIdle()) {
+    logAutoSim('mvu.wait.ready:already-idle', { timeoutMs, eventName });
+    return true;
+  }
+
+  logAutoSim('mvu.wait.start', { timeoutMs, eventName });
 
   return new Promise((resolve) => {
     let finished = false;
     let stopListener = null;
+    let pollTimer = null;
 
     const finish = (ok) => {
       if (finished) return;
@@ -6948,10 +7045,17 @@ async function waitForMvuVariableUpdateEnded(timeoutMs = 8000) {
         try { stopListener(); } catch {
         }
       }
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
       resolve(ok);
     };
 
-    const onEnded = () => finish(true);
+    const onEnded = () => {
+      logAutoSim('mvu.wait.event-ended', { eventName });
+      finish(true);
+    };
 
     try {
       if (typeof eventOnce === 'function') {
@@ -6969,9 +7073,19 @@ async function waitForMvuVariableUpdateEnded(timeoutMs = 8000) {
       return;
     }
 
+    pollTimer = setInterval(() => {
+      if (isMvuIdle()) {
+        logAutoSim('mvu.wait.ready:poll-idle', { eventName });
+        finish(true);
+      }
+    }, 250);
+
     const normalizedTimeout = Number(timeoutMs);
     if (Number.isFinite(normalizedTimeout) && normalizedTimeout > 0) {
-      setTimeout(() => finish(false), normalizedTimeout);
+      setTimeout(() => {
+        logAutoSim('mvu.wait.timeout', { timeoutMs: normalizedTimeout, eventName });
+        finish(false);
+      }, normalizedTimeout);
     }
   });
 }
@@ -6997,16 +7111,19 @@ async function hasCharacterMvuSystem() {
     if (!characterData || typeof characterData !== 'object') return false;
     if (characterData.stat_data && typeof characterData.stat_data === 'object') return true;
     if (characterData.initialized_lorebooks && typeof characterData.initialized_lorebooks === 'object') return true;
+    logAutoSim('mvu.detected', { eventName, hasGetMvuData: true });
     return true;
   } catch {
     // 能拿到 eventName 说明 MVU 基本已挂载，读取失败时仍按有 MVU 处理，避免提前 fallback。
+    logAutoSim('mvu.detected:fallback', { eventName, reason: 'read-failed' });
     return true;
   }
 }
 
 async function maybeAutoSimulate(messageId) {
+  logAutoSim('simulate.gate.enter', { messageId, autoSimInFlight, manualSimInFlight });
   if (autoSimInFlight) {
-    console.debug('[BizSim][AutoSim] skip: autoSimInFlight=true');
+    logAutoSim('simulate.gate.skip:in-flight', { messageId });
     return false;
   }
 
@@ -7020,12 +7137,12 @@ async function maybeAutoSimulate(messageId) {
   }
 
   if (!message) {
-    console.debug(`[BizSim][AutoSim] skip: message-not-found, messageId=${messageId}`);
+    logAutoSim('simulate.gate.skip:message-not-found', { messageId });
     return false;
   }
 
   if (hasBizSimInjectionBlock(message)) {
-    console.debug(`[BizSim][AutoSim] skip: message-has-bizsim-block, messageId=${messageId}`);
+    logAutoSim('simulate.gate.skip:message-has-injection-block', { messageId });
     return false;
   }
 
@@ -7035,14 +7152,14 @@ async function maybeAutoSimulate(messageId) {
   const textLength = getMessageText(message).length;
 
   if (assistantOnly && !isAssistant) {
-    console.debug(`[BizSim][AutoSim] skip: not-assistant, messageId=${messageId}`);
+    logAutoSim('simulate.gate.skip:not-assistant', { messageId });
     return false;
   }
 
   if (isAssistant) {
     assistantMessageCount += 1;
     if (assistantMessageCount % assistantInterval !== 0) {
-      console.debug(`[BizSim][AutoSim] skip: assistant-interval, count=${assistantMessageCount}, interval=${assistantInterval}`);
+      logAutoSim('simulate.gate.skip:assistant-interval', { messageId, assistantMessageCount, assistantInterval });
       return false;
     }
   }
@@ -7051,7 +7168,13 @@ async function maybeAutoSimulate(messageId) {
     const minChars = Math.max(0, Number(cfg.autoRunMinChars) || 0);
     const cooldownMs = Math.max(0, Number(cfg.autoRunCooldownSec) || 0) * 1000;
     const cooldownRemain = Math.max(0, cooldownMs - (Date.now() - lastAutoSimAt));
-    console.debug(`[BizSim][AutoSim] skip: gate-failed enabled=${!!cfg.autoRunEnabled} textLength=${textLength} minChars=${minChars} cooldownRemainMs=${cooldownRemain}`);
+    logAutoSim('simulate.gate.skip:rule-failed', {
+      messageId,
+      enabled: !!cfg.autoRunEnabled,
+      textLength,
+      minChars,
+      cooldownRemainMs: cooldownRemain,
+    });
     return false;
   }
 
@@ -7060,6 +7183,7 @@ async function maybeAutoSimulate(messageId) {
 
   try {
     const useHistory = cfg.autoRunUseHistory !== false;
+    logAutoSim('simulate.start', { messageId, useHistory, source: 'auto' });
     setSimulationState(true, '自动推演');
     const result = await ctx.engine.runSimulation(useHistory);
     if (result?.success) {
@@ -7068,15 +7192,16 @@ async function maybeAutoSimulate(messageId) {
         void schedulePostRenderBodyInjection(floorMessageId, 'auto-simulation');
       }
       const activeTracks = result.data?.worldSimulation?.tracks?.filter((t) => t.status === '推演中').length || 0;
-      console.log(`[BizSim] 自动推演完成，活跃视角 ${activeTracks}`);
+      logAutoSim('simulate.success', { messageId, activeTracks, floorMessageId: result?.data?.floorSync?.messageId ?? null });
     } else {
-      console.warn('[BizSim] 自动推演失败:', result?.error || '未知错误');
+      logAutoSim('simulate.failed', { messageId, error: result?.error || '未知错误' });
     }
     return true;
   } catch (error) {
-    console.error('[BizSim] 自动推演异常:', error);
+    logAutoSim('simulate.exception', { messageId, error: error?.message || String(error) });
     return true;
   } finally {
+    logAutoSim('simulate.end', { messageId });
     setSimulationState(false);
     autoSimInFlight = false;
   }
@@ -7085,6 +7210,12 @@ async function maybeAutoSimulate(messageId) {
 async function waitForMessageRenderCompleted(messageId, timeoutMs = POST_RENDER_INJECTION_WAIT_MS) {
   const targetId = Number(messageId);
   if (!Number.isInteger(targetId)) return false;
+  if (isMessageRenderReady(targetId)) {
+    logAutoSim('render.wait.ready:immediate', { messageId: targetId });
+    return true;
+  }
+
+  logAutoSim('render.wait.start', { messageId: targetId, timeoutMs });
 
   return new Promise((resolve) => {
     let finished = false;
@@ -7101,12 +7232,25 @@ async function waitForMessageRenderCompleted(messageId, timeoutMs = POST_RENDER_
       resolve(ok);
     };
 
-    const onCharacterRendered = (renderedMessageId) => {
-      if (Number(renderedMessageId) === targetId) finish(true);
+    const onCharacterRendered = (renderedMessageId, renderType) => {
+      const renderedId = Number(renderedMessageId);
+      markAssistantMessageRendered(renderedId, renderType);
+      if (renderedId === targetId) {
+        logAutoSim('render.wait.event:character-rendered', { messageId: targetId, renderType: String(renderType || '') });
+        finish(true);
+      }
     };
 
     const onMessageUpdated = (updatedMessageId) => {
-      if (Number(updatedMessageId) === targetId) finish(true);
+      const updatedId = Number(updatedMessageId);
+      if (!Number.isInteger(updatedId)) return;
+      if (isMessageRenderReady(updatedId)) {
+        renderedAssistantMessageIds.add(updatedId);
+      }
+      if (updatedId === targetId && isMessageRenderReady(updatedId)) {
+        logAutoSim('render.wait.event:message-updated', { messageId: targetId });
+        finish(true);
+      }
     };
 
     try {
@@ -7119,7 +7263,10 @@ async function waitForMessageRenderCompleted(messageId, timeoutMs = POST_RENDER_
     } catch {
     }
 
-    setTimeout(() => finish(false), Math.max(0, Number(timeoutMs) || 0));
+    setTimeout(() => {
+      logAutoSim('render.wait.timeout', { messageId: targetId, timeoutMs: Math.max(0, Number(timeoutMs) || 0) });
+      finish(false);
+    }, Math.max(0, Number(timeoutMs) || 0));
   });
 }
 
@@ -7143,6 +7290,7 @@ async function schedulePostRenderBodyInjection(messageId, source = 'simulation')
   if (ctx.engine?.config?.SIMULATION?.bodyInjectionEnabled !== true) return;
 
   pendingPostRenderInjections.add(targetId);
+  logAutoSim('inject.defer.start', { messageId: targetId, source });
   try {
     await waitForMessageRenderCompleted(targetId, POST_RENDER_INJECTION_WAIT_MS);
 
@@ -7151,10 +7299,12 @@ async function schedulePostRenderBodyInjection(messageId, source = 'simulation')
 
     const injected = await ctx.engine.injectBizSimBlocksToMessage(targetId, 10);
     if (!injected?.success) {
-      console.debug(`[BizSim] 后置正文注入未生效: messageId=${targetId}, source=${source}, reason=${injected?.reason || 'unknown'}`);
+      logAutoSim('inject.defer.failed', { messageId: targetId, source, reason: injected?.reason || 'unknown' });
+    } else {
+      logAutoSim('inject.defer.success', { messageId: targetId, source, updated: !!injected?.updated });
     }
   } catch (error) {
-    console.warn('[BizSim] 后置正文注入异常:', error?.message || error);
+    logAutoSim('inject.defer.exception', { messageId: targetId, source, error: error?.message || String(error) });
   } finally {
     pendingPostRenderInjections.delete(targetId);
   }
@@ -7242,7 +7392,18 @@ function registerBizSimEvents() {
   });
 
   if (typeof tavern_events !== 'undefined') {
+    eventOnSafe(tavern_events.CHARACTER_MESSAGE_RENDERED, (messageId, type) => {
+      markAssistantMessageRendered(messageId, type);
+    });
+
     eventOnSafe(tavern_events.MESSAGE_RECEIVED, async (messageId) => {
+      logAutoSim('message.received', { messageId });
+      const initialMessage = getMessageFromEvent(messageId);
+      if (initialMessage && !isAssistantMessage(initialMessage)) {
+        logAutoSim('message.received.skip:not-assistant', { messageId });
+        return;
+      }
+
       // 自动推演门控：新的 AI 楼层消息 && 楼层渲染完成 && MVU 变量更新结束
       const hasMvu = await hasCharacterMvuSystem();
       const mvuWaitTimeout = hasMvu ? MVU_DETECTED_WAIT_MAX_MS : MVU_FALLBACK_WAIT_MS;
@@ -7252,13 +7413,15 @@ function registerBizSimEvents() {
 
       const [renderReady, mvuReady] = await Promise.all([renderWaitPromise, mvuWaitPromise]);
 
+      logAutoSim('message.received.gate-result', { messageId, renderReady, mvuReady, mvuWaitTimeout });
+
       if (!renderReady) {
-        console.debug(`[BizSim][AutoSim] skip: render-not-ready-or-not-assistant, messageId=${messageId}`);
+        logAutoSim('message.received.skip:render-not-ready', { messageId });
         return;
       }
 
       if (!mvuReady) {
-        console.debug(`[BizSim][AutoSim] MVU update-ended wait timeout (${mvuWaitTimeout}ms), continue with fallback timing.`);
+        logAutoSim('message.received.warn:mvu-timeout-fallback', { messageId, mvuWaitTimeout });
       }
 
       await maybeAutoSimulate(messageId);

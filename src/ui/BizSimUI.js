@@ -480,6 +480,10 @@ export class BizSimUI {
       this.refreshWorldbookBindingHint();
     });
 
+    this.byId('btn-save-worldbook-settings')?.addEventListener('click', () => {
+      this.saveSimulationSettings();
+    });
+
     this.byId('btn-worldbook-select-all')?.addEventListener('click', () => {
       this.setWorldbookSelections(true);
     });

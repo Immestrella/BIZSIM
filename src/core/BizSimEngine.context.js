@@ -705,7 +705,8 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
 
     const selectorsMap = this.parseWorldbookSelectors();
     const selectedUidSet = this.buildSelectedUidSet();
-    const entryLimit = Math.max(1, Number(this.config.SIMULATION?.worldbookEntryLimit) || 12);
+    const configuredLimit = Number(this.config.SIMULATION?.worldbookEntryLimit);
+    const entryLimit = Number.isFinite(configuredLimit) ? Math.max(0, configuredLimit) : 12;
     const sections = [];
 
     for (const worldbookName of worldbookNames) {
@@ -720,7 +721,7 @@ export const BIZSIM_ENGINE_CONTEXT_METHODS = {
       });
       if (!matchedEntries.length) continue;
 
-      const limitedEntries = matchedEntries.slice(0, entryLimit);
+      const limitedEntries = entryLimit === 0 ? matchedEntries : matchedEntries.slice(0, entryLimit);
       const entryText = limitedEntries.map((entry) => {
         const meta = `uid=${entry.uid}${entry.position?.type ? `, position=${entry.position.type}` : ''}`;
         return `- ${entry.name || entry.comment || '未命名条目'} (${meta})\n${this.stripText(entry.content, 1400)}`;

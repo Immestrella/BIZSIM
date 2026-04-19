@@ -155,7 +155,7 @@ export function saveSimulationSettings(ui, silent = false) {
   ui.engine.config.SIMULATION.useActiveWorldbooks = useActiveWorldbooks;
   ui.engine.config.SIMULATION.worldbookNames = worldbookNames;
   ui.engine.config.SIMULATION.worldbookEntrySelectors = worldbookEntrySelectors;
-  if (!Number.isNaN(worldbookEntryLimit) && worldbookEntryLimit > 0) ui.engine.config.SIMULATION.worldbookEntryLimit = worldbookEntryLimit;
+  if (!Number.isNaN(worldbookEntryLimit) && worldbookEntryLimit >= 0) ui.engine.config.SIMULATION.worldbookEntryLimit = worldbookEntryLimit;
   ui.engine.config.SIMULATION.useHistory = useHistory;
   ui.engine.config.SIMULATION.autoSave = autoSave;
   ui.engine.config.SIMULATION.includeFloorData = includeFloorData;
