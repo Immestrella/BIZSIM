@@ -6921,10 +6921,25 @@ function setSimulationState(isSimulating, source = '') {
 
 function getMessageFromEvent(messageId) {
   try {
-    if (typeof getChatMessages !== 'function' || messageId === null || messageId === undefined) return null;
-    const messages = getChatMessages(messageId);
-    if (Array.isArray(messages) && messages.length > 0) return messages[0];
-  } catch {
+    if (messageId === null || messageId === undefined) return null;
+
+    // 优先使用兼容层封装，避免不同 ST 版本的参数行为差异。
+    if (typeof getChatMessageByIdSafe === 'function') {
+      const message = getChatMessageByIdSafe(messageId);
+      if (message && typeof message === 'object') return message;
+    }
+
+    // 兜底：某些环境下 messageId 即 chat 数组下标。
+    const idx = Number(messageId);
+    if (Number.isInteger(idx) && Array.isArray(window?.chat) && idx >= 0 && idx < window.chat.length) {
+      const message = window.chat[idx];
+      if (message && typeof message === 'object') return message;
+    }
+  } catch (error) {
+    console.debug('[BizSim][AutoSim] getMessageFromEvent failed', {
+      messageId,
+      error: error?.message || String(error),
+    });
   }
   return null;
 }
